@@ -52,8 +52,13 @@ function findUndefinedTags(ladder: LadderRoutine, project: PlcProject): Undefine
   return [...found].map(([name, inferredType]) => ({ name, inferredType }));
 }
 
-// Bit instructions first, then timers/counters, move, and compares.
-const INSTRUCTION_BUTTONS = ["XIC", "XIO", "OTE", "TON", "CTU", "MOV", "EQU", "GRT", "LES"] as const;
+// Bit, latch, timer/counter, move, math, and compare instructions.
+const INSTRUCTION_BUTTONS = [
+  "XIC", "XIO", "OTE", "OTL", "OTU",
+  "TON", "CTU",
+  "MOV", "ADD", "SUB", "MUL", "DIV",
+  "EQU", "NEQ", "GRT", "GEQ", "LES", "LEQ",
+] as const;
 
 export function EditorArea({
   project,

@@ -39,7 +39,7 @@ const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
                 <Text><![CDATA[XIC(StartPB)MOV(123,SomeDint);]]></Text>
               </Rung>
               <Rung Number="3" Type="N">
-                <Text><![CDATA[XIC(StartPB)ADD(SomeDint,1,SomeDint);]]></Text>
+                <Text><![CDATA[XIC(StartPB)JSR(SubRoutine);]]></Text>
               </Rung>
             </RLLContent>
           </Routine>
@@ -82,9 +82,9 @@ describe("parseRungText", () => {
   });
 
   it("preserves unsupported instructions and reports them", () => {
-    const parsed = parseRungText("XIC(StartPB)ADD(SomeDint,1,SomeDint);", registry);
-    expect(parsed.unsupportedTypes).toContain("ADD");
-    expect(parsed.root.nodes.map((n) => n.instructionType)).toEqual(["XIC", "ADD"]);
+    const parsed = parseRungText("XIC(StartPB)JSR(SubRoutine);", registry);
+    expect(parsed.unsupportedTypes).toContain("JSR");
+    expect(parsed.root.nodes.map((n) => n.instructionType)).toEqual(["XIC", "JSR"]);
   });
 });
 
@@ -120,8 +120,8 @@ describe("importL5X (fixture)", () => {
     expect(controller.tasks[0]!.name).toBe("MainTask");
     expect(controller.tasks[0]!.scheduledProgramIds).toEqual([program.id]);
 
-    // The ADD on rung 3 is unsupported and surfaced as a warning.
-    expect(warnings.some((w) => w.includes("ADD"))).toBe(true);
+    // The JSR on rung 3 is unsupported and surfaced as a warning.
+    expect(warnings.some((w) => w.includes("JSR"))).toBe(true);
   });
 
   it("rejects non-L5X input with a clear error", () => {
@@ -135,13 +135,13 @@ describe("L5X → domain → .plcproj.json round trip", () => {
     const restored = deserializeProject(serializeProject(project));
     expect(restored).toEqual(project);
     expect(routineNodes(mainLadder(restored)).map((n) => n.instructionType)).toEqual([
-      "XIC", "XIO", "OTE", "XIC", "TON", "XIC", "MOV", "XIC", "ADD",
+      "XIC", "XIO", "OTE", "XIC", "TON", "XIC", "MOV", "XIC", "JSR",
     ]);
   });
 });
 
 describe("Imported supported logic simulates", () => {
-  it("scans the imported MainRoutine (XIC/OTE, TON, MOV; ADD passes through)", () => {
+  it("scans the imported MainRoutine (XIC/OTE, TON, MOV; JSR passes through)", () => {
     const { project } = importL5X(FIXTURE);
     const runtime = createRuntime({ routine: mainLadder(project), tags: [], registry });
 
@@ -239,7 +239,7 @@ describe("importL5X (realistic fixture)", () => {
     expect(summary.routines).toBe(2);
     expect(summary.rungs).toBe(6);
     expect(summary.tags).toBe(10); // 9 controller + 1 program
-    expect(summary.unsupportedInstructions).toEqual(["ADD", "JSR"]);
+    expect(summary.unsupportedInstructions).toEqual(["JSR"]);
   });
 
   it("extracts descriptions on tags, programs, and routines", () => {

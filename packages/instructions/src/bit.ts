@@ -49,3 +49,37 @@ export const OTE: InstructionDefinition = {
   },
   render: { symbol: "--( )--", style: "coil" },
 };
+
+/** OTL - Output Latch. Sets the BOOL tag true when the rung is true; never clears it. */
+export const OTL: InstructionDefinition = {
+  type: "OTL",
+  displayName: "Output Latch",
+  category: "bit",
+  description: "Latches the BOOL tag true while the rung is true (retentive).",
+  operands: [
+    { name: "tag", label: "Tag", required: true, allowedTypes: ["BOOL"], direction: "write" },
+  ],
+  validate: requireTag,
+  execute: (node, ctx) => {
+    if (ctx.rungIn) ctx.writeBool(operandValue(node, 0), true);
+    return ctx.rungIn;
+  },
+  render: { symbol: "--(L)--", style: "coil" },
+};
+
+/** OTU - Output Unlatch. Clears the BOOL tag when the rung is true; never sets it. */
+export const OTU: InstructionDefinition = {
+  type: "OTU",
+  displayName: "Output Unlatch",
+  category: "bit",
+  description: "Unlatches the BOOL tag (sets false) while the rung is true.",
+  operands: [
+    { name: "tag", label: "Tag", required: true, allowedTypes: ["BOOL"], direction: "write" },
+  ],
+  validate: requireTag,
+  execute: (node, ctx) => {
+    if (ctx.rungIn) ctx.writeBool(operandValue(node, 0), false);
+    return ctx.rungIn;
+  },
+  render: { symbol: "--(U)--", style: "coil" },
+};

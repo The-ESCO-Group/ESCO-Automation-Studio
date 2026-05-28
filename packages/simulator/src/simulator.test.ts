@@ -394,3 +394,68 @@ describe("Integration - XIC(StartPB) MOV(123, SomeDint)", () => {
     expect(memory.readNumber("SomeDint")).toBe(123);
   });
 });
+
+describe("Expanded compares - NEQ / LEQ / GEQ", () => {
+  const run = (type: string, a: string, b: string) =>
+    registry.get(type)!.execute(node(type, a, b), contextFor(new TagMemory(), true));
+
+  it("NEQ passes when A != B", () => {
+    expect(run("NEQ", "5", "6")).toBe(true);
+    expect(run("NEQ", "5", "5")).toBe(false);
+  });
+
+  it("LEQ passes when A <= B", () => {
+    expect(run("LEQ", "5", "5")).toBe(true);
+    expect(run("LEQ", "6", "5")).toBe(false);
+  });
+
+  it("GEQ passes when A >= B", () => {
+    expect(run("GEQ", "5", "5")).toBe(true);
+    expect(run("GEQ", "4", "5")).toBe(false);
+  });
+});
+
+describe("Math - ADD / SUB / MUL / DIV", () => {
+  const run = (type: string, a: string, b: string): number => {
+    const memory = new TagMemory();
+    registry.get(type)!.execute(node(type, a, b, "Dest"), contextFor(memory, true));
+    return memory.readNumber("Dest");
+  };
+
+  it("computes the four operations", () => {
+    expect(run("ADD", "3", "4")).toBe(7);
+    expect(run("SUB", "10", "4")).toBe(6);
+    expect(run("MUL", "3", "4")).toBe(12);
+    expect(run("DIV", "12", "4")).toBe(3);
+  });
+
+  it("DIV by zero is safe (yields 0)", () => {
+    expect(run("DIV", "5", "0")).toBe(0);
+  });
+
+  it("does nothing when the rung is false", () => {
+    const memory = new TagMemory();
+    memory.write("Dest", 99);
+    registry.get("ADD")!.execute(node("ADD", "1", "2", "Dest"), contextFor(memory, false));
+    expect(memory.readNumber("Dest")).toBe(99);
+  });
+});
+
+describe("Latches - OTL / OTU", () => {
+  it("OTL sets true and is retentive; OTU clears", () => {
+    const memory = new TagMemory();
+    const otl = registry.get("OTL")!;
+    const otu = registry.get("OTU")!;
+
+    otl.execute(node("OTL", "Latch"), contextFor(memory, true));
+    expect(memory.readBool("Latch")).toBe(true);
+    // Rung false leaves the latch set (retentive).
+    otl.execute(node("OTL", "Latch"), contextFor(memory, false));
+    expect(memory.readBool("Latch")).toBe(true);
+    // OTU clears only while its rung is true.
+    otu.execute(node("OTU", "Latch"), contextFor(memory, false));
+    expect(memory.readBool("Latch")).toBe(true);
+    otu.execute(node("OTU", "Latch"), contextFor(memory, true));
+    expect(memory.readBool("Latch")).toBe(false);
+  });
+});

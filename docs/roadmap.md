@@ -18,11 +18,11 @@ Status legend: ✅ done · 🔜 next · ⏳ later
 
 1. **Real LLM connector** behind the same action layer (swap `planner.ts`;
    apply path and safety model unchanged; key via configuration).
-2. **More instructions:** OTL, OTU, ONS, RES, TOF, RTO, CTD, NEQ, LEQ, GEQ,
-   ADD, SUB, MUL, DIV.
+2. **More instructions:** ✅ OTL, OTU, NEQ, LEQ, GEQ, ADD, SUB, MUL, DIV added;
+   🔜 remaining: ONS, RES, TOF, RTO, CTD (need edge/retentive state).
 3. **Better branch editing UI** (create/split parallel branches in the editor,
    not only via imported/text rungs).
-4. **Cross-reference panel** — where each tag is read/written across routines.
+4. ✅ **Cross-reference panel** — where each tag is read/written across routines.
 5. **Tag table editor** — bulk create/edit/delete tags with types/descriptions.
 6. **Routine compare** — diff two routines / project versions.
 7. **L5X export research** (not yet implemented; import-only today).

@@ -63,3 +63,12 @@ export const GRT = compare("GRT", "Greater Than", "Passes when Source A is great
 
 /** LES - Less Than. Passes when Source A < Source B. */
 export const LES = compare("LES", "Less Than", "Passes when Source A is less than Source B.", (a, b) => a < b);
+
+/** NEQ - Not Equal. Passes when Source A != Source B. */
+export const NEQ = compare("NEQ", "Not Equal", "Passes when Source A does not equal Source B.", (a, b) => a !== b);
+
+/** LEQ - Less Than or Equal. */
+export const LEQ = compare("LEQ", "Less Than or Equal", "Passes when Source A <= Source B.", (a, b) => a <= b);
+
+/** GEQ - Greater Than or Equal. */
+export const GEQ = compare("GEQ", "Greater Than or Equal", "Passes when Source A >= Source B.", (a, b) => a >= b);
