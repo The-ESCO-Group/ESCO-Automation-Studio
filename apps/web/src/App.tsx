@@ -14,6 +14,7 @@ import {
   serializeProject,
   PLCPROJ_EXTENSION,
 } from "@esco/project-store";
+import { importL5X } from "@esco/parser-l5x";
 import { createDefaultEngine } from "@esco/validator";
 import { ProjectExplorer } from "./components/ProjectExplorer";
 import { EditorArea } from "./components/EditorArea";
@@ -38,7 +39,9 @@ export function App() {
   const [values, setValues] = useState<TagValues>(() => zeroValues(project));
   const [running, setRunning] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const l5xInputRef = useRef<HTMLInputElement>(null);
 
   const findings = useMemo(() => createDefaultEngine().run(project), [project]);
   const rows = watchRows(project, values);
@@ -76,19 +79,43 @@ export function App() {
     downloadTextFile(`${slugify(project.name)}${PLCPROJ_EXTENSION}`, serializeProject(project));
   };
   const handleImportClick = () => fileInputRef.current?.click();
+  const handleImportL5XClick = () => l5xInputRef.current?.click();
+
+  const loadProject = (loaded: typeof project) => {
+    setProject(loaded);
+    setValues(zeroValues(loaded)); // reset watch values from the loaded tags
+    setRunning(false);
+    setSelection(null);
+  };
+
   const handleFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = ""; // allow re-importing the same file
     if (!file) return;
     try {
-      const loaded = deserializeProject(await readFileAsText(file));
-      setProject(loaded);
-      setValues(zeroValues(loaded)); // reset watch values from the loaded BOOL tags
-      setRunning(false);
-      setSelection(null);
+      loadProject(deserializeProject(await readFileAsText(file)));
       setImportError(null);
+      setImportNotice(null);
     } catch (error) {
       setImportError(error instanceof Error ? error.message : "Failed to import project.");
+    }
+  };
+
+  const handleL5XSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const { project: imported, warnings } = importL5X(await readFileAsText(file));
+      loadProject(imported);
+      setImportError(null);
+      setImportNotice(
+        warnings.length > 0
+          ? `Imported "${imported.name}" with ${warnings.length} warning(s): ${warnings.join(" · ")}`
+          : `Imported "${imported.name}" from L5X.`,
+      );
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Failed to import L5X file.");
     }
   };
 
@@ -119,12 +146,22 @@ export function App() {
           <button type="button" className="esco-btn" onClick={handleImportClick}>
             Import Project
           </button>
+          <button type="button" className="esco-btn" onClick={handleImportL5XClick}>
+            Import L5X
+          </button>
           <input
             ref={fileInputRef}
             type="file"
             accept=".json,application/json"
             style={{ display: "none" }}
             onChange={handleFileSelected}
+          />
+          <input
+            ref={l5xInputRef}
+            type="file"
+            accept=".l5x,.L5X,.xml"
+            style={{ display: "none" }}
+            onChange={handleL5XSelected}
           />
         </div>
         <div className="esco-titlebar__status">Offline · No controller connected</div>
@@ -137,6 +174,19 @@ export function App() {
             type="button"
             className="esco-toast__close"
             onClick={() => setImportError(null)}
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+
+      {importNotice ? (
+        <div className="esco-toast esco-toast--info" role="status">
+          <span>{importNotice}</span>
+          <button
+            type="button"
+            className="esco-toast__close"
+            onClick={() => setImportNotice(null)}
           >
             ×
           </button>

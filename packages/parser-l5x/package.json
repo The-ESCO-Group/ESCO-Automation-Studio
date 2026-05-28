@@ -12,9 +12,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@esco/core": "workspace:*"
+    "@esco/core": "workspace:*",
+    "@esco/shared": "workspace:*",
+    "@esco/ladder": "workspace:*",
+    "@esco/instructions": "workspace:*",
+    "fast-xml-parser": "^4.5.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.2"
+    "@esco/simulator": "workspace:*",
+    "@esco/project-store": "workspace:*",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
   }
 }

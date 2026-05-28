@@ -13,6 +13,7 @@
     "@esco/core": "workspace:*",
     "@esco/instructions": "workspace:*",
     "@esco/ladder": "workspace:*",
+    "@esco/parser-l5x": "workspace:*",
     "@esco/project-store": "workspace:*",
     "@esco/simulator": "workspace:*",
     "@esco/ui": "workspace:*",

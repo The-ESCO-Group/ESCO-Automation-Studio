@@ -68,7 +68,9 @@ export class RungExecutor {
   ): boolean {
     const definition = this.registry.get(node.instructionType);
     if (!definition) {
-      throw new Error(`Unknown instruction type: ${node.instructionType}`);
+      // Unsupported (e.g. imported) instruction: act as a pass-through wire so a
+      // partially-supported routine still scans without crashing.
+      return rungIn;
     }
 
     const ctx: InstructionRuntimeContext = {

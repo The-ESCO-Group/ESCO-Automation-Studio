@@ -103,6 +103,12 @@ body {
   color: var(--error);
 }
 
+.esco-toast--info {
+  top: 96px;
+  border-color: var(--info);
+  color: var(--info);
+}
+
 .esco-toast__close {
   background: none;
   border: none;

@@ -91,7 +91,15 @@ export const ladderOperands: ValidationRule = {
 
           for (const node of routineNodes(ladder)) {
             const definition = registry.get(node.instructionType);
-            if (!definition) continue;
+            if (!definition) {
+              findings.push({
+                ruleId: "unsupported-instruction",
+                severity: "info",
+                message: `Instruction "${node.instructionType}" is not supported and will not be simulated.`,
+                target,
+              });
+              continue;
+            }
 
             definition.operands.forEach((operandDef, index) => {
               const value = node.operands[index]?.value?.trim() ?? "";

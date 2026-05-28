@@ -1,13 +1,23 @@
-import type { PlcProject } from "@esco/core";
+import { createDefaultRegistry, type InstructionRegistry } from "@esco/instructions";
+import { parseL5X } from "./parseL5X";
+import { toDomainProject, type ImportResult } from "./toDomainProject";
+
+export * from "./parseL5X";
+export * from "./parseRungText";
+export * from "./extractController";
+export * from "./extractTags";
+export * from "./extractRoutines";
+export * from "./extractPrograms";
+export * from "./toDomainProject";
 
 /**
- * L5X import entry point (stub).
- *
- * Part 5 of the plan moves `server/plc-logic-parser.ts` from the reference
- * IO-Truth-Engine project into this package and fleshes out the extractor /
- * mapping pipeline. For now this throws so callers fail loudly rather than
- * silently importing nothing.
+ * Import an L5X (RSLogix 5000 export) XML string into the internal project
+ * model. Returns the project plus warnings for anything imported with caveats
+ * (unsupported instructions, branch logic). Throws an `Error` for invalid input.
  */
-export function parseL5X(_xml: string): PlcProject {
-  throw new Error("parseL5X is not implemented yet (planned for Part 5).");
+export function importL5X(
+  xml: string,
+  registry: InstructionRegistry = createDefaultRegistry(),
+): ImportResult {
+  return toDomainProject(parseL5X(xml), registry);
 }
