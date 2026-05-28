@@ -79,6 +79,69 @@ describe("undefined-tag rule", () => {
   });
 });
 
+/** A one-program project with the given program-scoped tags (alias supported). */
+function projectWithProgramTags(
+  tags: { name: string; type: string; aliasFor?: string }[],
+): PlcProject {
+  const project = createProject("Test");
+  const controller = createController(project.id, "DemoController");
+  const program = createProgram(controller.id, "MainProgram");
+  const routine = createRoutine(program.id, "MainRoutine", "ladder");
+  program.mainRoutineId = routine.id;
+  routine.ladder = createLadderRoutine();
+  program.routines.push(routine);
+  for (const t of tags) {
+    const tag = createTag(controller.id, t.name, t.type, { scope: "program", programId: program.id });
+    if (t.aliasFor) tag.aliasFor = t.aliasFor;
+    program.programTags.push(tag);
+  }
+  controller.programs.push(program);
+  project.controllers.push(controller);
+  return project;
+}
+
+describe("double-coil rule", () => {
+  it("flags a BOOL driven by two OTE coils", () => {
+    const project = projectWithNodes(
+      [
+        createNode("OTE", [tagOperand("tag", "MotorRun")]),
+        createNode("OTE", [tagOperand("tag", "MotorRun")]),
+      ],
+      [{ name: "MotorRun", type: "BOOL" }],
+    );
+    expect(createDefaultEngine().run(project).some((f) => f.ruleId === "double-coil")).toBe(true);
+  });
+
+  it("does not flag a single coil", () => {
+    const project = projectWithNodes(
+      [createNode("OTE", [tagOperand("tag", "MotorRun")])],
+      [{ name: "MotorRun", type: "BOOL" }],
+    );
+    expect(createDefaultEngine().run(project).some((f) => f.ruleId === "double-coil")).toBe(false);
+  });
+});
+
+describe("program-tag rules", () => {
+  it("flags a duplicate program tag", () => {
+    const project = projectWithProgramTags([
+      { name: "Flag", type: "BOOL" },
+      { name: "Flag", type: "BOOL" },
+    ]);
+    expect(createDefaultEngine().run(project).some((f) => f.ruleId === "duplicate-program-tag")).toBe(true);
+  });
+
+  it("flags an alias whose target is missing, accepts one that resolves", () => {
+    const missing = projectWithProgramTags([{ name: "MotorCmd", type: "ALIAS", aliasFor: "Ghost" }]);
+    expect(createDefaultEngine().run(missing).some((f) => f.ruleId === "alias-target-missing")).toBe(true);
+
+    const resolved = projectWithProgramTags([
+      { name: "Run", type: "BOOL" },
+      { name: "MotorCmd", type: "ALIAS", aliasFor: "Run" },
+    ]);
+    expect(createDefaultEngine().run(resolved).some((f) => f.ruleId === "alias-target-missing")).toBe(false);
+  });
+});
+
 describe("operand validation for the new instructions", () => {
   it("flags a missing required operand", () => {
     // TON with only the timer operand — preset is missing.

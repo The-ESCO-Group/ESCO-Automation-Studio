@@ -175,8 +175,114 @@ export const ladderOperands: ValidationRule = {
   },
 };
 
+/** Tag names must be unique within a program scope. */
+export const duplicateProgramTag: ValidationRule = {
+  id: "duplicate-program-tag",
+  name: "Duplicate program tag",
+  category: "syntax",
+  severity: "error",
+  run({ project }) {
+    const findings: ValidationFinding[] = [];
+    for (const controller of project.controllers) {
+      for (const program of controller.programs) {
+        const seen = new Set<string>();
+        for (const tag of program.programTags) {
+          if (seen.has(tag.name)) {
+            findings.push({
+              ruleId: "duplicate-program-tag",
+              severity: "error",
+              message: `Duplicate program tag "${tag.name}" in "${program.name}".`,
+              target: `${controller.name}/${program.name}/${tag.name}`,
+            });
+          }
+          seen.add(tag.name);
+        }
+      }
+    }
+    return findings;
+  },
+};
+
+/** An alias tag should resolve to an existing base tag (in any scope of the controller). */
+export const aliasTargetMissing: ValidationRule = {
+  id: "alias-target-missing",
+  name: "Alias target missing",
+  category: "syntax",
+  severity: "warning",
+  run({ project }) {
+    const findings: ValidationFinding[] = [];
+    for (const controller of project.controllers) {
+      const names = new Set<string>();
+      for (const tag of controller.controllerTags) names.add(tag.name);
+      for (const program of controller.programs) {
+        for (const tag of program.programTags) names.add(tag.name);
+      }
+      const check = (tag: { name: string; aliasFor?: string }, target: string) => {
+        if (tag.aliasFor && !names.has(baseTagName(tag.aliasFor))) {
+          findings.push({
+            ruleId: "alias-target-missing",
+            severity: "warning",
+            message: `Alias "${tag.name}" targets missing tag "${tag.aliasFor}".`,
+            target,
+          });
+        }
+      };
+      for (const tag of controller.controllerTags) check(tag, `${controller.name}/${tag.name}`);
+      for (const program of controller.programs) {
+        for (const tag of program.programTags) check(tag, `${controller.name}/${program.name}/${tag.name}`);
+      }
+    }
+    return findings;
+  },
+};
+
+/**
+ * Double-coil: a BOOL driven by more than one OTE across the controller. Legal in
+ * Logix but a common mistake — the last coil to scan wins each scan.
+ */
+export const doubleCoil: ValidationRule = {
+  id: "double-coil",
+  name: "Duplicate output coil",
+  category: "best-practice",
+  severity: "warning",
+  run({ project }) {
+    const findings: ValidationFinding[] = [];
+    for (const controller of project.controllers) {
+      const count = new Map<string, number>();
+      const where = new Map<string, string>();
+      for (const program of controller.programs) {
+        for (const routine of program.routines) {
+          const ladder = asLadderRoutine(routine.ladder);
+          if (!ladder) continue;
+          for (const node of routineNodes(ladder)) {
+            if (node.instructionType !== "OTE") continue;
+            const base = baseTagName(node.operands[0]?.value ?? "");
+            if (!base) continue;
+            count.set(base, (count.get(base) ?? 0) + 1);
+            where.set(base, `${controller.name}/${program.name}/${routine.name}`);
+          }
+        }
+      }
+      for (const [tag, n] of count) {
+        if (n >= 2) {
+          findings.push({
+            ruleId: "double-coil",
+            severity: "warning",
+            message: `Tag "${tag}" is driven by ${n} OTE coils (the last coil scanned wins each scan).`,
+            target: where.get(tag)!,
+          });
+        }
+      }
+    }
+    return findings;
+  },
+};
+
 export const defaultRules: ValidationRule[] = [
   missingMainRoutine,
   duplicateControllerTag,
+  duplicateProgramTag,
+  aliasTargetMissing,
+  doubleCoil,
   ladderOperands,
 ];

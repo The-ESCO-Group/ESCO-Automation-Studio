@@ -40,7 +40,9 @@ try {
   await page.locator(".esco-ai__applied").waitFor({ timeout: 5000 });
   const appliedText = await page.locator(".esco-ai__applied").innerText();
   check("apply reports success", /Applied/.test(appliedText), appliedText.replace(/\s+/g, " "));
-  check("validation clean after apply", /clean/.test(appliedText));
+  // The demo already has an OTE(MotorRun); the AI motor starter adds another, so the
+  // validator now correctly reports a double-coil finding (instead of "clean").
+  check("validation runs after apply (double-coil flagged)", /finding/.test(appliedText), appliedText.replace(/\s+/g, " "));
 
   // Tags + rung were added (Watch + explorer).
   const explorer = await page.locator(".esco-left").innerText();
