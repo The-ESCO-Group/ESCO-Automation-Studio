@@ -1182,3 +1182,110 @@ body {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ---- Instruction palette (grouped) ---- */
+.esco-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+
+.esco-palette__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-panel);
+}
+
+.esco-palette__label {
+  color: var(--text-dim);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-right: 4px;
+}
+
+.esco-btn--instr {
+  font-size: 11px;
+  padding: 2px 7px;
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+
+/* ---- Rung selection / header (cleanup pass) ---- */
+.esco-lad__rung {
+  cursor: pointer;
+}
+
+.esco-lad__rung.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.esco-lad__rung-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  color: var(--text-dim);
+}
+
+.esco-lad__comment-input {
+  flex: 1;
+  min-width: 120px;
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+}
+
+.esco-lad__comment-input:hover {
+  border-color: var(--border);
+}
+
+.esco-lad__comment-input:focus {
+  outline: none;
+  background: var(--bg);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.esco-lad__rung-delete {
+  margin-left: auto;
+}
+
+.esco-editor__norungs {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 24px;
+}
+
+/* ---- Instruction selection + unsupported ---- */
+.esco-lad__node.is-selected,
+.esco-lad__box.is-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+.esco-lad__box--unsupported {
+  border-style: dashed;
+  border-color: var(--warning);
+  background: var(--bg);
+}
+
+.esco-lad__box--unsupported .esco-lad__box-name {
+  color: var(--warning);
+}

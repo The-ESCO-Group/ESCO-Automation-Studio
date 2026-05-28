@@ -10,6 +10,8 @@ export interface LadderEditingHandlers {
   onEditOperand: (rungId: string, nodeId: string, index: number, value: string) => void;
   onRemoveInstruction: (rungId: string, nodeId: string) => void;
   isUndefinedTag: (name: string) => boolean;
+  selectedNodeId?: string;
+  onSelectNode?: (rungId: string, nodeId: string) => void;
 }
 
 interface EditingContextValue extends LadderEditingHandlers {
@@ -58,11 +60,18 @@ function RemoveButton({ editing, nodeId }: { editing: EditingContextValue; nodeI
       type="button"
       className="esco-lad__remove"
       title="Remove instruction"
-      onClick={() => editing.onRemoveInstruction(editing.rungId, nodeId)}
+      onClick={(event) => {
+        event.stopPropagation();
+        editing.onRemoveInstruction(editing.rungId, nodeId);
+      }}
     >
       ×
     </button>
   );
+}
+
+function nodeClass(base: string, editing: EditingContextValue | null, nodeId: string): string {
+  return editing && editing.selectedNodeId === nodeId ? `${base} is-selected` : base;
 }
 
 /** XIC / XIO / OTE — a single-operand contact or coil. */
@@ -79,7 +88,11 @@ function ContactGlyph({ node }: { node: LadderNode }) {
     return <span className={`esco-lad__node esco-lad__node--${kind}`}>{`${lhs} ${value} ${rhs}`}</span>;
   }
   return (
-    <span className={`esco-lad__node esco-lad__node--${kind}`} title={node.instructionType}>
+    <span
+      className={nodeClass(`esco-lad__node esco-lad__node--${kind}`, editing, node.id)}
+      title={node.instructionType}
+      onClick={() => editing.onSelectNode?.(editing.rungId, node.id)}
+    >
       <span className="esco-lad__bracket">{lhs}</span>
       <OperandInput editing={editing} nodeId={node.id} index={0} value={value} placeholder="tag" />
       <span className="esco-lad__bracket">{rhs}</span>
@@ -92,14 +105,20 @@ function ContactGlyph({ node }: { node: LadderNode }) {
 function BoxGlyph({ node }: { node: LadderNode }) {
   const editing = useContext(EditingContext);
   const def = registry.get(node.instructionType);
+  const supported = !!def;
   const operandDefs = def?.operands ?? node.operands.map((_, i) => ({ name: `op${i}`, label: `op${i}` }));
+  const boxBase = `esco-lad__box${supported ? "" : " esco-lad__box--unsupported"}`;
 
   if (!editing) {
     const text = node.operands.map((operand) => operand.value || "?").join(", ");
-    return <span className="esco-lad__box esco-lad__box--readonly">{`${node.instructionType}(${text})`}</span>;
+    return <span className={`${boxBase} esco-lad__box--readonly`}>{`${node.instructionType}(${text})`}</span>;
   }
   return (
-    <span className="esco-lad__box" title={node.instructionType}>
+    <span
+      className={nodeClass(boxBase, editing, node.id)}
+      title={supported ? node.instructionType : `${node.instructionType} (unsupported, read-only)`}
+      onClick={() => editing.onSelectNode?.(editing.rungId, node.id)}
+    >
       <span className="esco-lad__box-name">{node.instructionType}</span>
       {operandDefs.map((operandDef, index) => (
         <span className="esco-lad__box-operand" key={operandDef.name}>

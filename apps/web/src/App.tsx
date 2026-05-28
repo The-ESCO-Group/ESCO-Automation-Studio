@@ -13,6 +13,7 @@ import {
   importProjectFile,
   removeInstruction,
   renameTag,
+  setRungComment,
   setTagDescription,
   updateInstructionOperand,
   type ProjectActionResult,
@@ -73,9 +74,23 @@ export function App() {
       return result.ok ? result.project : current;
     });
 
-  const handleAddRung = () => applyAction((p) => addRung(p, { routineId: targetRoutineId(p) }));
+  const handleAddRung = () => {
+    const rid = targetRoutineId(project);
+    if (!rid) return;
+    const result = addRung(project, { routineId: rid });
+    if (result.ok) {
+      setProject(result.project);
+      if (result.data) setSelection({ kind: "rung", routineId: rid, rungId: result.data.rungId });
+    }
+  };
   const handleDeleteRung = (rungId: string) =>
     applyAction((p) => deleteRung(p, { routineId: targetRoutineId(p), rungId }));
+  const handleSelectRung = (rungId: string) =>
+    setSelection({ kind: "rung", routineId: openRoutineId ?? "", rungId });
+  const handleSelectNode = (rungId: string, nodeId: string) =>
+    setSelection({ kind: "instruction", routineId: openRoutineId ?? "", rungId, nodeId });
+  const handleSetRungComment = (rungId: string, comment: string) =>
+    applyAction((p) => setRungComment(p, { routineId: targetRoutineId(p), rungId, comment }));
   const handleAddInstruction = (rungId: string, type: string) =>
     applyAction((p) => addInstruction(p, { routineId: targetRoutineId(p), rungId, instructionType: type }));
   const handleEditOperand = (rungId: string, nodeId: string, index: number, value: string) =>
@@ -128,6 +143,10 @@ export function App() {
           .find((tag) => tag.id === selection.id)?.name
       : undefined;
   const handleOpenRoutine = (routineId: string) => handleSelect({ kind: "routine", id: routineId });
+
+  const selectedRungId =
+    selection?.kind === "rung" || selection?.kind === "instruction" ? selection.rungId : undefined;
+  const selectedNodeId = selection?.kind === "instruction" ? selection.nodeId : undefined;
 
   // ---- File workflows ----
   const loadProject = (loaded: PlcProject) => {
@@ -305,12 +324,17 @@ export function App() {
               project={project}
               routine={openRoutine}
               ladder={openLadder}
+              selectedRungId={selectedRungId}
+              selectedNodeId={selectedNodeId}
               onAddRung={handleAddRung}
               onDeleteRung={handleDeleteRung}
               onAddInstruction={handleAddInstruction}
               onEditOperand={handleEditOperand}
               onRemoveInstruction={handleRemoveInstruction}
               onCreateTag={handleCreateTag}
+              onSelectRung={handleSelectRung}
+              onSelectNode={handleSelectNode}
+              onSetRungComment={handleSetRungComment}
             />
           ) : (
             <WelcomeDashboard

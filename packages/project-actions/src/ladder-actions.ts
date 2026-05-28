@@ -10,6 +10,7 @@ import {
   removeRung as ladderRemoveRung,
   rungNodes,
   setOperandValue as ladderSetOperandValue,
+  setRungComment as ladderSetRungComment,
   tagOperand,
 } from "@esco/ladder";
 import { parseRungText } from "@esco/parser-l5x";
@@ -22,6 +23,7 @@ import type {
   DeleteRungInput,
   ProjectActionResult,
   RemoveInstructionInput,
+  SetRungCommentInput,
   UpdateOperandInput,
 } from "./types";
 
@@ -157,6 +159,22 @@ export function removeInstruction(
       ladderRemoveInstruction(current, input.rungId, input.nodeId),
     ),
     { nodeId: input.nodeId },
+  );
+}
+
+/** Set or clear a rung's comment. */
+export function setRungComment(
+  project: PlcProject,
+  input: SetRungCommentInput,
+): ProjectActionResult<{ rungId: string }> {
+  if (!rungExists(project, input.routineId, input.rungId)) {
+    return fail(project, `Rung "${input.rungId}" not found.`);
+  }
+  return ok(
+    withRoutineLadder(project, input.routineId, (ladder) =>
+      ladderSetRungComment(ladder, input.rungId, input.comment),
+    ),
+    { rungId: input.rungId },
   );
 }
 

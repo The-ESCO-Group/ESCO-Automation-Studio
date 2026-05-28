@@ -11,19 +11,31 @@ interface Props {
   project: PlcProject;
   routine: Routine | undefined;
   ladder: LadderRoutine | undefined;
+  selectedRungId?: string;
+  selectedNodeId?: string;
   onAddRung: () => void;
   onDeleteRung: (rungId: string) => void;
   onAddInstruction: (rungId: string, instructionType: string) => void;
   onEditOperand: (rungId: string, nodeId: string, index: number, value: string) => void;
   onRemoveInstruction: (rungId: string, nodeId: string) => void;
   onCreateTag: (name: string, dataType: string) => void;
+  onSelectRung: (rungId: string) => void;
+  onSelectNode: (rungId: string, nodeId: string) => void;
+  onSetRungComment: (rungId: string, comment: string) => void;
 }
 
 interface UndefinedTag {
   name: string;
-  /** Type to create, inferred from the operand's allowed types (defaults to BOOL). */
   inferredType: string;
 }
+
+/** Instruction palette grouped by category. */
+const INSTRUCTION_GROUPS: { label: string; types: string[] }[] = [
+  { label: "Bit", types: ["XIC", "XIO", "OTE", "OTL", "OTU"] },
+  { label: "Timer / Counter", types: ["TON", "CTU"] },
+  { label: "Move / Math", types: ["MOV", "ADD", "SUB", "MUL", "DIV"] },
+  { label: "Compare", types: ["EQU", "NEQ", "GRT", "GEQ", "LES", "LEQ"] },
+];
 
 /** Collect tag references that don't exist yet, with the type they should be. */
 function findUndefinedTags(ladder: LadderRoutine, project: PlcProject): UndefinedTag[] {
@@ -33,7 +45,7 @@ function findUndefinedTags(ladder: LadderRoutine, project: PlcProject): Undefine
     node.operands.forEach((operand, index) => {
       const value = operand.value.trim();
       if (!value || isNumericLiteral(value)) return;
-      const base = baseTagName(value); // Timer1.DN -> Timer1, MyArray[0] -> MyArray
+      const base = baseTagName(value);
       if (!base || tagExists(project, base) || found.has(base)) return;
       found.set(base, definition?.operands[index]?.allowedTypes?.[0] ?? "BOOL");
     });
@@ -41,24 +53,21 @@ function findUndefinedTags(ladder: LadderRoutine, project: PlcProject): Undefine
   return [...found].map(([name, inferredType]) => ({ name, inferredType }));
 }
 
-// Bit, latch, timer/counter, move, math, and compare instructions.
-const INSTRUCTION_BUTTONS = [
-  "XIC", "XIO", "OTE", "OTL", "OTU",
-  "TON", "CTU",
-  "MOV", "ADD", "SUB", "MUL", "DIV",
-  "EQU", "NEQ", "GRT", "GEQ", "LES", "LEQ",
-] as const;
-
 export function EditorArea({
   project,
   routine,
   ladder,
+  selectedRungId,
+  selectedNodeId,
   onAddRung,
   onDeleteRung,
   onAddInstruction,
   onEditOperand,
   onRemoveInstruction,
   onCreateTag,
+  onSelectRung,
+  onSelectNode,
+  onSetRungComment,
 }: Props) {
   const undefinedTags = useMemo(
     () => (ladder ? findUndefinedTags(ladder, project) : []),
@@ -68,93 +77,116 @@ export function EditorArea({
   const editing = {
     onEditOperand,
     onRemoveInstruction,
+    onSelectNode,
+    selectedNodeId,
     isUndefinedTag: (value: string) => {
       const base = baseTagName(value);
       return base !== "" && !tagExists(project, base);
     },
   };
 
+  if (!routine || !ladder) {
+    return (
+      <div className="esco-editor">
+        <div className="esco-editor__empty">
+          <h1>ESCO Automation Studio</h1>
+          <p>Select a routine in the Project Explorer to edit its ladder.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="esco-editor">
       <div className="esco-editor__tabs">
-        <span className="esco-editor__tab is-active">
-          {routine ? routine.name : "Welcome"}
-        </span>
+        <span className="esco-editor__tab is-active">{routine.name}</span>
       </div>
 
       <div className="esco-editor__surface">
-        {routine && ladder ? (
-          <div className="esco-ladder">
-            <div className="esco-editor__toolbar">
-              <button type="button" className="esco-btn esco-btn--primary" onClick={onAddRung}>
-                + Add Rung
-              </button>
-              <span className="esco-editor__hint">
-                Edit operands inline; use each rung's buttons to add instructions.
-              </span>
-            </div>
-
-            {ladder.rungs.length === 0 ? (
-              <p className="esco-empty">No rungs yet — click “Add Rung” to start.</p>
-            ) : (
-              ladder.rungs.map((rung) => (
-                <div className="esco-lad__rung" key={rung.id}>
-                  <div className="esco-lad__rung-head">
-                    <span className="esco-lad__rung-no">{rung.number}</span>
-                    {rung.comment ? (
-                      <span className="esco-lad__comment">{rung.comment}</span>
-                    ) : null}
-                    <div className="esco-lad__rung-actions">
-                      {INSTRUCTION_BUTTONS.map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          className="esco-btn"
-                          onClick={() => onAddInstruction(rung.id, type)}
-                        >
-                          + {type}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        className="esco-btn esco-btn--danger"
-                        onClick={() => onDeleteRung(rung.id)}
-                      >
-                        Delete Rung
-                      </button>
-                    </div>
-                  </div>
-                  <RungDiagram rung={rung} editing={editing} />
-                </div>
-              ))
-            )}
-
-            {undefinedTags.length > 0 ? (
-              <div className="esco-undef">
-                <span className="esco-undef__label">Undefined tags:</span>
-                {undefinedTags.map(({ name, inferredType }) => (
+        <div className="esco-editor__toolbar">
+          <button type="button" className="esco-btn esco-btn--primary" onClick={onAddRung}>
+            + Add Rung
+          </button>
+          <div className="esco-palette">
+            {INSTRUCTION_GROUPS.map((group) => (
+              <div className="esco-palette__group" key={group.label}>
+                <span className="esco-palette__label">{group.label}</span>
+                {group.types.map((type) => (
                   <button
-                    key={name}
+                    key={type}
                     type="button"
-                    className="esco-btn esco-btn--create"
-                    onClick={() => onCreateTag(name, inferredType)}
+                    className="esco-btn esco-btn--instr"
+                    disabled={!selectedRungId}
+                    title={selectedRungId ? `Add ${type} to the selected rung` : "Select a rung first"}
+                    onClick={() => selectedRungId && onAddInstruction(selectedRungId, type)}
                   >
-                    + Create {inferredType} “{name}”
+                    {type}
                   </button>
                 ))}
               </div>
-            ) : null}
+            ))}
+          </div>
+        </div>
+
+        {ladder.rungs.length === 0 ? (
+          <div className="esco-editor__norungs">
+            <p className="esco-empty">This routine has no rungs yet.</p>
+            <button type="button" className="esco-btn esco-btn--primary" onClick={onAddRung}>
+              + Add first rung
+            </button>
           </div>
         ) : (
-          <div className="esco-editor__empty">
-            <h1>ESCO Automation Studio</h1>
-            <p>Select MainRoutine in the Project Explorer to edit the ladder.</p>
-            <p className="esco-editor__hint">
-              Ladder is a semantic model in <code>@esco/ladder</code>, executed by{" "}
-              <code>@esco/simulator</code>.
-            </p>
-          </div>
+          ladder.rungs.map((rung) => (
+            <div
+              key={rung.id}
+              className={`esco-lad__rung${selectedRungId === rung.id ? " is-selected" : ""}`}
+              onClick={() => onSelectRung(rung.id)}
+            >
+              <div className="esco-lad__rung-head">
+                <span className="esco-lad__rung-no">{rung.number}</span>
+                <input
+                  className="esco-lad__comment-input"
+                  defaultValue={rung.comment ?? ""}
+                  placeholder="Rung comment…"
+                  spellCheck={false}
+                  onClick={(event) => event.stopPropagation()}
+                  onBlur={(event) => {
+                    if (event.target.value !== (rung.comment ?? "")) {
+                      onSetRungComment(rung.id, event.target.value);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="esco-btn esco-btn--danger esco-lad__rung-delete"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDeleteRung(rung.id);
+                  }}
+                >
+                  Delete Rung
+                </button>
+              </div>
+              <RungDiagram rung={rung} editing={editing} />
+            </div>
+          ))
         )}
+
+        {undefinedTags.length > 0 ? (
+          <div className="esco-undef">
+            <span className="esco-undef__label">Undefined tags:</span>
+            {undefinedTags.map(({ name, inferredType }) => (
+              <button
+                key={name}
+                type="button"
+                className="esco-btn esco-btn--create"
+                onClick={() => onCreateTag(name, inferredType)}
+              >
+                + Create {inferredType} “{name}”
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

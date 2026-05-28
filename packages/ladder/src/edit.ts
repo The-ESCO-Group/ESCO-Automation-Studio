@@ -122,6 +122,15 @@ export function removeInstruction(
   }));
 }
 
+/** Set (or clear) a rung's comment. */
+export function setRungComment(
+  routine: LadderRoutine,
+  rungId: string,
+  comment: string,
+): LadderRoutine {
+  return mapRung(routine, rungId, (rung) => ({ ...rung, comment: comment || undefined }));
+}
+
 /** Apply `fn` to every node across every rung of the routine (immutably). */
 export function mapRoutineNodes(
   routine: LadderRoutine,

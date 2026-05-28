@@ -55,6 +55,12 @@ export interface DeleteRungInput {
   rungId: string;
 }
 
+export interface SetRungCommentInput {
+  routineId: string;
+  rungId: string;
+  comment: string;
+}
+
 export interface AddInstructionInput {
   routineId: string;
   rungId: string;

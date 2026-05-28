@@ -10,7 +10,7 @@ interface Props {
 
 export function ProjectExplorer({ project, selection, onSelect }: Props) {
   const isSelected = (kind: string, id: string) =>
-    selection?.kind === kind && selection.id === id;
+    !!selection && selection.kind === kind && "id" in selection && selection.id === id;
 
   return (
     <Panel title="Project Explorer">
@@ -40,7 +40,7 @@ export function ProjectExplorer({ project, selection, onSelect }: Props) {
               </li>
 
               <li>
-                <span className="esco-tree__group">Programs</span>
+                <span className="esco-tree__group">Programs ({controller.programs.length})</span>
                 <ul className="esco-tree esco-tree--nested">
                   {controller.programs.map((program) => (
                     <li key={program.id}>
@@ -76,7 +76,9 @@ export function ProjectExplorer({ project, selection, onSelect }: Props) {
               </li>
 
               <li>
-                <span className="esco-tree__group">Controller Tags</span>
+                <span className="esco-tree__group">
+                  Controller Tags ({controller.controllerTags.length})
+                </span>
                 <ul className="esco-tree esco-tree--nested">
                   {controller.controllerTags.map((tag) => (
                     <li key={tag.id}>
