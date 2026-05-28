@@ -3,6 +3,7 @@ import { collectTagReferences } from "@esco/project-actions";
 import type { ValidationFinding } from "@esco/validator";
 import type { Forces, TraceEntry, WatchRow } from "../simulation";
 import type { SearchHit } from "../search";
+import type { ActivityEntry } from "../activity";
 import { CrossRefPanel } from "./CrossRefPanel";
 
 export type DockTab =
@@ -13,7 +14,9 @@ export type DockTab =
   | "watch"
   | "trend"
   | "trace"
-  | "forces";
+  | "forces"
+  | "logger"
+  | "task-monitor";
 
 interface Props {
   tab: DockTab;
@@ -37,6 +40,7 @@ interface Props {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   searchHits?: SearchHit[];
+  activity?: ActivityEntry[];
 }
 
 /** The Value-column content for one watched tag, by kind. */
@@ -131,6 +135,7 @@ export function BottomPanel({
   searchQuery = "",
   onSearchChange,
   searchHits = [],
+  activity = [],
 }: Props) {
   const setTab = onTabChange;
   const xrefCount = selectedTagName ? collectTagReferences(project, selectedTagName).length : 0;
@@ -275,6 +280,20 @@ export function BottomPanel({
         >
           Forces ({forceCount})
         </button>
+        <button
+          type="button"
+          className={`esco-dock__tab${tab === "logger" ? " is-active" : ""}`}
+          onClick={() => setTab("logger")}
+        >
+          Logger
+        </button>
+        <button
+          type="button"
+          className={`esco-dock__tab${tab === "task-monitor" ? " is-active" : ""}`}
+          onClick={() => setTab("task-monitor")}
+        >
+          Task Monitor
+        </button>
       </div>
 
       <div className="esco-dock__body">
@@ -303,14 +322,30 @@ export function BottomPanel({
                     <td>-</td>
                   </tr>
                 ) : (
-                  findings.map((finding, index) => (
+                  findings.map((finding, index) => {
+                    const targetParts = finding.target?.split("/") ?? [];
+                    const routineName = targetParts[targetParts.length - 1];
+                    const routine = project.controllers
+                      .flatMap((controller) => controller.programs)
+                      .flatMap((program) => program.routines)
+                      .find((candidate) => candidate.name === routineName);
+                    return (
                     <tr key={`${finding.ruleId}-${index}`} className={`esco-finding--${finding.severity}`}>
                       <td>{finding.severity}</td>
                       <td>{finding.ruleId}</td>
                       <td>{finding.message}</td>
-                      <td>{finding.target ?? "-"}</td>
+                      <td>
+                        {routine ? (
+                          <button type="button" className="esco-link" onClick={() => onOpenRoutine(routine.id)}>
+                            {finding.target}
+                          </button>
+                        ) : (
+                          finding.target ?? "-"
+                        )}
+                      </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -451,7 +486,15 @@ export function BottomPanel({
           </div>
         ) : tab === "trend" ? (
           <div className="esco-trend">
-            <p className="esco-empty">Trend data is not captured yet. Watch values remain available in Offline Simulation.</p>
+            <p className="esco-empty">Trend buffer capture is not implemented yet. Current watch values are shown below for selection context.</p>
+            <table className="esco-watch">
+              <thead><tr><th>Tag</th><th>Value</th><th>Type</th></tr></thead>
+              <tbody>
+                {tags.slice(0, 20).map((row) => (
+                  <tr key={row.name}><td>{row.name}</td><td>{String(row.value ?? "-")}</td><td>{row.dataType}</td></tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : tab === "trace" ? (
           <div className="esco-trace">
@@ -537,6 +580,48 @@ export function BottomPanel({
                 </tbody>
               </table>
             )}
+          </div>
+        ) : tab === "logger" ? (
+          <div className="esco-logger">
+            {activity.length === 0 ? (
+              <p className="esco-empty">No activity recorded yet. Imports, exports, verifies, comparisons, and AI-applied actions appear here.</p>
+            ) : (
+              <table className="esco-diagnostics__table">
+                <thead><tr><th>Time</th><th>Type</th><th>Message</th></tr></thead>
+                <tbody>
+                  {activity.map((entry) => (
+                    <tr key={entry.id}>
+                      <td>{new Date(entry.at).toLocaleTimeString()}</td>
+                      <td>{entry.kind}</td>
+                      <td>{entry.message}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ) : tab === "task-monitor" ? (
+          <div className="esco-taskmon">
+            <p className="esco-empty">Offline task metadata only. Real controller task execution metrics are not available.</p>
+            <table className="esco-diagnostics__table">
+              <thead><tr><th>Controller</th><th>Task</th><th>Type</th><th>Period</th><th>Priority</th><th>Watchdog</th><th>Programs</th><th>Inhibited</th></tr></thead>
+              <tbody>
+                {project.controllers.flatMap((controller) =>
+                  controller.tasks.map((task) => (
+                    <tr key={task.id}>
+                      <td>{controller.name}</td>
+                      <td>{task.name}</td>
+                      <td>{task.type}</td>
+                      <td>{task.periodMs != null ? `${task.periodMs} ms` : "-"}</td>
+                      <td>{task.priority ?? "-"}</td>
+                      <td>{task.watchdogMs != null ? `${task.watchdogMs} ms` : "-"}</td>
+                      <td>{task.scheduledProgramIds.length}</td>
+                      <td>{task.inhibited ? "yes" : "no"}</td>
+                    </tr>
+                  )),
+                )}
+              </tbody>
+            </table>
           </div>
         ) : (
           <p className="esco-empty">Select a dock tab.</p>

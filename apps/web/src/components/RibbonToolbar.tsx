@@ -11,8 +11,11 @@ interface Props {
   onTags: () => void;
   onCompare: () => void;
   onExport: () => void;
+  onExportL5X: () => void;
+  onExportTagsCsv: () => void;
   onImportProject: () => void;
   onImportL5X: () => void;
+  onImportTagsCsv: () => void;
   onNew: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -49,8 +52,11 @@ export function RibbonToolbar({
   onTags,
   onCompare,
   onExport,
+  onExportL5X,
+  onExportTagsCsv,
   onImportProject,
   onImportL5X,
+  onImportTagsCsv,
   onNew,
   onUndo,
   onRedo,
@@ -70,6 +76,7 @@ export function RibbonToolbar({
     { label: "Save", icon: "▣", group: "File", action: onExport },
     { label: "Save All", icon: "▤", group: "File", action: onExport },
     { label: "Close", icon: "✕", group: "File", disabled: !canClose, title: "Close the current project", action: onClose },
+    { label: "Export L5X", icon: "LX", group: "File", title: "Generate an offline review-only .L5X", action: onExportL5X },
     { label: "Print", icon: "⌘", group: "File", action: placeholder("Print") },
     { label: "Undo", icon: "↶", group: "Edit", disabled: !canUndo, action: onUndo },
     { label: "Redo", icon: "↷", group: "Edit", disabled: !canRedo, action: onRedo },
@@ -93,11 +100,13 @@ export function RibbonToolbar({
     { label: "Forces", icon: "⊙", group: "Views", action: () => onDockTab("forces") },
     { label: "Trend", icon: "⌁", group: "Views", action: () => onDockTab("trend") },
     { label: "Data Monitor", icon: "▦", group: "Views", action: () => onDockTab("watch") },
+    { label: "Export Tags", icon: "CSV", group: "Tools", title: "Export tags as CSV", action: onExportTagsCsv },
+    { label: "Import Tags", icon: "CSV", group: "Tools", title: "Preview and import tag CSV", action: onImportTagsCsv },
     { label: "Compare", icon: "⇔", group: "Tools", action: onCompare },
     { label: "Cross Reference", icon: "⌬", group: "Tools", action: () => onDockTab("references") },
     { label: "Properties", icon: "☷", group: "Tools", title: "Show properties of the selection", action: onProperties },
-    { label: "Logger", icon: "≡", group: "Views", action: placeholder("Logger") },
-    { label: "Task Monitor", icon: "▧", group: "Views", action: placeholder("Task Monitor") },
+    { label: "Logger", icon: "≡", group: "Views", action: () => onDockTab("logger") },
+    { label: "Task Monitor", icon: "▧", group: "Views", action: () => onDockTab("task-monitor") },
   ];
 
   const groups = [...new Set(buttons.map((button) => button.group))];
@@ -125,6 +134,7 @@ export function RibbonToolbar({
           <button type="button" className="esco-btn" onClick={onTags}>Tags</button>
           <button type="button" className="esco-btn" onClick={onCompare}>Compare</button>
           <button type="button" className="esco-btn" onClick={onExport}>Export Project</button>
+          <button type="button" className="esco-btn" onClick={onExportL5X}>Export L5X</button>
           <button type="button" className="esco-btn" onClick={onImportProject}>Import Project</button>
           <button type="button" className="esco-btn esco-btn--l5x" onClick={onImportL5X}>Import L5X</button>
         </div>

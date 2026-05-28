@@ -3,10 +3,14 @@ import type { PlcProject } from "@esco/core";
 import {
   compareProjects,
   compareReportCsv,
+  compareReportHtml,
   compareReportJson,
+  compareStructure,
+  type NamedDiff,
   type ProjectComparison,
   type RoutineMatch,
   type RoutineRef,
+  type StructureComparison,
 } from "@esco/compare";
 import { downloadTextFile, slugify } from "../file-io";
 
@@ -24,6 +28,49 @@ const STATUS_LABEL: Record<RoutineMatch["status"], string> = {
 
 function refLabel(ref: RoutineRef): string {
   return `${ref.programName} / ${ref.routineName}`;
+}
+
+function diffCount(diff: NamedDiff): number {
+  return diff.added.length + diff.removed.length + diff.changed.length;
+}
+
+function StructureDiffTable({ title, diff }: { title: string; diff: NamedDiff }) {
+  const rows = [
+    ...diff.changed.map((entry) => ({ status: "changed", name: entry.name, detail: entry.details.join("; ") })),
+    ...diff.added.map((name) => ({ status: "added", name, detail: "Only in comparison" })),
+    ...diff.removed.map((name) => ({ status: "removed", name, detail: "Only in current" })),
+  ];
+  return (
+    <section className="esco-cmp__section">
+      <h2>{title} ({diffCount(diff)})</h2>
+      {rows.length === 0 ? (
+        <p className="esco-empty">No structure differences.</p>
+      ) : (
+        <table className="esco-diagnostics__table">
+          <thead><tr><th>Status</th><th>Name</th><th>Details</th></tr></thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={`${row.status}:${row.name}`}>
+                <td>{row.status}</td>
+                <td>{row.name}</td>
+                <td>{row.detail}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="esco-cmp__muted">{diff.unchanged} unchanged.</p>
+    </section>
+  );
+}
+
+function structureDiffCount(structure: StructureComparison): number {
+  return (
+    diffCount(structure.tags) +
+    diffCount(structure.dataTypes) +
+    diffCount(structure.addOnInstructions) +
+    diffCount(structure.modules)
+  );
 }
 
 /** A changed pair: header row that expands to a side-by-side normalized diff. */
@@ -86,13 +133,19 @@ export function CompareView({ project, comparison, onChooseFile }: Props) {
     () => (comparison ? compareProjects(project, comparison.project, { canonicalize: mode }) : null),
     [project, comparison, mode],
   );
+  const structureResult = useMemo(
+    () => (comparison ? compareStructure(project, comparison.project) : null),
+    [project, comparison],
+  );
 
-  const exportReport = (format: "json" | "csv", data: ProjectComparison) => {
+  const exportReport = (format: "json" | "csv" | "html", data: ProjectComparison) => {
     const base = `${slugify(project.name)}-vs-${slugify(comparison?.name ?? "comparison")}-compare`;
     if (format === "json") {
       downloadTextFile(`${base}.json`, compareReportJson(data));
-    } else {
+    } else if (format === "csv") {
       downloadTextFile(`${base}.csv`, compareReportCsv(data));
+    } else {
+      downloadTextFile(`${base}.html`, compareReportHtml(data, structureResult ?? undefined), "text/html");
     }
   };
 
@@ -129,6 +182,9 @@ export function CompareView({ project, comparison, onChooseFile }: Props) {
               <button type="button" className="esco-btn" onClick={() => exportReport("csv", result)}>
                 Export CSV
               </button>
+              <button type="button" className="esco-btn" onClick={() => exportReport("html", result)}>
+                Export HTML
+              </button>
             </>
           ) : null}
         </div>
@@ -151,6 +207,11 @@ export function CompareView({ project, comparison, onChooseFile }: Props) {
             <span className="esco-cmp__chip esco-cmp__chip--changed">{result.summary.changed} changed</span>
             <span className="esco-cmp__chip esco-cmp__chip--left">{result.summary.onlyInLeft} only in current</span>
             <span className="esco-cmp__chip esco-cmp__chip--right">{result.summary.onlyInRight} only in comparison</span>
+            {structureResult ? (
+              <span className="esco-cmp__chip esco-cmp__chip--structure">
+                {structureDiffCount(structureResult)} structure differences
+              </span>
+            ) : null}
           </div>
 
           {result.warnings.length > 0 ? (
@@ -207,6 +268,16 @@ export function CompareView({ project, comparison, onChooseFile }: Props) {
               ))}
             </ul>
           </section>
+
+          {structureResult ? (
+            <section className="esco-cmp__structure" aria-label="Structure comparison">
+              <h2 className="esco-cmp__structure-title">Structure Differences</h2>
+              <StructureDiffTable title="Tags" diff={structureResult.tags} />
+              <StructureDiffTable title="Data Types" diff={structureResult.dataTypes} />
+              <StructureDiffTable title="Add-On Instructions" diff={structureResult.addOnInstructions} />
+              <StructureDiffTable title="I/O Modules" diff={structureResult.modules} />
+            </section>
+          ) : null}
         </>
       )}
     </div>

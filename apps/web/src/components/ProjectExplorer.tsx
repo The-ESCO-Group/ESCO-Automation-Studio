@@ -131,10 +131,16 @@ export function ProjectExplorer({ project, selection, onSelect, empty = false }:
                       <ul className="esco-tree esco-tree--nested">
                         {controller.tasks.map((task) => (
                           <li key={task.id}>
-                            <span className="esco-tree__leaf">
+                            <button
+                              type="button"
+                              className={`esco-tree__node esco-tree__node--task${
+                                isSelected("task", task.id) ? " is-selected" : ""
+                              }`}
+                              onClick={() => onSelect({ kind: "task", id: task.id })}
+                            >
                               <span className="esco-tree__icon" aria-hidden="true">□</span>
                               {task.name} ({task.type})
-                            </span>
+                            </button>
                           </li>
                         ))}
                       </ul>

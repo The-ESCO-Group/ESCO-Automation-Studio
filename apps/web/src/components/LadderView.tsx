@@ -10,6 +10,7 @@ export interface LadderEditingHandlers {
   onEditOperand: (rungId: string, nodeId: string, index: number, value: string) => void;
   onRemoveInstruction: (rungId: string, nodeId: string) => void;
   isUndefinedTag: (name: string) => boolean;
+  operandSuggestions?: string[];
   selectedNodeId?: string;
   onSelectNode?: (rungId: string, nodeId: string) => void;
 }
@@ -40,17 +41,28 @@ function OperandInput({
 }) {
   const undefinedTag =
     value.length > 0 && !isNumericLiteral(value) && editing.isUndefinedTag(value);
+  const listId = `operand-suggestions-${editing.rungId}-${nodeId}-${index}`;
   return (
-    <input
-      className={`esco-lad__operand${undefinedTag ? " is-undefined" : ""}`}
-      value={value}
-      placeholder={placeholder}
-      size={Math.max(value.length, placeholder.length)}
-      spellCheck={false}
-      onChange={(event) =>
-        editing.onEditOperand(editing.rungId, nodeId, index, event.target.value)
-      }
-    />
+    <>
+      <input
+        className={`esco-lad__operand${undefinedTag ? " is-undefined" : ""}`}
+        value={value}
+        placeholder={placeholder}
+        size={Math.max(value.length, placeholder.length)}
+        spellCheck={false}
+        list={editing.operandSuggestions?.length ? listId : undefined}
+        onChange={(event) =>
+          editing.onEditOperand(editing.rungId, nodeId, index, event.target.value)
+        }
+      />
+      {editing.operandSuggestions?.length ? (
+        <datalist id={listId}>
+          {editing.operandSuggestions.map((suggestion) => (
+            <option key={suggestion} value={suggestion} />
+          ))}
+        </datalist>
+      ) : null}
+    </>
   );
 }
 

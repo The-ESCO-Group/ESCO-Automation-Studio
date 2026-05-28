@@ -11,11 +11,15 @@ import {
   deleteTag,
   duplicateRung,
   exportProjectJson,
+  exportProjectL5X,
+  exportTagsCsv,
   findRoutine,
   getLadder,
   importL5XFile,
   importProjectFile,
   pasteRung,
+  previewTagCsvImport,
+  applyTagCsvImport,
   removeBranchLeg,
   removeInstruction,
   renameTag,
@@ -23,6 +27,7 @@ import {
   setTagDescription,
   updateInstructionOperand,
   type ProjectActionResult,
+  type TagCsvImportPreview,
 } from "@esco/project-actions";
 import { PLCPROJ_EXTENSION } from "@esco/project-store";
 import type { LadderBranch } from "@esco/ladder";
@@ -43,6 +48,7 @@ import { RibbonToolbar } from "./components/RibbonToolbar";
 import { RightCopilotPanel, type CopilotTab } from "./components/RightCopilotPanel";
 import { StatusBar } from "./components/StatusBar";
 import { FirstRunSetup } from "./components/FirstRunSetup";
+import { TagCsvPreviewDialog } from "./components/TagCsvPreviewDialog";
 import type { Selection } from "./selection";
 import { createBlankRoutineProject, createInitialProject, findMainRoutine } from "./project-edit";
 import { searchProject } from "./search";
@@ -53,6 +59,11 @@ import { useHistoryState } from "./history";
 import { clearAutosave, loadAutosave, saveAutosave, type AutosaveEntry } from "./autosave";
 import { recordActivity, type ActivityEntry, type ActivityKind } from "./activity";
 import { loadAiProfile, profileInitials, saveAiProfile, type AiProfile } from "./ai-profile";
+import {
+  loadRecentProjects,
+  rememberRecentProject,
+  type RecentProjectEntry,
+} from "./recent-projects";
 
 const SCAN_INTERVAL_MS = 250;
 const AI_MODEL_NAME = "Opus 4.7";
@@ -83,8 +94,16 @@ export function App() {
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [aiProfile, setAiProfile] = useState<AiProfile | null>(() => loadAiProfile());
   const [setupOpen, setSetupOpen] = useState(false);
+  const [recentProjects, setRecentProjects] = useState<RecentProjectEntry[]>(() => loadRecentProjects());
+  const [tagCsvPreview, setTagCsvPreview] = useState<{
+    fileName: string;
+    csv: string;
+    preview: TagCsvImportPreview;
+  } | null>(null);
   const logActivity = (kind: ActivityKind, message: string) =>
     setActivity((log) => recordActivity(log, kind, message));
+  const rememberProject = (entry: Omit<RecentProjectEntry, "id" | "at">) =>
+    setRecentProjects((current) => rememberRecentProject(current, entry));
   const [lastImport, setLastImport] = useState<{ name: string; summary: ImportSummary } | null>(null);
   const [comparison, setComparison] = useState<{ name: string; project: PlcProject } | null>(null);
   const [clipboardRung, setClipboardRung] = useState<{ root: LadderBranch; comment?: string } | null>(null);
@@ -92,6 +111,7 @@ export function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const l5xInputRef = useRef<HTMLInputElement>(null);
   const compareInputRef = useRef<HTMLInputElement>(null);
+  const tagCsvInputRef = useRef<HTMLInputElement>(null);
 
   const findings = useMemo(() => createDefaultEngine().run(project), [project]);
   const rows = useMemo(() => watchRows(project, values), [project, values]);
@@ -118,9 +138,17 @@ export function App() {
     if (sel?.kind === "routine") {
       setOpenRoutineId(sel.id);
       setView("routine");
-    } else if (sel?.kind === "aoi" || sel?.kind === "udt" || sel?.kind === "io") {
+    } else if (
+      sel?.kind === "controller" ||
+      sel?.kind === "task" ||
+      sel?.kind === "program" ||
+      sel?.kind === "aoi" ||
+      sel?.kind === "udt" ||
+      sel?.kind === "io"
+    ) {
       setView("structure");
-    } else if (sel?.kind === "tag" || sel?.kind === "controller" || sel?.kind === "program") {
+      setCopilotTab("history");
+    } else if (sel?.kind === "tag") {
       setCopilotTab("history");
     }
   };
@@ -320,6 +348,7 @@ export function App() {
       setSelection({ kind: "routine", id: main.id });
       setView("routine");
     }
+    rememberProject({ name: blank.name, source: "created" });
     push("success", "Created a blank routine.");
   };
 
@@ -371,11 +400,32 @@ export function App() {
       setLastExportedAt(new Date().toISOString());
       clearAutosave();
       logActivity("export", `Exported "${project.name}" → ${filename}`);
+      rememberProject({ name: project.name, source: "exported", fileName: filename });
       push("success", `Exported "${project.name}" → ${filename}`);
     }
   };
+  const handleExportL5X = () => {
+    const result = exportProjectL5X(project);
+    if (!result.ok || !result.data) {
+      push("error", result.error ?? "Failed to export L5X.");
+      return;
+    }
+    const filename = `${slugify(project.name)}.L5X`;
+    downloadTextFile(filename, result.data.text);
+    logActivity("export", `Generated offline L5X "${filename}".`);
+    rememberProject({ name: project.name, source: "exported", fileName: filename });
+    push("success", "Generated offline L5X. Review before use. No .ACD modification.");
+    if (result.warnings?.length) push("warning", `${result.warnings.length} L5X export warning(s). Review generated file before use.`);
+  };
+  const handleExportTagsCsv = () => {
+    const filename = `${slugify(project.name)}-tags.csv`;
+    downloadTextFile(filename, exportTagsCsv(project));
+    logActivity("export", `Exported tag CSV "${filename}".`);
+    push("success", `Exported tag CSV "${filename}".`);
+  };
   const handleImportClick = () => fileInputRef.current?.click();
   const handleImportL5XClick = () => l5xInputRef.current?.click();
+  const handleImportTagsCsvClick = () => tagCsvInputRef.current?.click();
   const handleCompareFileClick = () => compareInputRef.current?.click();
 
   // Load a second project (.plcproj.json or .L5X) to compare against the current one.
@@ -408,6 +458,7 @@ export function App() {
       if (result.ok) {
         loadProject(result.project);
         logActivity("open", `Opened project "${result.project.name}".`);
+        rememberProject({ name: result.project.name, source: "opened", fileName: file.name });
         push("success", `Opened project "${result.project.name}".`);
       } else {
         push("error", result.error ?? "Failed to import project.");
@@ -436,6 +487,7 @@ export function App() {
       setLastImport({ name: result.project.name, summary: s });
       const counts = `${s.programs} program(s), ${s.routines} routine(s), ${s.rungs} rung(s), ${s.tags} tag(s)`;
       logActivity("import", `Imported L5X "${result.project.name}": ${counts}.`);
+      rememberProject({ name: result.project.name, source: "imported", fileName: file.name });
       const unsupported = s.unsupportedInstructions.length
         ? ` Unsupported: ${s.unsupportedInstructions.join(", ")}.`
         : "";
@@ -447,6 +499,40 @@ export function App() {
     } catch (error) {
       push("error", error instanceof Error ? error.message : "Failed to read the file.");
     }
+  };
+
+  const handleTagCsvSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const csv = await readFileAsText(file);
+      const preview = previewTagCsvImport(project, csv);
+      setTagCsvPreview({ fileName: file.name, csv, preview });
+      push(
+        preview.errorCount ? "warning" : "success",
+        `Previewed ${preview.rows.length} tag row(s): ${preview.createCount} create, ${preview.updateCount} update, ${preview.errorCount} error(s).`,
+      );
+    } catch (error) {
+      push("error", error instanceof Error ? error.message : "Failed to read tag CSV.");
+    }
+  };
+
+  const handleApplyTagCsv = () => {
+    if (!tagCsvPreview) return;
+    const result = applyTagCsvImport(project, tagCsvPreview.csv);
+    if (!result.ok || !result.data) {
+      push("error", result.error ?? "Failed to import tag CSV.");
+      return;
+    }
+    setProject(result.project);
+    setValues(zeroValues(result.project));
+    logActivity(
+      "import",
+      `Imported tag CSV "${tagCsvPreview.fileName}": ${result.data.created} created, ${result.data.updated} updated, ${result.data.skipped} skipped.`,
+    );
+    setTagCsvPreview(null);
+    push("success", `Imported tag CSV: ${result.data.created} created, ${result.data.updated} updated.`);
   };
 
   // Selecting inspectable items surfaces local details in the copilot History tab.
@@ -588,9 +674,12 @@ export function App() {
           onClose={handleCloseProject}
           onTags={() => requireProject(() => setView("tags"))}
           onCompare={() => requireProject(() => setView("compare"))}
-          onExport={handleExport}
+          onExport={() => requireProject(handleExport)}
+          onExportL5X={() => requireProject(handleExportL5X)}
+          onExportTagsCsv={() => requireProject(handleExportTagsCsv)}
           onImportProject={handleImportClick}
           onImportL5X={handleImportL5XClick}
+          onImportTagsCsv={() => requireProject(handleImportTagsCsvClick)}
           onNew={handleCreateRoutineProject}
           onUndo={handleUndo}
           onRedo={handleRedo}
@@ -613,6 +702,14 @@ export function App() {
             onClose={() => setSetupOpen(false)}
             onSave={handleSaveAiProfile}
           />
+          {tagCsvPreview ? (
+            <TagCsvPreviewDialog
+              fileName={tagCsvPreview.fileName}
+              preview={tagCsvPreview.preview}
+              onCancel={() => setTagCsvPreview(null)}
+              onApply={handleApplyTagCsv}
+            />
+          ) : null}
           <input
             ref={fileInputRef}
             type="file"
@@ -633,6 +730,13 @@ export function App() {
             accept=".json,.plcproj.json,.l5x,.L5X,.xml,application/json"
             style={{ display: "none" }}
             onChange={handleComparisonSelected}
+          />
+          <input
+            ref={tagCsvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            style={{ display: "none" }}
+            onChange={handleTagCsvSelected}
           />
         </>
       }
@@ -712,6 +816,8 @@ export function App() {
             onRenameTag={handleRenameTag}
             onDeleteTag={handleDeleteTag}
             onEditDescription={handleEditDescription}
+            onExportCsv={handleExportTagsCsv}
+            onImportCsv={handleImportTagsCsvClick}
           />
         ) : view === "compare" ? (
           <CompareView
@@ -728,6 +834,7 @@ export function App() {
             routines={activeContext.routines}
             activeRoutineId={openRoutineId}
             ladder={openLadder}
+            findings={findings}
             selectedRungId={selectedRungId}
             selectedNodeId={selectedNodeId}
             onAddRung={handleAddRung}
@@ -752,13 +859,16 @@ export function App() {
         ) : (
           <WelcomeDashboard
             onCreateRoutine={handleCreateRoutineProject}
+            onImportProject={handleImportClick}
             onImportL5X={handleImportL5XClick}
-            onExport={handleExport}
+            onExport={() => requireProject(handleExport)}
             onOpenAi={() => setCopilotTab("chat")}
-          onOpenCrossRef={() => setDockTab("references")}
-          onOpenWatch={() => setDockTab("watch")}
+            onOpenCrossRef={() => setDockTab("references")}
+            onOpenWatch={() => setDockTab("watch")}
             onOpenTags={() => requireProject(() => setView("tags"))}
             onOpenCompare={() => requireProject(() => setView("compare"))}
+            projectOpen={projectOpen}
+            recentProjects={recentProjects}
             lastImport={lastImport}
           />
         )
@@ -806,6 +916,7 @@ export function App() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           searchHits={searchHits}
+          activity={activity}
         />
       }
       statusBar={

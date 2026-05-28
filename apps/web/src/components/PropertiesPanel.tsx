@@ -77,11 +77,36 @@ function buildView(props: Props): View | null {
       rows: [
         { label: "Name", value: controller.name },
         { label: "Processor", value: controller.processorType ?? "—" },
+        { label: "Catalog", value: controller.catalogNumber ?? "—" },
+        { label: "Firmware", value: controller.firmwareRevision ?? "—" },
+        { label: "Slot", value: controller.slot != null ? String(controller.slot) : "—" },
         { label: "Programs", value: String(controller.programs.length) },
         { label: "Tasks", value: String(controller.tasks.length) },
         { label: "Tags", value: String(controller.controllerTags.length) },
       ],
     };
+  }
+
+  if (selection.kind === "task") {
+    for (const controller of project.controllers) {
+      const task = controller.tasks.find((candidate) => candidate.id === selection.id);
+      if (task) {
+        return {
+          heading: "Task",
+          rows: [
+            { label: "Name", value: task.name },
+            { label: "Type", value: task.type },
+            { label: "Period", value: task.periodMs != null ? `${task.periodMs} ms` : "—" },
+            { label: "Priority", value: task.priority != null ? String(task.priority) : "—" },
+            { label: "Watchdog", value: task.watchdogMs != null ? `${task.watchdogMs} ms` : "—" },
+            { label: "Inhibited", value: task.inhibited ? "yes" : "no" },
+            { label: "Scheduled programs", value: String(task.scheduledProgramIds.length) },
+          ],
+          hint: "Imported task metadata only. The scheduler is not connected to a controller.",
+        };
+      }
+    }
+    return null;
   }
 
   if (selection.kind === "program") {
@@ -94,8 +119,11 @@ function buildView(props: Props): View | null {
             { label: "Name", value: program.name },
             { label: "Routines", value: String(program.routines.length) },
             { label: "Program tags", value: String(program.programTags.length) },
+            { label: "Parameters", value: String(program.parameters?.length ?? 0) },
+            { label: "Inhibited", value: program.inhibited ? "yes" : "no" },
             { label: "Description", value: program.description ?? "—" },
           ],
+          hint: "Program metadata is read-only unless a project-action exists for editing it.",
         };
       }
     }

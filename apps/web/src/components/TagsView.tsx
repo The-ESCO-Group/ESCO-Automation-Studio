@@ -16,6 +16,8 @@ interface Props {
   onRenameTag: (from: string, to: string) => void;
   onDeleteTag: (name: string) => void;
   onEditDescription: (name: string, description: string) => void;
+  onExportCsv: () => void;
+  onImportCsv: () => void;
 }
 
 interface TagRow {
@@ -48,6 +50,8 @@ export function TagsView({
   onRenameTag,
   onDeleteTag,
   onEditDescription,
+  onExportCsv,
+  onImportCsv,
 }: Props) {
   const [filter, setFilter] = useState("");
   const [newName, setNewName] = useState("");
@@ -99,6 +103,12 @@ export function TagsView({
           spellCheck={false}
         />
         <span className="esco-tags__count">{visible.length} of {rows.length} tags</span>
+        <button type="button" className="esco-btn" onClick={onExportCsv}>
+          Export CSV
+        </button>
+        <button type="button" className="esco-btn" onClick={onImportCsv}>
+          Import CSV
+        </button>
       </div>
 
       <div className="esco-tags__add">

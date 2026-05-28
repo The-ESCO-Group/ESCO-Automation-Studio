@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import type { PlcProject, Routine } from "@esco/core";
+import { arrayElementNames, isStructuredType, memberDefs, type PlcProject, type Routine } from "@esco/core";
 import { baseTagName, createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
 import { routineNodes, type LadderBranch, type LadderRung, type LadderRoutine } from "@esco/ladder";
+import type { ValidationFinding } from "@esco/validator";
 import { tagExists } from "../project-edit";
 import { capList } from "../windowing";
 import { RungDiagram } from "./LadderView";
@@ -20,6 +21,7 @@ interface Props {
   routines?: Routine[];
   activeRoutineId?: string;
   ladder: LadderRoutine | undefined;
+  findings?: ValidationFinding[];
   selectedRungId?: string;
   selectedNodeId?: string;
   onAddRung: () => void;
@@ -166,6 +168,158 @@ const INSTRUCTION_GROUPS: { label: string; types: string[] }[] = [
   { label: "Program", types: ["JSR", "SBR", "RET", "NOP", "AFI"] },
 ];
 
+const LANGUAGE_LABEL: Record<Routine["language"], string> = {
+  ladder: "Ladder",
+  "structured-text": "Structured Text",
+  "function-block": "Function Block",
+  sfc: "SFC",
+};
+
+function RoutineTabs({
+  routines,
+  activeRoutineId,
+  fallbackRoutineId,
+  onOpenRoutine,
+}: {
+  routines: Routine[];
+  activeRoutineId?: string;
+  fallbackRoutineId?: string;
+  onOpenRoutine?: (routineId: string) => void;
+}) {
+  return (
+    <div className="esco-editor__tabs">
+      {routines.map((candidate) => (
+        <button
+          key={candidate.id}
+          type="button"
+          className={`esco-editor__tab${(activeRoutineId ?? fallbackRoutineId) === candidate.id ? " is-active" : ""}`}
+          onClick={() => onOpenRoutine?.(candidate.id)}
+        >
+          {candidate.name}
+          <span className="esco-editor__tab-lang">{candidate.language === "ladder" ? "LD" : LANGUAGE_LABEL[candidate.language]}</span>
+        </button>
+      ))}
+      <button type="button" className="esco-editor__tab esco-editor__tab--disabled" disabled title="Open another routine">
+        +
+      </button>
+    </div>
+  );
+}
+
+function routineText(routine: Routine): string {
+  if (routine.language === "structured-text") return routine.structuredText ?? routine.sourceText ?? "";
+  return routine.sourceText ?? "";
+}
+
+function NonLadderRoutineView({ routine }: { routine: Routine }) {
+  const [query, setQuery] = useState("");
+  const source = routineText(routine);
+  const lines = source ? source.split(/\r?\n/) : [];
+  const term = query.trim().toLowerCase();
+  const visible = term
+    ? lines
+        .map((text, index) => ({ text, index }))
+        .filter((line) => line.text.toLowerCase().includes(term))
+    : lines.map((text, index) => ({ text, index }));
+  const copySource = () => {
+    void navigator.clipboard?.writeText(source);
+  };
+
+  return (
+    <div className="esco-nonladder">
+      <header className="esco-nonladder__head">
+        <div>
+          <h1>{routine.name}</h1>
+          <p>
+            {LANGUAGE_LABEL[routine.language]} readonly imported routine. Editing and simulation are not supported yet.
+          </p>
+        </div>
+        <span className="esco-detail__readonly">Read-only</span>
+      </header>
+      <div className="esco-nonladder__toolbar">
+        <input
+          className="esco-tags__search"
+          value={query}
+          placeholder="Search source..."
+          spellCheck={false}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <button type="button" className="esco-btn" disabled={!source} onClick={copySource}>
+          Copy source
+        </button>
+      </div>
+      {source ? (
+        routine.language === "structured-text" ? (
+          <ol className="esco-st-viewer">
+            {visible.map((line) => (
+              <li key={line.index} value={line.index + 1}>
+                <code>{line.text || " "}</code>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <pre className="esco-graphical-source">{source}</pre>
+        )
+      ) : (
+        <div className="esco-nonladder__empty">
+          <p>Readonly imported routine. Editing/simulation not supported yet.</p>
+          <p>No preserved source body was provided by the import backend.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function operandSuggestions(project: PlcProject): string[] {
+  const suggestions = new Set<string>();
+  const udts = new Map(project.controllers.flatMap((controller) => controller.dataTypes.map((udt) => [udt.name, udt.members])));
+  const tags = project.controllers.flatMap((controller) => [
+    ...controller.controllerTags,
+    ...controller.programs.flatMap((program) => program.programTags),
+  ]);
+
+  for (const tag of tags) {
+    suggestions.add(tag.name);
+    if (tag.dimension && tag.dimension > 0 && !isStructuredType(tag.dataType)) {
+      for (const element of arrayElementNames(tag.name, Math.min(tag.dimension, 32))) suggestions.add(element);
+    }
+    const members = isStructuredType(tag.dataType)
+      ? memberDefs(tag.dataType)
+      : udts.get(tag.dataType) ?? [];
+    for (const member of members) {
+      suggestions.add(`${tag.name}.${member.name}`);
+      const memberDimension = "dimension" in member ? member.dimension : undefined;
+      if (memberDimension && memberDimension > 0) {
+        for (let i = 0; i < Math.min(memberDimension, 16); i += 1) {
+          suggestions.add(`${tag.name}.${member.name}[${i}]`);
+        }
+      }
+    }
+  }
+
+  return [...suggestions].sort((a, b) => a.localeCompare(b));
+}
+
+function findingForRoutine(finding: ValidationFinding, routine: Routine): boolean {
+  return finding.target?.split("/").includes(routine.name) ?? false;
+}
+
+function rungText(rung: LadderRung): string {
+  return [
+    rung.comment ?? "",
+    ...routineNodes({ id: "tmp", rungs: [rung] }).flatMap((node) => [
+      node.instructionType,
+      ...node.operands.map((operand) => operand.value),
+    ]),
+  ].join(" ");
+}
+
+function findingMatchesRung(finding: ValidationFinding, rung: LadderRung): boolean {
+  const text = rungText(rung);
+  const quoted = [...finding.message.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+  return quoted.length > 0 ? quoted.some((part) => part && text.includes(part)) : false;
+}
+
 /** Collect tag references that don't exist yet, with the type they should be. */
 function findUndefinedTags(ladder: LadderRoutine, project: PlcProject): UndefinedTag[] {
   const found = new Map<string, string>();
@@ -188,6 +342,7 @@ export function EditorArea({
   routines = routine ? [routine] : [],
   activeRoutineId,
   ladder,
+  findings = [],
   selectedRungId,
   selectedNodeId,
   onAddRung,
@@ -210,6 +365,20 @@ export function EditorArea({
   onOpenRoutine,
 }: Props) {
   const [showAllRungs, setShowAllRungs] = useState(false);
+  const suggestions = useMemo(() => operandSuggestions(project), [project]);
+  const routineFindings = useMemo(
+    () => (routine ? findings.filter((finding) => findingForRoutine(finding, routine)) : []),
+    [findings, routine],
+  );
+  const findingsByRung = useMemo(() => {
+    const map = new Map<string, ValidationFinding[]>();
+    if (!ladder) return map;
+    for (const rung of ladder.rungs) {
+      const matches = routineFindings.filter((finding) => findingMatchesRung(finding, rung));
+      if (matches.length > 0) map.set(rung.id, matches);
+    }
+    return map;
+  }, [ladder, routineFindings]);
   const undefinedTags = useMemo(
     () => (ladder ? findUndefinedTags(ladder, project) : []),
     [ladder, project],
@@ -220,13 +389,14 @@ export function EditorArea({
     onRemoveInstruction,
     onSelectNode,
     selectedNodeId,
+    operandSuggestions: suggestions,
     isUndefinedTag: (value: string) => {
       const base = baseTagName(value);
       return base !== "" && !tagExists(project, base);
     },
   };
 
-  if (!routine || !ladder) {
+  if (!routine) {
     return (
       <div className="esco-editor">
         <div className="esco-editor__empty">
@@ -237,25 +407,36 @@ export function EditorArea({
     );
   }
 
+  if (routine.language !== "ladder" || !ladder) {
+    return (
+      <div className="esco-editor">
+        <RoutineTabs
+          routines={routines}
+          activeRoutineId={activeRoutineId}
+          fallbackRoutineId={routine.id}
+          onOpenRoutine={onOpenRoutine}
+        />
+        <NonLadderRoutineView routine={routine} />
+      </div>
+    );
+  }
+
   return (
     <div className="esco-editor">
-      <div className="esco-editor__tabs">
-        {routines.map((candidate) => (
-          <button
-            key={candidate.id}
-            type="button"
-            className={`esco-editor__tab${(activeRoutineId ?? routine.id) === candidate.id ? " is-active" : ""}`}
-            onClick={() => onOpenRoutine?.(candidate.id)}
-          >
-            {candidate.name}
-          </button>
-        ))}
-        <button type="button" className="esco-editor__tab esco-editor__tab--disabled" disabled title="Open another routine">
-          +
-        </button>
-      </div>
+      <RoutineTabs
+        routines={routines}
+        activeRoutineId={activeRoutineId}
+        fallbackRoutineId={routine.id}
+        onOpenRoutine={onOpenRoutine}
+      />
 
       <div className="esco-editor__surface">
+        {routineFindings.length > 0 ? (
+          <div className="esco-editor__validation">
+            <strong>{routineFindings.length} validation finding{routineFindings.length === 1 ? "" : "s"}</strong>
+            <span>Rung badges highlight findings that can be associated with referenced tags.</span>
+          </div>
+        ) : null}
         <div className="esco-editor__toolbar">
           <button type="button" className="esco-btn esco-btn--primary" onClick={onAddRung}>
             + Add Rung
@@ -311,13 +492,26 @@ export function EditorArea({
             </div>
           ) : null}
           {rungCap.items.map((rung) => (
+            (() => {
+              const rungFindings = findingsByRung.get(rung.id) ?? [];
+              return (
             <div
               key={rung.id}
-              className={`esco-lad__rung${selectedRungId === rung.id ? " is-selected" : ""}`}
+              className={`esco-lad__rung${selectedRungId === rung.id ? " is-selected" : ""}${
+                rungFindings.length ? " has-finding" : ""
+              }`}
               onClick={() => onSelectRung(rung.id)}
             >
               <div className="esco-lad__rung-head">
                 <span className="esco-lad__rung-no">{rung.number}</span>
+                {rungFindings.length > 0 ? (
+                  <span
+                    className={`esco-lad__finding esco-lad__finding--${rungFindings.some((finding) => finding.severity === "error") ? "error" : "warning"}`}
+                    title={rungFindings.map((finding) => finding.message).join("\n")}
+                  >
+                    {rungFindings.length}
+                  </span>
+                ) : null}
                 <input
                   className="esco-lad__comment-input"
                   defaultValue={rung.comment ?? ""}
@@ -374,6 +568,8 @@ export function EditorArea({
                 />
               ) : null}
             </div>
+              );
+            })()
           ))}
           </>
             );

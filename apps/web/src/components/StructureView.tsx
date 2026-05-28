@@ -1,4 +1,4 @@
-import type { AddOnInstruction, PlcProject, UserDefinedType } from "@esco/core";
+import type { AddOnInstruction, Controller, PlcProject, Program, Task, UserDefinedType } from "@esco/core";
 import { aoiReferences, tagsUsingType, udtMemberPaths } from "@esco/project-actions";
 import type { Selection } from "../selection";
 
@@ -22,6 +22,159 @@ function findUdt(project: PlcProject, id: string): UserDefinedType | undefined {
     if (udt) return udt;
   }
   return undefined;
+}
+
+function findController(project: PlcProject, id: string): Controller | undefined {
+  return project.controllers.find((controller) => controller.id === id);
+}
+
+function findProgram(project: PlcProject, id: string): { controller: Controller; program: Program } | undefined {
+  for (const controller of project.controllers) {
+    const program = controller.programs.find((candidate) => candidate.id === id);
+    if (program) return { controller, program };
+  }
+  return undefined;
+}
+
+function findTask(project: PlcProject, id: string): { controller: Controller; task: Task } | undefined {
+  for (const controller of project.controllers) {
+    const task = controller.tasks.find((candidate) => candidate.id === id);
+    if (task) return { controller, task };
+  }
+  return undefined;
+}
+
+function meta(value: unknown): string {
+  if (value === undefined || value === null || value === "") return "-";
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  return String(value);
+}
+
+function ControllerDetail({ controller }: { controller: Controller }) {
+  return (
+    <div className="esco-detail">
+      <header className="esco-detail__head">
+        <h1 className="esco-detail__title">Controller · {controller.name}</h1>
+        <span className="esco-detail__readonly">Offline metadata</span>
+      </header>
+      <section className="esco-detail__section">
+        <h2>Properties</h2>
+        <table className="esco-detail__table">
+          <tbody>
+            <tr><th>Processor</th><td>{meta(controller.processorType)}</td></tr>
+            <tr><th>Catalog</th><td>{meta(controller.catalogNumber)}</td></tr>
+            <tr><th>Firmware</th><td>{meta(controller.firmwareRevision)}</td></tr>
+            <tr><th>Chassis</th><td>{meta(controller.chassis)}</td></tr>
+            <tr><th>Slot</th><td>{meta(controller.slot)}</td></tr>
+            <tr><th>Fault routine</th><td>{meta(controller.faultRoutineName)}</td></tr>
+            <tr><th>Power-up routine</th><td>{meta(controller.powerUpRoutineName)}</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section className="esco-detail__section esco-detail__cards">
+        <div><strong>{controller.programs.length}</strong><span>Programs</span></div>
+        <div><strong>{controller.tasks.length}</strong><span>Tasks</span></div>
+        <div><strong>{controller.controllerTags.length}</strong><span>Controller tags</span></div>
+        <div><strong>{controller.ioConfiguration.modules.length}</strong><span>I/O modules</span></div>
+      </section>
+    </div>
+  );
+}
+
+function ProgramDetail({ controller, program, onOpenRoutine }: { controller: Controller; program: Program; onOpenRoutine: (id: string) => void }) {
+  const main = program.mainRoutineId ? program.routines.find((routine) => routine.id === program.mainRoutineId) : undefined;
+  const fault = program.faultRoutineId ? program.routines.find((routine) => routine.id === program.faultRoutineId) : undefined;
+  return (
+    <div className="esco-detail">
+      <header className="esco-detail__head">
+        <h1 className="esco-detail__title">Program · {program.name}</h1>
+        <span className="esco-detail__readonly">Offline metadata</span>
+      </header>
+      {program.description ? <p className="esco-detail__desc">{program.description}</p> : null}
+      <section className="esco-detail__section">
+        <h2>Configuration</h2>
+        <table className="esco-detail__table">
+          <tbody>
+            <tr><th>Controller</th><td>{controller.name}</td></tr>
+            <tr><th>Main routine</th><td>{main ? <button type="button" className="esco-link" onClick={() => onOpenRoutine(main.id)}>{main.name}</button> : "-"}</td></tr>
+            <tr><th>Fault routine</th><td>{fault ? <button type="button" className="esco-link" onClick={() => onOpenRoutine(fault.id)}>{fault.name}</button> : "-"}</td></tr>
+            <tr><th>Inhibited</th><td>{meta(program.inhibited)}</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section className="esco-detail__section">
+        <h2>Parameters ({program.parameters?.length ?? 0})</h2>
+        {program.parameters?.length ? (
+          <table className="esco-detail__table">
+            <thead><tr><th>Name</th><th>Type</th><th>Usage</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              {program.parameters.map((parameter) => (
+                <tr key={parameter.name}>
+                  <td>{parameter.name}</td>
+                  <td>{parameter.dataType}</td>
+                  <td>{meta(parameter.usage)}</td>
+                  <td>{meta(parameter.required)}</td>
+                  <td>{meta(parameter.description)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="esco-empty">No program parameters imported.</p>
+        )}
+      </section>
+      <section className="esco-detail__section">
+        <h2>Routines ({program.routines.length})</h2>
+        <ul className="esco-detail__list">
+          {program.routines.map((routine) => (
+            <li key={routine.id}>
+              <button type="button" className="esco-link" onClick={() => onOpenRoutine(routine.id)}>
+                {routine.name}
+              </button>
+              <span className="esco-detail__muted"> · {routine.language}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+function TaskDetail({ controller, task }: { controller: Controller; task: Task }) {
+  const scheduled = task.scheduledProgramIds
+    .map((id) => controller.programs.find((program) => program.id === id)?.name)
+    .filter((name): name is string => Boolean(name));
+  return (
+    <div className="esco-detail">
+      <header className="esco-detail__head">
+        <h1 className="esco-detail__title">Task · {task.name}</h1>
+        <span className="esco-detail__readonly">Offline metadata</span>
+      </header>
+      <section className="esco-detail__section">
+        <h2>Scheduling</h2>
+        <table className="esco-detail__table">
+          <tbody>
+            <tr><th>Controller</th><td>{controller.name}</td></tr>
+            <tr><th>Type</th><td>{task.type}</td></tr>
+            <tr><th>Period</th><td>{task.periodMs != null ? `${task.periodMs} ms` : "-"}</td></tr>
+            <tr><th>Priority</th><td>{meta(task.priority)}</td></tr>
+            <tr><th>Watchdog</th><td>{task.watchdogMs != null ? `${task.watchdogMs} ms` : "-"}</td></tr>
+            <tr><th>Inhibited</th><td>{meta(task.inhibited)}</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section className="esco-detail__section">
+        <h2>Scheduled programs ({scheduled.length})</h2>
+        {scheduled.length ? (
+          <ul className="esco-detail__list">
+            {scheduled.map((name) => <li key={name}>{name}</li>)}
+          </ul>
+        ) : (
+          <p className="esco-empty">No scheduled programs imported.</p>
+        )}
+      </section>
+    </div>
+  );
 }
 
 /** Read-only UDT detail: members (with array dims), member paths, and tags using it. */
@@ -228,6 +381,18 @@ function IoDetail({ project, controllerId, moduleId }: { project: PlcProject; co
 
 /** Dispatches to the read-only detail viewer for the selected structure node. */
 export function StructureView({ project, selection, onOpenRoutine }: Props) {
+  if (selection?.kind === "controller") {
+    const controller = findController(project, selection.id);
+    if (controller) return <ControllerDetail controller={controller} />;
+  }
+  if (selection?.kind === "program") {
+    const found = findProgram(project, selection.id);
+    if (found) return <ProgramDetail controller={found.controller} program={found.program} onOpenRoutine={onOpenRoutine} />;
+  }
+  if (selection?.kind === "task") {
+    const found = findTask(project, selection.id);
+    if (found) return <TaskDetail controller={found.controller} task={found.task} />;
+  }
   if (selection?.kind === "aoi") {
     const aoi = findAoi(project, selection.id);
     if (aoi) return <AoiDetail aoi={aoi} project={project} onOpenRoutine={onOpenRoutine} />;
@@ -241,7 +406,7 @@ export function StructureView({ project, selection, onOpenRoutine }: Props) {
   }
   return (
     <div className="esco-detail">
-      <p className="esco-empty">Select an Add-On Instruction, UDT, or I/O module in the explorer.</p>
+      <p className="esco-empty">Select a controller, task, program, Add-On Instruction, UDT, or I/O module in the explorer.</p>
     </div>
   );
 }
