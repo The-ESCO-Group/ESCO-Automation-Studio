@@ -856,3 +856,26 @@ body {
   color: var(--text-dim);
   padding: 8px 0;
 }
+
+/* ---- Cross reference ---- */
+.esco-xref__head {
+  margin-bottom: 6px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.esco-xref__row {
+  cursor: pointer;
+}
+
+.esco-xref__row:hover {
+  background: var(--bg-elevated);
+}
+
+.esco-xref__dir--write {
+  color: var(--accent);
+}
+
+.esco-xref__dir--read {
+  color: var(--text-dim);
+}

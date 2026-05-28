@@ -11,6 +11,7 @@ import {
   addInstruction,
   addRung,
   addRungFromText,
+  collectTagReferences,
   createRoutine as createRoutineAction,
   createTag,
   defaultValues,
@@ -226,6 +227,28 @@ describe("project-actions: validation and IO", () => {
     const result = importProjectFile("{ not json");
     expect(result.ok).toBe(false);
     expect(result.error).toBeTruthy();
+  });
+
+  it("collects tag cross-references with direction and location", () => {
+    const base = baseProject();
+    const p = addRungFromText(base.project, {
+      routineId: base.routineId,
+      text: "XIC(StartPB)TON(Timer1,1000)",
+    }).project;
+
+    const refs = collectTagReferences(p);
+    const start = refs.find((r) => r.tag === "StartPB");
+    expect(start?.instructionType).toBe("XIC");
+    expect(start?.direction).toBe("read");
+    expect(start?.routineName).toBe("MainRoutine");
+    expect(start?.rungNumber).toBe(0);
+
+    const timer = refs.find((r) => r.tag === "Timer1");
+    expect(timer?.instructionType).toBe("TON");
+    expect(timer?.direction).toBe("write");
+
+    // Filtering by tag name works (member paths resolve to the base tag).
+    expect(collectTagReferences(p, "Timer1").every((r) => r.tag === "Timer1")).toBe(true);
   });
 
   it("imports an L5X file through the action layer", () => {

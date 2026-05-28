@@ -78,6 +78,13 @@ export function App() {
     return result;
   };
   const selectedRoutineId = selection?.kind === "routine" ? selection.id : undefined;
+  const selectedTagName =
+    selection?.kind === "tag"
+      ? project.controllers
+          .flatMap((c) => [...c.controllerTags, ...c.programs.flatMap((p) => p.programTags)])
+          .find((tag) => tag.id === selection.id)?.name
+      : undefined;
+  const handleOpenRoutine = (routineId: string) => setSelection({ kind: "routine", id: routineId });
 
   // Persistence and import (the AST is the source of truth).
   const handleExport = () => {
@@ -252,7 +259,9 @@ export function App() {
           onToggleRun={() => setRunning((value) => !value)}
           project={project}
           selectedRoutineId={selectedRoutineId}
+          selectedTagName={selectedTagName}
           onApplyPlan={handleApplyPlan}
+          onOpenRoutine={handleOpenRoutine}
         />
       </footer>
     </div>

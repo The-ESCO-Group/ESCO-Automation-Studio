@@ -4,6 +4,7 @@ import type { AssistantPlan, ApplyResult } from "@esco/ai-assistant";
 import type { ValidationFinding } from "@esco/validator";
 import type { WatchRow } from "../simulation";
 import { AiAssistantPanel } from "./AiAssistantPanel";
+import { CrossRefPanel } from "./CrossRefPanel";
 
 interface Props {
   findings: ValidationFinding[];
@@ -16,10 +17,12 @@ interface Props {
   onToggleRun: () => void;
   project: PlcProject;
   selectedRoutineId?: string;
+  selectedTagName?: string;
   onApplyPlan: (plan: AssistantPlan) => ApplyResult;
+  onOpenRoutine: (routineId: string) => void;
 }
 
-type Tab = "errors" | "watch" | "ai";
+type Tab = "errors" | "watch" | "ai" | "xref";
 
 /** The Value-column content for one watched tag, by kind. */
 function WatchValue({
@@ -90,7 +93,9 @@ export function BottomPanel({
   onToggleRun,
   project,
   selectedRoutineId,
+  selectedTagName,
   onApplyPlan,
+  onOpenRoutine,
 }: Props) {
   const [tab, setTab] = useState<Tab>("watch");
 
@@ -117,6 +122,13 @@ export function BottomPanel({
           onClick={() => setTab("ai")}
         >
           AI Assistant
+        </button>
+        <button
+          type="button"
+          className={`esco-dock__tab${tab === "xref" ? " is-active" : ""}`}
+          onClick={() => setTab("xref")}
+        >
+          Cross Ref
         </button>
       </div>
 
@@ -182,11 +194,17 @@ export function BottomPanel({
               </table>
             )}
           </div>
-        ) : (
+        ) : tab === "ai" ? (
           <AiAssistantPanel
             project={project}
             selectedRoutineId={selectedRoutineId}
             onApply={onApplyPlan}
+          />
+        ) : (
+          <CrossRefPanel
+            project={project}
+            selectedTagName={selectedTagName}
+            onOpenRoutine={onOpenRoutine}
           />
         )}
       </div>
