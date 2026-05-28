@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-const URL = "http://localhost:5173/";
+import { URL, createBlankProject } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
 const rungCount = (page) => page.locator(".esco-lad__rung").count();
@@ -18,8 +18,7 @@ try {
   check("no recovery banner on a clean start", (await banner(page).count()) === 0);
 
   // Make an edit so the project is dirty, then let autosave fire (debounced ~1s).
-  await page.locator('button:has-text("MainRoutine")').first().click();
-  await page.locator('button:has-text("Add Rung")').waitFor({ timeout: 8000 });
+  await createBlankProject(page);
   const start = await rungCount(page);
   await page.locator('button:has-text("Add Rung")').click();
   await page.waitForFunction((n) => document.querySelectorAll(".esco-lad__rung").length === n + 1, start);

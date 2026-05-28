@@ -1,9 +1,9 @@
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { URL, createBlankProject } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const URL = "http://localhost:5173/";
 
 const results = [];
 const check = (label, cond, detail = "") => {
@@ -17,47 +17,30 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  await page.locator('button:has-text("MainRoutine")').first().click();
+  await page.evaluate(() => localStorage.removeItem("esco.ai.profile.v1"));
+  await page.reload({ waitUntil: "networkidle" });
+  await createBlankProject(page);
 
   // Open the AI Copilot chat tab in the right panel.
   await page.locator('.esco-copilot__tab:has-text("Chat")').click();
   check("AI Copilot chat opens", (await page.locator(".esco-ai").count()) === 1);
 
-  // Explain routine.
+  // Without first-run setup, quick prompts open Settings and no network call is made.
   await page.locator('button:has-text("Explain this routine")').click();
-  const explainText = await page.locator(".esco-ai__message").innerText();
-  check("explain routine responds", /Routine "MainRoutine"/.test(explainText), explainText.split("\n")[0]);
-
-  // Generate motor starter -> preview appears.
-  await page.locator('button:has-text("Add safe starter logic")').click();
-  await page.locator(".esco-ai__plan").waitFor({ timeout: 5000 });
-  const actionCount = await page.locator(".esco-ai__action").count();
-  check("motor starter preview shows actions", actionCount >= 1, `actions=${actionCount}`);
+  await page.locator(".esco-setup").waitFor({ timeout: 5000 });
+  check("quick prompt opens first-run setup when no API key is saved", (await page.locator(".esco-setup").count()) === 1);
   await page.screenshot({ path: join(here, "ai1-preview.png") });
+  await page.locator('.esco-setup button[aria-label="Close setup"]').click();
 
-  // Apply.
-  await page.locator('.esco-ai__plan button:has-text("Apply actions")').click();
-  await page.locator(".esco-ai__applied").waitFor({ timeout: 5000 });
-  const appliedText = await page.locator(".esco-ai__applied").innerText();
-  check("apply reports success", /Applied/.test(appliedText), appliedText.replace(/\s+/g, " "));
-  // The demo already has an OTE(MotorRun); the AI motor starter adds another, so the
-  // validator now correctly reports a double-coil finding (instead of "clean").
-  check("validation runs after apply (double-coil flagged)", /finding/.test(appliedText), appliedText.replace(/\s+/g, " "));
-
-  // Tags + rung were added (Watch + explorer).
-  const explorer = await page.locator(".esco-left").innerText();
-  check("StartPB tag created", /StartPB\s*:\s*BOOL/.test(explorer));
-  check("MotorRun tag created", /MotorRun\s*:\s*BOOL/.test(explorer));
-  check("seal-in rung added to routine", (await page.locator(".esco-lad__rung").count()) >= 2);
+  // Typed sends short-circuit locally until setup is complete.
+  await page.locator(".esco-copilot-live .esco-ai__prompt textarea").fill("Explain this routine");
+  await page.locator('.esco-copilot-live .esco-ai__prompt button:has-text("Send")').click();
+  await page.locator(".esco-ai__applied--error").waitFor({ timeout: 5000 });
+  const message = await page.locator(".esco-ai__applied--error").innerText();
+  check("missing setup blocks live send locally", /Settings|API key/i.test(message), message.trim());
+  check("no AI plan is applied without setup", (await page.locator(".esco-ai__plan").count()) === 0);
+  check("routine remains unchanged", (await page.locator(".esco-lad__rung").count()) === 0);
   await page.screenshot({ path: join(here, "ai2-applied.png") });
-
-  // Scan: toggle StartPB, scan, MotorRun true (seal-in via the AI-generated rung).
-  await page.locator('.esco-dock__tab:has-text("Watch")').click();
-  await page.locator('.esco-watch tr:has-text("StartPB") button:has-text("Toggle")').click();
-  await page.locator('button:has-text("Scan Once")').click();
-  await page.waitForTimeout(80);
-  const motor = await page.locator('.esco-watch tr:has-text("MotorRun") .esco-watch__value').first().innerText();
-  check("AI-generated logic simulates: MotorRun=true", /\btrue\b/.test(motor), motor.trim());
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

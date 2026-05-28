@@ -2,15 +2,15 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { readFileSync } from "node:fs";
+import { URL, importStarterProject } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const URL = "http://localhost:5173/";
 const exportPath = join(here, "compare-original.plcproj.json");
 const csvPath = join(here, "compare-report.csv");
 
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
-const titlebarBtn = (page, text) => page.locator(`.esco-titlebar__actions button:has-text("${text}")`);
+const ribbonBtn = (page, text) => page.locator(`.esco-ribbon__button:has-text("${text}")`).first();
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const context = await browser.newContext({ viewport: { width: 1400, height: 950 }, acceptDownloads: true });
@@ -18,11 +18,12 @@ const page = await context.newPage();
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
+  await importStarterProject(page);
 
   // Export the current (original) project to use as the comparison file.
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    titlebarBtn(page, "Export Project").click(),
+    ribbonBtn(page, "Save").click(),
   ]);
   await download.saveAs(exportPath);
   check("exported the current project for comparison", true);
@@ -34,7 +35,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung").length === 2);
 
   // Open the Compare view — empty until a file is chosen.
-  await titlebarBtn(page, "Compare").click();
+  await ribbonBtn(page, "Compare").click();
   await page.locator(".esco-cmp").waitFor({ timeout: 8000 });
   check("compare view shows an empty state before a file is chosen", (await page.locator(".esco-cmp__empty").count()) === 1);
 

@@ -2,6 +2,7 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { writeFileSync } from "node:fs";
+import { importL5XPath } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const URL = "http://localhost:5173/";
@@ -48,18 +49,14 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  const [chooser] = await Promise.all([
-    page.waitForEvent("filechooser"),
-    page.locator('.esco-titlebar__actions button:has-text("Import L5X")').click(),
-  ]);
-  await chooser.setFiles(fixturePath);
+  await importL5XPath(page, fixturePath);
   await page.locator('.esco-titlebar__project:has-text("PlantController")').waitFor({ timeout: 8000 });
 
   const notice = await page.locator(".esco-toast").innerText();
   check("import summary shows counts", /1 program\(s\),\s*1 routine\(s\),\s*2 rung\(s\),\s*5 tag\(s\)/.test(notice), notice);
   check("import summary lists unsupported PID", /Unsupported:\s*PID/.test(notice));
 
-  await page.locator('button:has-text("Main")').first().click();
+  await page.locator('.esco-tree__node--routine:has-text("Main")').first().click();
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung").length === 2);
   check("branch routine opens with 2 rungs", true);
   await page.screenshot({ path: join(here, "b1-imported.png") });
@@ -91,6 +88,3 @@ try {
 } finally {
   await browser.close();
 }
-
-
-

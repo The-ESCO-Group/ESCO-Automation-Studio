@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-const URL = "http://localhost:5173/";
+import { URL, importStarterProject } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
 const tab = (page, name) => page.locator(`.esco-dock__tab:has-text("${name}")`);
@@ -11,7 +11,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  await page.locator('button:has-text("MainRoutine")').first().click();
+  await importStarterProject(page);
   await tab(page, "Watch").click();
   check("MotorRun starts false", /\bfalse\b/.test(await motorVal(page)));
 

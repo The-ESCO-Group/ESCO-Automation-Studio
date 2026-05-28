@@ -2,6 +2,7 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { writeFileSync } from "node:fs";
+import { importL5XPath } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const URL = "http://localhost:5173/";
@@ -35,11 +36,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  const [chooser] = await Promise.all([
-    page.waitForEvent("filechooser"),
-    page.locator('.esco-titlebar__actions button:has-text("Import L5X")').click(),
-  ]);
-  await chooser.setFiles(fixturePath);
+  await importL5XPath(page, fixturePath);
   await page.locator('.esco-titlebar__project:has-text("IoCtl")').waitFor({ timeout: 8000 });
 
   // Click the I/O Configuration group node -> I/O detail view.

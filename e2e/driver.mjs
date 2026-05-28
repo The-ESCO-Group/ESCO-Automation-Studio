@@ -1,9 +1,9 @@
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { URL, importStarterProject } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const URL = "http://localhost:5173/";
 const results = [];
 const check = (label, cond, detail = "") => { results.push(!!cond); console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? "  — " + detail : ""}`); };
 const rungCount = (page) => page.locator(".esco-lad__rung").count();
@@ -15,8 +15,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  await page.locator('button:has-text("MainRoutine")').first().click();
-  await page.locator('button:has-text("Add Rung")').waitFor({ timeout: 8000 });
+  await importStarterProject(page);
   check("MainRoutine opens with the seal-in rung", (await rungCount(page)) === 1);
 
   // Add a rung (auto-selected), then delete the seal-in rung so only the new one remains.
@@ -24,7 +23,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung").length === 2);
   check("Add Rung adds a rung", (await rungCount(page)) === 2);
 
-  await page.locator('.esco-lad__rung:has(input[value="Seal-in motor starter"]) button:has-text("Delete Rung")').click();
+  await page.locator(".esco-lad__rung").first().locator('button:has-text("Delete Rung")').click();
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung").length === 1);
   check("Delete Rung removes the seal-in rung", (await rungCount(page)) === 1);
 

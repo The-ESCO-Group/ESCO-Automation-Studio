@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-const URL = "http://localhost:5173/";
+import { URL, importStarterProject } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
 const rows = (page) => page.locator(".esco-tags__table tbody tr");
@@ -9,7 +9,8 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  await page.locator('.esco-titlebar__actions button:has-text("Tags")').click();
+  await importStarterProject(page);
+  await page.locator('.esco-activity-rail__button[aria-label="Tags"]').click();
   await page.locator(".esco-tags").waitFor({ timeout: 5000 });
   const initial = await rows(page).count();
   check("tag table lists existing tags", initial >= 3, `rows=${initial}`);

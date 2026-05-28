@@ -1,9 +1,9 @@
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { URL, importStarterProject } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const URL = "http://localhost:5173/";
 
 const results = [];
 const check = (label, cond, detail = "") => {
@@ -20,6 +20,7 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
+  await importStarterProject(page);
 
   // The right rail is now the local AI Copilot with Chat + History.
   check("AI Copilot panel renders", (await page.locator(".esco-copilot").count()) === 1);
@@ -29,7 +30,7 @@ try {
   check("AI removed from bottom dock", (await page.locator('.esco-dock__tab:has-text("AI Assistant")').count()) === 0);
   check("bottom dock has a Forces tab", (await page.locator('.esco-dock__tab:has-text("Forces")').count()) === 1);
 
-  // Open the demo routine so the model summary has content.
+  // Open the imported routine so the model summary has content.
   await page.locator('button:has-text("MainRoutine")').first().click();
   await page.locator(".esco-lad__rung").first().waitFor({ timeout: 5000 });
 

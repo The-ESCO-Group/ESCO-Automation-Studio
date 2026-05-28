@@ -1,11 +1,13 @@
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { dismissToasts, importL5XPath, ribbonButton } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const URL = "http://localhost:5173/";
 const fixturePath = join(here, "fixture.L5X");
+const exportedPath = join(here, "exported-roundtrip.L5X");
 
 const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
 <RSLogix5000Content SchemaRevision="1.0" TargetName="DemoController" ContentType="Controller">
@@ -50,12 +52,8 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
 
-  // Import the L5X via the Import L5X button + native file chooser.
-  const [chooser] = await Promise.all([
-    page.waitForEvent("filechooser"),
-    page.locator('.esco-titlebar__actions button:has-text("Import L5X")').click(),
-  ]);
-  await chooser.setFiles(fixturePath);
+  // Import a real L5X fixture through the app's L5X file input.
+  await importL5XPath(page, fixturePath);
 
   await page.locator('.esco-titlebar__project:has-text("DemoController")').waitFor({ timeout: 8000 });
   check("imported project title shows DemoController", true);
@@ -67,6 +65,22 @@ try {
   // Import notice flags the unsupported ADD instruction.
   const notice = await page.locator(".esco-toast").innerText().catch(() => "");
   check("import notice warns about unsupported PID", /PID/.test(notice), notice.slice(0, 80));
+  await dismissToasts(page);
+
+  // Export the imported project back to review-only L5X, then re-import that generated file.
+  const [l5xDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    ribbonButton(page, "Export L5X").click(),
+  ]);
+  await l5xDownload.saveAs(exportedPath);
+  const generatedL5X = readFileSync(exportedPath, "utf-8");
+  check("Export L5X downloads an L5X file", /\.L5X$/i.test(l5xDownload.suggestedFilename()), l5xDownload.suggestedFilename());
+  check("downloaded L5X contains the controller name", /DemoController/.test(generatedL5X));
+
+  await page.reload({ waitUntil: "networkidle" });
+  await importL5XPath(page, exportedPath);
+  await page.locator('.esco-titlebar__project:has-text("DemoController")').waitFor({ timeout: 8000 });
+  check("generated L5X re-imports successfully", true);
 
   // Open the imported routine.
   await page.locator('button:has-text("MainRoutine")').first().click();
@@ -102,6 +116,3 @@ try {
 } finally {
   await browser.close();
 }
-
-
-

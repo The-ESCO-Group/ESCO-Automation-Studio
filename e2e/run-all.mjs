@@ -45,7 +45,9 @@ const ORDER = [
   "l5x-branch.mjs",
 ];
 
-const present = new Set(readdirSync(here).filter((f) => f.endsWith(".mjs") && f !== "run-all.mjs"));
+const present = new Set(
+  readdirSync(here).filter((f) => f.endsWith(".mjs") && f !== "run-all.mjs" && f !== "helpers.mjs"),
+);
 const drivers = [...ORDER.filter((d) => present.has(d)), ...[...present].filter((d) => !ORDER.includes(d))];
 
 async function devServerUp() {
@@ -66,9 +68,13 @@ if (!(await devServerUp())) {
 const summary = [];
 let totalPass = 0;
 let totalChecks = 0;
+const DRIVER_TIMEOUT_MS = Number(process.env.E2E_DRIVER_TIMEOUT_MS ?? 90000);
 
 for (const driver of drivers) {
-  const run = spawnSync(process.execPath, [join(here, driver)], { encoding: "utf-8" });
+  const run = spawnSync(process.execPath, [join(here, driver)], {
+    encoding: "utf-8",
+    timeout: DRIVER_TIMEOUT_MS,
+  });
   const out = `${run.stdout || ""}${run.stderr || ""}`;
   const m = out.match(/SUMMARY:\s*(\d+)\/(\d+)/);
   const failLines = out
@@ -82,6 +88,8 @@ for (const driver of drivers) {
     totalPass += pass;
     totalChecks += total;
     summary.push({ driver, label: `${pass}/${total}`, ok, fails: ok ? [] : failLines });
+  } else if (run.error && run.error.name === "Error" && run.error.message.includes("timed out")) {
+    summary.push({ driver, label: "TIMEOUT", ok: false, fails: [`Timed out after ${DRIVER_TIMEOUT_MS} ms`] });
   } else {
     summary.push({ driver, label: "NO SUMMARY", ok: false, fails: failLines.length ? failLines : [out.trim().slice(-200)] });
   }

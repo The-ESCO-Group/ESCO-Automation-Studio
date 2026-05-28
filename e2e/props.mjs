@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-const URL = "http://localhost:5173/";
+import { URL, importStarterProject } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
 const heading = async (page) => (await page.locator(".esco-props__heading").first().innerText()).trim().toLowerCase();
@@ -9,6 +9,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
+  await importStarterProject(page);
 
   // Tag selection -> Properties shows Tag details.
   await page.locator('.esco-tree__node--tag:has-text("StartPB")').click();

@@ -1,9 +1,9 @@
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { URL, importStarterProject } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const URL = "http://localhost:5173/";
 const results = [];
 const check = (label, cond, detail = "") => {
   results.push(!!cond);
@@ -16,6 +16,7 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
+  await importStarterProject(page);
 
   // Select the StartPB tag in the Project Explorer.
   await page.locator('.esco-tree__node--tag:has-text("StartPB")').click();

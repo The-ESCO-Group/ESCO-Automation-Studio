@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-const URL = "http://localhost:5173/";
+import { URL, importStarterProject } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
 const rungCount = (page) => page.locator(".esco-lad__rung").count();
@@ -12,8 +12,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  await page.locator('button:has-text("MainRoutine")').first().click();
-  await page.locator('button:has-text("Add Rung")').waitFor({ timeout: 8000 });
+  await importStarterProject(page);
 
   const startRungs = await rungCount(page);
   const perRung = (await operandCount(page)) / startRungs; // operands in the seal-in rung
@@ -39,7 +38,7 @@ try {
   check("Paste adds the copied rung", (await rungCount(page)) === beforePaste + 1);
 
   // Undo reverts the paste.
-  await page.locator('.esco-titlebar__actions button:has-text("Undo")').click();
+  await page.locator('.esco-ribbon__button:has-text("Undo")').first().click();
   await page.waitForFunction((n) => document.querySelectorAll(".esco-lad__rung").length === n, beforePaste);
   check("Undo reverts the paste", (await rungCount(page)) === beforePaste);
 

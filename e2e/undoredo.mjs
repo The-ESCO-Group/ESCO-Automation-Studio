@@ -1,9 +1,9 @@
 import { chromium } from "playwright-core";
-const URL = "http://localhost:5173/";
+import { URL, createBlankProject } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
-const undoBtn = (page) => page.locator('.esco-titlebar__actions button:has-text("Undo")');
-const redoBtn = (page) => page.locator('.esco-titlebar__actions button:has-text("Redo")');
+const undoBtn = (page) => page.locator('.esco-ribbon__button:has-text("Undo")').first();
+const redoBtn = (page) => page.locator('.esco-ribbon__button:has-text("Redo")').first();
 const rungCount = (page) => page.locator(".esco-lad__rung").count();
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
@@ -11,8 +11,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  await page.locator('button:has-text("MainRoutine")').first().click();
-  await page.locator('button:has-text("Add Rung")').waitFor({ timeout: 8000 });
+  await createBlankProject(page);
 
   check("Undo disabled before any edit", await undoBtn(page).isDisabled());
   const start = await rungCount(page);

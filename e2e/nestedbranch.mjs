@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-const URL = "http://localhost:5173/";
+import { URL, createBlankProject } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
 const leg = (page, i) => page.locator(".esco-branch-leg").nth(i);
@@ -11,8 +11,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  await page.locator('button:has-text("MainRoutine")').first().click();
-  await page.locator('button:has-text("Add Rung")').waitFor({ timeout: 8000 });
+  await createBlankProject(page);
 
   await page.locator('button:has-text("Add Rung")').click();
   await page.locator(".esco-branch-edit").waitFor({ timeout: 8000 });

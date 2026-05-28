@@ -1,11 +1,11 @@
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { URL, importStarterProject, openMainRoutine, ribbonButton } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const shot = (n) => join(here, n);
 const exportPath = join(here, "exported.plcproj.json");
-const URL = "http://localhost:5173/";
 
 const results = [];
 function check(label, cond, detail = "") {
@@ -23,10 +23,6 @@ async function setOperand(input, text) {
   await input.fill("");
   await input.pressSequentially(text);
 }
-async function openMainRoutine(page) {
-  await page.locator('button:has-text("MainRoutine")').first().click();
-  await page.locator('button:has-text("Add Rung")').waitFor({ timeout: 8000 });
-}
 async function valueOf(page, tag) {
   return (
     await page.locator(`.esco-watch tr:has-text("${tag}") .esco-watch__value`).first().innerText()
@@ -43,6 +39,7 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
+  await importStarterProject(page);
 
   // --- Edit: add a second rung XIC(StartPB) OTE(Lamp) and create the Lamp tag. ---
   await openMainRoutine(page);
@@ -69,22 +66,21 @@ try {
   // --- Export (browser download). ---
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.locator('button:has-text("Export Project")').click(),
+    ribbonButton(page, "Save").click(),
   ]);
   await download.saveAs(exportPath);
   check("exported a .plcproj.json", download.suggestedFilename().endsWith(".plcproj.json"),
     download.suggestedFilename());
 
-  // --- Refresh: state returns to the default seal-in project. ---
+  // --- Refresh: the browser returns to the honest empty workstation. ---
   await page.reload({ waitUntil: "networkidle" });
-  await openMainRoutine(page);
-  check("after refresh, back to default (1 rung)", (await rungCount(page)) === 1, `rungs=${await rungCount(page)}`);
+  check("after refresh, no project is auto-loaded", /No controllers/i.test(await page.locator(".esco-left").innerText()));
   check("after refresh, Lamp tag is gone", (await lampRows(page)) === 0, `lampRows=${await lampRows(page)}`);
 
-  // --- Import: click "Import Project" and choose the downloaded file. ---
+  // --- Import: click Open and choose the downloaded project file. ---
   const [chooser] = await Promise.all([
     page.waitForEvent("filechooser"),
-    page.locator('button:has-text("Import Project")').click(),
+    ribbonButton(page, "Open").click(),
   ]);
   await chooser.setFiles(exportPath);
   await page.waitForFunction(
