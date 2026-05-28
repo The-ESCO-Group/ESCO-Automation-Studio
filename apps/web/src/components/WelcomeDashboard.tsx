@@ -1,3 +1,5 @@
+import type { ImportSummary } from "@esco/parser-l5x";
+
 interface Card {
   title: string;
   description: string;
@@ -13,6 +15,7 @@ interface Props {
   onOpenCrossRef: () => void;
   onOpenWatch: () => void;
   onOpenTags: () => void;
+  lastImport?: { name: string; summary: ImportSummary } | null;
 }
 
 const FEATURES = [
@@ -39,6 +42,7 @@ export function WelcomeDashboard({
   onOpenCrossRef,
   onOpenWatch,
   onOpenTags,
+  lastImport,
 }: Props) {
   const cards: Card[] = [
     { title: "Open Demo Routine", description: "Edit the seal-in motor starter ladder.", action: onOpenDemo, primary: true },
@@ -93,6 +97,32 @@ export function WelcomeDashboard({
           </ul>
         </section>
       </div>
+
+      {lastImport ? (
+        <section className="esco-welcome__import">
+          <h2>Last L5X import — {lastImport.name}</h2>
+          <div className="esco-welcome__import-stats">
+            <span>{lastImport.summary.programs} programs</span>
+            <span>{lastImport.summary.routines} routines</span>
+            <span>{lastImport.summary.rungs} rungs</span>
+            <span>{lastImport.summary.tags} tags</span>
+            <span>
+              {lastImport.summary.unsupportedInstructions.length} unsupported
+              {lastImport.summary.unsupportedInstructions.length
+                ? `: ${lastImport.summary.unsupportedInstructions.join(", ")}`
+                : ""}
+            </span>
+            <span>{lastImport.summary.warnings.length} warnings</span>
+          </div>
+          {lastImport.summary.warnings.length > 0 ? (
+            <ul className="esco-welcome__import-warnings">
+              {lastImport.summary.warnings.map((warning, index) => (
+                <li key={index}>⚠ {warning}</li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
     </div>
   );
 }

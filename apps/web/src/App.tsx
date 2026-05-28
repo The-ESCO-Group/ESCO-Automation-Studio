@@ -19,6 +19,7 @@ import {
   type ProjectActionResult,
 } from "@esco/project-actions";
 import { PLCPROJ_EXTENSION } from "@esco/project-store";
+import type { ImportSummary } from "@esco/parser-l5x";
 import { applyPlan, type ApplyResult, type AssistantPlan } from "@esco/ai-assistant";
 import { createDefaultEngine } from "@esco/validator";
 import { ProjectExplorer } from "./components/ProjectExplorer";
@@ -45,6 +46,7 @@ export function App() {
   const [view, setView] = useState<CenterView>("welcome");
   const [openRoutineId, setOpenRoutineId] = useState<string | undefined>(undefined);
   const [dockTab, setDockTab] = useState<DockTab>("watch");
+  const [lastImport, setLastImport] = useState<{ name: string; summary: ImportSummary } | null>(null);
   const { toasts, push, dismiss } = useToasts();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const l5xInputRef = useRef<HTMLInputElement>(null);
@@ -205,6 +207,7 @@ export function App() {
       }
       loadProject(result.project);
       const s = result.data.summary;
+      setLastImport({ name: result.project.name, summary: s });
       const counts = `${s.programs} program(s), ${s.routines} routine(s), ${s.rungs} rung(s), ${s.tags} tag(s)`;
       const unsupported = s.unsupportedInstructions.length
         ? ` Unsupported: ${s.unsupportedInstructions.join(", ")}.`
@@ -348,6 +351,7 @@ export function App() {
               onOpenCrossRef={() => setDockTab("xref")}
               onOpenWatch={() => setDockTab("watch")}
               onOpenTags={() => setView("tags")}
+              lastImport={lastImport}
             />
           )}
         </main>
