@@ -85,13 +85,37 @@ function extractTasks(
       .map((scheduledNode) => programIdByName.get(attr(scheduledNode, "Name") ?? ""))
       .filter((id): id is string => Boolean(id));
 
+    const watchdog = Number(attr(taskNode, "Watchdog") ?? "");
+    const priority = Number(attr(taskNode, "Priority") ?? "");
+    const rate = Number(attr(taskNode, "Rate") ?? "");
     return [
       {
         ...createContinuousTask(controllerId, name, scheduled),
         type: mapTaskType(attr(taskNode, "Type")),
+        ...(Number.isFinite(watchdog) && watchdog > 0 ? { watchdogMs: watchdog } : {}),
+        ...(Number.isFinite(priority) && priority > 0 ? { priority } : {}),
+        ...(Number.isFinite(rate) && rate > 0 ? { periodMs: rate } : {}),
+        ...(attr(taskNode, "InhibitTask") === "true" ? { inhibited: true } : {}),
       },
     ];
   });
+}
+
+/** Read controller catalog/firmware/handler metadata (read-only; no controller communication). */
+function applyControllerMetadata(controller: { firmwareRevision?: string; catalogNumber?: string; chassis?: string; slot?: number; faultRoutineName?: string; powerUpRoutineName?: string }, controllerNode: L5XNode): void {
+  const major = attr(controllerNode, "MajorRev");
+  const minor = attr(controllerNode, "MinorRev");
+  if (major) controller.firmwareRevision = minor ? `${major}.${minor}` : major;
+  const catalog = attr(controllerNode, "CatalogNumber") ?? attr(controllerNode, "ProcessorType");
+  if (catalog) controller.catalogNumber = catalog;
+  const slot = Number(attr(controllerNode, "Slot") ?? "");
+  if (Number.isFinite(slot) && (attr(controllerNode, "Slot") ?? "") !== "") controller.slot = slot;
+  const chassis = attr(controllerNode, "ChassisType") ?? attr(controllerNode, "Chassis");
+  if (chassis) controller.chassis = chassis;
+  const faultHandler = attr(controllerNode, "FaultHandler") ?? attr(controllerNode, "FaultRoutineName");
+  if (faultHandler) controller.faultRoutineName = faultHandler;
+  const powerUp = attr(controllerNode, "PowerLossHandler") ?? attr(controllerNode, "PowerUpHandler");
+  if (powerUp) controller.powerUpRoutineName = powerUp;
 }
 
 /**
@@ -105,6 +129,7 @@ export function toDomainProject(root: L5XNode, registry: InstructionRegistry): I
   const project = createProject(controllerName, "Imported from an L5X file.");
   const controller = createController(project.id, controllerName);
   controller.processorType = attr(controllerNode, "ProcessorType");
+  applyControllerMetadata(controller, controllerNode);
 
   const controllerTags = extractTags(child(controllerNode, "Tags"), controller.id, "controller");
   controller.controllerTags.push(...controllerTags.tags);

@@ -33,6 +33,13 @@ export interface Controller {
   name: string;
   processorType?: string;
   firmwareRevision?: string;
+  /** Imported controller catalog metadata (read-only; no controller communication). */
+  catalogNumber?: string;
+  chassis?: string;
+  slot?: number;
+  /** Names of the controller's fault / power-up handler routines, when configured. */
+  faultRoutineName?: string;
+  powerUpRoutineName?: string;
 
   tasks: Task[];
   programs: Program[];
@@ -49,7 +56,20 @@ export interface Task {
   type: TaskType;
   periodMs?: number;
   priority?: number;
+  /** Watchdog timeout in milliseconds (imported metadata). */
+  watchdogMs?: number;
+  /** True when the task is inhibited (imported metadata; not scheduled). */
+  inhibited?: boolean;
   scheduledProgramIds: string[];
+}
+
+/** An imported program parameter (Input / Output / InOut). Read-only metadata. */
+export interface ProgramParameter {
+  name: string;
+  dataType: string;
+  usage?: string;
+  required?: boolean;
+  description?: string;
 }
 
 export interface Program {
@@ -59,6 +79,10 @@ export interface Program {
   description?: string;
   mainRoutineId?: string;
   faultRoutineId?: string;
+  /** True when the program is inhibited (imported metadata; not scheduled). */
+  inhibited?: boolean;
+  /** Program parameters (Input/Output/InOut), imported read-only metadata. */
+  parameters?: ProgramParameter[];
   routines: Routine[];
   programTags: Tag[];
 }
@@ -98,6 +122,11 @@ export interface Tag {
   aliasFor?: string;
 
   externalAccess?: ExternalAccess;
+  /** A read-only constant tag (imported metadata). */
+  constant?: boolean;
+  /** Produced / consumed tag metadata (imported read-only; no controller communication). */
+  produced?: boolean;
+  consumed?: boolean;
 }
 
 export interface UserDefinedType {

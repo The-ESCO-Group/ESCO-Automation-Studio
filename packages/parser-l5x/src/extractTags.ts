@@ -50,6 +50,12 @@ export function extractTags(
       dimension,
     });
 
+    // Read-only metadata: constant tags and produced/consumed roles.
+    if (attr(tagNode, "Constant") === "true") tag.constant = true;
+    const tagType = (attr(tagNode, "TagType") ?? "").toLowerCase();
+    if (tagType === "produced") tag.produced = true;
+    if (tagType === "consumed") tag.consumed = true;
+
     if (aliasFor) {
       tag.aliasFor = aliasFor;
       warnings.push(`${scopeLabel} tag "${name}" is an alias for "${aliasFor}" (imported as alias).`);

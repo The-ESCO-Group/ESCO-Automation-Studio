@@ -24,6 +24,27 @@ export function extractPrograms(
       const program = createProgram(controllerId, name);
       const description = child(programNode, "Description");
       if (description) program.description = text(description);
+      if (attr(programNode, "Disabled") === "true") program.inhibited = true;
+
+      // Program parameters (Input/Output/InOut) — read-only imported metadata.
+      const parameters = toArray<L5XNode>(child(child(programNode, "Parameters"), "Parameter")).flatMap(
+        (paramNode) => {
+          const paramName = attr(paramNode, "Name");
+          if (!paramName) return [];
+          const paramDesc = child(paramNode, "Description");
+          return [
+            {
+              name: paramName,
+              dataType: attr(paramNode, "DataType") ?? "BOOL",
+              ...(attr(paramNode, "Usage") ? { usage: attr(paramNode, "Usage") } : {}),
+              ...(attr(paramNode, "Required") === "true" ? { required: true } : {}),
+              ...(paramDesc ? { description: text(paramDesc) } : {}),
+            },
+          ];
+        },
+      );
+      if (parameters.length > 0) program.parameters = parameters;
+
       const programTags = extractTags(child(programNode, "Tags"), controllerId, "program", program.id);
       program.programTags.push(...programTags.tags);
       warnings.push(...programTags.warnings);
@@ -42,6 +63,12 @@ export function extractPrograms(
         ? program.routines.find((routine) => routine.name === mainName)
         : program.routines[0];
       if (main) program.mainRoutineId = main.id;
+
+      const faultName = attr(programNode, "FaultRoutineName");
+      if (faultName) {
+        const fault = program.routines.find((routine) => routine.name === faultName);
+        if (fault) program.faultRoutineId = fault.id;
+      }
 
       return [program];
     },
