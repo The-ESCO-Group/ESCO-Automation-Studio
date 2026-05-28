@@ -36,10 +36,15 @@ following are intentional boundaries and known gaps.
   simulation.
 - **Program-scoped multi-routine, single task.** JSR/SBR/RET run subroutines
   within the scanned routine's program; cross-program calls, task scheduling,
-  and SBR/RET parameter passing are not modelled. UDT/AOI/I-O are imported for
-  display only (AOI/UDT internal logic is not executed).
+  and SBR/RET parameter passing are not modelled.
+- **UDT / AOI / I-O are view-only.** They have read-only detail viewers
+  (parameters, members, modules, references), but AOI/UDT internal logic is not
+  executed and I/O is imported metadata only — no controller communication.
 - **Single-dimension arrays only.** `DINT[8]` is modelled; multi-dimension arrays
   import the first dimension; arrays of structures aren't expanded.
+- **Large routines collapse rather than virtualize.** Routines over 100 rungs
+  show the first 100 with a "Show all" toggle; there is no true row
+  virtualization yet, so "Show all" on a very large routine can be heavy.
 - **No multi-user, no persistence server.** Projects live in the browser session
   until exported.
 

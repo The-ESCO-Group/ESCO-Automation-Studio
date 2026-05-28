@@ -80,11 +80,29 @@ the registry
 - Export / import `.plcproj.json` (full project incl. ladder AST).
 - Studio 5000 `.L5X` import: controller, programs, routines, rungs (+comments),
   controller & program tags (+descriptions, aliases), supported instructions,
-  and read-only structure — user-defined types (with members), Add-On
-  Instruction definitions, and the I/O module tree (shown in the explorer) —
-  with a counts + warnings import summary. Warnings include routine/rung
-  location for unsupported instructions and flattened branches, plus alias and
-  unmodeled-data-type notices.
+  and read-only structure — user-defined types, Add-On Instruction definitions,
+  and the I/O module tree — with a counts + warnings import summary. Warnings
+  include routine/rung location for unsupported instructions and flattened
+  branches, plus alias and unmodeled-data-type notices.
+
+## Structure viewers (read-only)
+
+- Click an item in the Project Explorer to open a detail view in the center:
+  - **Add-On Instruction:** name / description / revision, a parameters table
+    (name, type, usage, required, default, description), local tags, routine
+    names, and "Used by" call references (click to open the calling routine).
+  - **UDT:** description, members (type, array dimension, description), member
+    access-path previews, and the tags that use the type.
+  - **I/O module tree:** modules by slot (name, catalog, slot, parent module,
+    comm path, description) with an offline-only ("imported metadata, no
+    controller communication") notice.
+
+## Large projects
+
+- Tag table renders search-first and windows large tag sets (cap with a
+  "search to narrow down" notice); derived rows are memoized.
+- Routines over 100 rungs collapse to the first 100 with a "Show all rungs"
+  control to keep the editor responsive.
 
 ## Compare (`@esco/compare`)
 

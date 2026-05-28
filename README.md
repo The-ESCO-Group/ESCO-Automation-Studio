@@ -30,9 +30,14 @@ files.
   browser autosave / recovery, an unsaved-changes guard, and a crash-safe error
   boundary.
 - **Studio 5000 L5X import** (branches, member/array paths, descriptions, alias
-  and unmodeled-type warnings, located warnings, import summary, plus read-only
-  UDT / Add-On Instruction / I/O module structure). Import-only; unsupported
-  instructions are preserved read-only.
+  and unmodeled-type warnings, located warnings, import summary). Import-only;
+  unsupported instructions are preserved read-only.
+- **Structure viewers** — click an Add-On Instruction, UDT, or I/O module in the
+  explorer for a read-only detail view: AOI parameters / local tags / routines /
+  call references; UDT members (with array dims) + member paths + tags using it;
+  the I/O module tree by slot (offline metadata only).
+- **Large-project handling** — search-first windowed tag table and a
+  collapse / show-all mode for very large routines.
 - **Tag table editor** — create / rename / describe / delete tags.
 - **Cross reference** — where each tag is read / written.
 - **Routine & project compare** — match routines by logic fingerprint (not just

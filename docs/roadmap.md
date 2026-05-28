@@ -31,7 +31,10 @@ Status legend: ✅ done · 🔜 next · ⏳ later
   compare (LIM/MEQ), program control (JSR/SBR/RET)
 - ✅ JSR / SBR / RET — offline multi-routine execution with a call-depth guard
 - ✅ Simulator debugging — execution trace + force table
-- ✅ UDT / Add-On Instruction / I/O module import + read-only explorer viewers
+- ✅ UDT / Add-On Instruction / I/O module import + read-only **detail viewers**
+  (AOI parameters/local tags/routines/references, UDT members/paths/usage, I/O
+  modules by slot)
+- ✅ Large-project handling: windowed tag table + large-routine collapse/show-all
 - ✅ Performance: synthetic large-project generator + stress tests + import timing
 - ✅ CI (install/typecheck/test/build) + CHANGELOG + CONTRIBUTING + dependency
   review + issue templates
@@ -41,13 +44,14 @@ Status legend: ✅ done · 🔜 next · ⏳ later
 ## Next milestones
 
 1. **More data/sequencer instructions:** COP/CPS/FLL/FAL, SQO/SQI, file ops.
-2. **AOI / UDT logic viewers** (definitions are imported; show their internal
-   logic and parameters, not just names).
+2. **AOI / UDT logic execution** (internal routines are imported and listed but
+   not simulated; show/run their logic).
 3. **Real LLM connector** — implement an `external` `AssistantProvider` that
    calls a model; apply path and safety model unchanged; key via configuration.
 4. **Desktop packaging with Tauri** — scaffold `apps/desktop` per
    [docs/desktop.md](./desktop.md) (needs a Rust toolchain).
-5. **Editor virtualization** for very large routines.
+5. **True editor virtualization** for very large routines (today: collapse +
+   show-all).
 6. **L5X export research** (not yet implemented; import-only today).
 
 ## Constraints (unchanged)
