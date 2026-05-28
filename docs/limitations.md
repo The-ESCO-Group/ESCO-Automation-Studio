@@ -22,10 +22,12 @@ following are intentional boundaries and known gaps.
   (EQU/NEQ/GRT/GEQ/LES/LEQ/LIM/MEQ), program control (JSR/SBR/RET/NOP/AFI). Not
   yet: COP/CPS/FLL/FAL, SQO/SQI, PID, MSG and many others. Unsupported
   instructions are **preserved read-only** and pass through the simulator.
-- **Single-level branch editing only.** You can build parallel/seal-in branches
-  by hand (add branch, add/remove legs, add instructions per leg), but nested
-  branches can't be created in the UI; imported nested branches are flattened
-  with a warning.
+- **Nested branch editing is supported; L5X import still flattens nested branches.**
+  You can build parallel/seal-in branches by hand (add branch, add/remove legs,
+  add instructions per leg) *and* nest a parallel inside a leg. The gap is on
+  **import**: `parseRungText` models only single-level `[A,B]` branches, so
+  nested branches in an imported L5X rung are flattened to a series with a
+  warning. Building nested branches in the editor works.
 - **Local / rule-based AI by default.** Intent matching is keyword-based. There
   is an `AssistantProvider` seam (local / mock / external) ready for a real LLM,
   but the external provider is unconfigured — no LLM connector, no API key, no
