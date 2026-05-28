@@ -71,7 +71,14 @@ export interface Routine {
   language: RoutineLanguage;
   /** Populated for ladder routines. Typed loosely here to avoid a hard dependency on @esco/ladder. */
   ladder?: unknown;
+  /** Imported Structured Text source (read-only; not executed). */
   structuredText?: string;
+  /**
+   * Best-effort preserved source/structure for imported non-ladder graphical
+   * routines (Function Block / SFC). Read-only, for display only — never
+   * executed. Structured Text uses `structuredText` instead.
+   */
+  sourceText?: string;
 }
 
 export interface Tag {
