@@ -39,6 +39,7 @@ const ORDER = [
   "compare.mjs",
   "ai.mjs",
   "aiagent.mjs",
+  "ide.mjs",
   "persist.mjs",
   "l5x.mjs",
   "l5x-branch.mjs",

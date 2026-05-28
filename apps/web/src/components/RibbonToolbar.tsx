@@ -4,15 +4,21 @@ interface Props {
   canUndo: boolean;
   canRedo: boolean;
   canPaste: boolean;
+  canCopy: boolean;
   onHome: () => void;
   onTags: () => void;
   onCompare: () => void;
   onExport: () => void;
   onImportProject: () => void;
   onImportL5X: () => void;
+  onNew: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onCopy: () => void;
+  onCut: () => void;
   onPaste: () => void;
+  onFind: () => void;
+  onProperties: () => void;
   onDockTab: (tab: DockTab) => void;
   onToast: (message: string) => void;
   onVerify: () => void;
@@ -34,32 +40,38 @@ export function RibbonToolbar({
   canUndo,
   canRedo,
   canPaste,
+  canCopy,
   onHome,
   onTags,
   onCompare,
   onExport,
   onImportProject,
   onImportL5X,
+  onNew,
   onUndo,
   onRedo,
+  onCopy,
+  onCut,
   onPaste,
+  onFind,
+  onProperties,
   onDockTab,
   onToast,
   onVerify,
 }: Props) {
   const placeholder = (label: string) => () => onToast(`${label} is a UI placeholder in Offline Simulation.`);
   const buttons: RibbonButton[] = [
-    { label: "New", icon: "+", group: "File", action: placeholder("New project") },
+    { label: "New", icon: "+", group: "File", title: "New blank project", action: onNew },
     { label: "Open", icon: "□", group: "File", action: onImportProject },
     { label: "Save", icon: "▣", group: "File", action: onExport },
     { label: "Save All", icon: "▤", group: "File", action: onExport },
     { label: "Print", icon: "⌘", group: "File", action: placeholder("Print") },
     { label: "Undo", icon: "↶", group: "Edit", disabled: !canUndo, action: onUndo },
     { label: "Redo", icon: "↷", group: "Edit", disabled: !canRedo, action: onRedo },
-    { label: "Cut", icon: "✂", group: "Edit", action: placeholder("Cut") },
-    { label: "Copy", icon: "⧉", group: "Edit", action: placeholder("Copy") },
+    { label: "Cut", icon: "✂", group: "Edit", disabled: !canCopy, title: "Cut selected rung", action: onCut },
+    { label: "Copy", icon: "⧉", group: "Edit", disabled: !canCopy, title: "Copy selected rung", action: onCopy },
     { label: "Paste", icon: "▥", group: "Edit", disabled: !canPaste, action: onPaste },
-    { label: "Find", icon: "⌕", group: "Edit", action: placeholder("Find") },
+    { label: "Find", icon: "⌕", group: "Edit", title: "Find in project (tags, routines, rung text)", action: onFind },
     { label: "Replace", icon: "⇄", group: "Edit", action: placeholder("Replace") },
     { label: "Verify", icon: "✓", group: "Actions", action: onVerify },
     { label: "Build", icon: "▲", group: "Actions", action: () => onDockTab("build") },
@@ -78,7 +90,7 @@ export function RibbonToolbar({
     { label: "Data Monitor", icon: "▦", group: "Views", action: () => onDockTab("watch") },
     { label: "Compare", icon: "⇔", group: "Tools", action: onCompare },
     { label: "Cross Reference", icon: "⌬", group: "Tools", action: () => onDockTab("references") },
-    { label: "Properties", icon: "☷", group: "Tools", action: placeholder("Properties") },
+    { label: "Properties", icon: "☷", group: "Tools", title: "Show properties of the selection", action: onProperties },
     { label: "Logger", icon: "≡", group: "Views", action: placeholder("Logger") },
     { label: "Task Monitor", icon: "▧", group: "Views", action: placeholder("Task Monitor") },
   ];

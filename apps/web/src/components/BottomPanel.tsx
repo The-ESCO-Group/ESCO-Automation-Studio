@@ -2,6 +2,7 @@ import type { PlcProject } from "@esco/core";
 import { collectTagReferences } from "@esco/project-actions";
 import type { ValidationFinding } from "@esco/validator";
 import type { Forces, TraceEntry, WatchRow } from "../simulation";
+import type { SearchHit } from "../search";
 import { CrossRefPanel } from "./CrossRefPanel";
 
 export type DockTab =
@@ -33,6 +34,9 @@ interface Props {
   project: PlcProject;
   selectedTagName?: string;
   onOpenRoutine: (routineId: string) => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  searchHits?: SearchHit[];
 }
 
 /** The Value-column content for one watched tag, by kind. */
@@ -124,6 +128,9 @@ export function BottomPanel({
   project,
   selectedTagName,
   onOpenRoutine,
+  searchQuery = "",
+  onSearchChange,
+  searchHits = [],
 }: Props) {
   const setTab = onTabChange;
   const xrefCount = selectedTagName ? collectTagReferences(project, selectedTagName).length : 0;
@@ -309,7 +316,54 @@ export function BottomPanel({
             </table>
           </div>
         ) : tab === "search" ? (
-          <p className="esco-empty">Search results will appear here after using Find.</p>
+          <div className="esco-search">
+            <div className="esco-search__bar" style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0" }}>
+              <input
+                className="esco-ai__input"
+                type="search"
+                style={{ flex: 1 }}
+                value={searchQuery}
+                placeholder="Find tags, routines, or rung text…"
+                onChange={(event) => onSearchChange?.(event.target.value)}
+              />
+              <span className="esco-search__count" style={{ fontSize: 12, opacity: 0.7 }}>
+                {searchHits.length} result{searchHits.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            {searchHits.length === 0 ? (
+              <p className="esco-empty">
+                {searchQuery ? "No matches." : "Type to search the project — tag names, routine names, and rung text."}
+              </p>
+            ) : (
+              <table className="esco-diagnostics__table">
+                <thead>
+                  <tr><th>Type</th><th>Match</th><th>Detail</th></tr>
+                </thead>
+                <tbody>
+                  {searchHits.map((hit, index) => (
+                    <tr key={`${hit.kind}-${index}`}>
+                      <td>{hit.kind}</td>
+                      <td>
+                        {hit.routineId ? (
+                          <button
+                            type="button"
+                            className="esco-btn esco-btn--quick"
+                            onClick={() => onOpenRoutine(hit.routineId!)}
+                            title="Open routine"
+                          >
+                            {hit.label}
+                          </button>
+                        ) : (
+                          hit.label
+                        )}
+                      </td>
+                      <td>{hit.detail}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         ) : tab === "references" ? (
           <CrossRefPanel
             project={project}

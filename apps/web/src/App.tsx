@@ -45,6 +45,7 @@ import { StatusBar } from "./components/StatusBar";
 import { FirstRunSetup } from "./components/FirstRunSetup";
 import type { Selection } from "./selection";
 import { createBlankRoutineProject, createInitialProject, findMainRoutine } from "./project-edit";
+import { searchProject } from "./search";
 import { downloadTextFile, readFileAsText, slugify } from "./file-io";
 import { scanOnce, traceOnce, watchRows, zeroValues, type Forces, type TagValues, type TraceEntry } from "./simulation";
 import { useToasts } from "./toasts";
@@ -152,6 +153,10 @@ export function App() {
   };
   const handleDuplicateRung = (rungId: string) =>
     applyAction((p) => duplicateRung(p, { routineId: targetRoutineId(p), rungId }));
+  const handleCutRung = (rungId: string) => {
+    handleCopyRung(rungId);
+    handleDeleteRung(rungId);
+  };
   const handlePasteRung = () => {
     if (!clipboardRung) return;
     const rid = targetRoutineId(project);
@@ -273,6 +278,9 @@ export function App() {
 
   const selectedRungId =
     selection?.kind === "rung" || selection?.kind === "instruction" ? selection.rungId : undefined;
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchHits = useMemo(() => searchProject(project, searchQuery), [project, searchQuery]);
   const selectedNodeId = selection?.kind === "instruction" ? selection.nodeId : undefined;
 
   // ---- File workflows ----
@@ -557,15 +565,21 @@ export function App() {
           canUndo={history.canUndo}
           canRedo={history.canRedo}
           canPaste={clipboardRung !== null}
+          canCopy={selectedRungId != null}
           onHome={() => setView("welcome")}
           onTags={() => requireProject(() => setView("tags"))}
           onCompare={() => requireProject(() => setView("compare"))}
           onExport={handleExport}
           onImportProject={handleImportClick}
           onImportL5X={handleImportL5XClick}
+          onNew={handleCreateRoutineProject}
           onUndo={handleUndo}
           onRedo={handleRedo}
+          onCopy={() => selectedRungId && handleCopyRung(selectedRungId)}
+          onCut={() => selectedRungId && handleCutRung(selectedRungId)}
           onPaste={handlePasteRung}
+          onFind={() => requireProject(() => setDockTab("search"))}
+          onProperties={() => setCopilotTab("history")}
           onDockTab={setDockTab}
           onToast={(message) => push("info", message)}
           onVerify={handleVerify}
@@ -770,6 +784,9 @@ export function App() {
           project={project}
           selectedTagName={selectedTagName}
           onOpenRoutine={handleOpenRoutine}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchHits={searchHits}
         />
       }
       statusBar={
