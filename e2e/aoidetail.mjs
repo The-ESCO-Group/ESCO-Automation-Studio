@@ -20,6 +20,11 @@ const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
         <LocalTags><LocalTag Name="Scratch" DataType="DINT"/></LocalTags>
         <Routines><Routine Name="Logic" Type="RLL"/></Routines>
       </AddOnInstructionDefinition>
+      <AddOnInstructionDefinition Name="SealedAOI" Revision="2.0" SignatureID="16#dead_beef" SourceProtectionType="Protected">
+        <Description><![CDATA[Vendor-sealed instruction]]></Description>
+        <Parameters><Parameter Name="Enable" DataType="BOOL" Usage="Input" Required="true"/></Parameters>
+        <EncodedData EncodedType="EncryptedData"><![CDATA[QUJDREVG]]></EncodedData>
+      </AddOnInstructionDefinition>
     </AddOnInstructionDefinitions>
     <Tags><Tag Name="Inst" DataType="ScaleAOI"/></Tags>
     <Programs>
@@ -48,7 +53,7 @@ try {
   await chooser.setFiles(fixturePath);
   await page.locator('.esco-titlebar__project:has-text("AoiCtl")').waitFor({ timeout: 8000 });
 
-  check("Add-On Instructions group shown", /Add-On Instructions \(1\)/.test(await page.locator(".esco-left").innerText()));
+  check("Add-On Instructions group shown", /Add-On Instructions \(2\)/.test(await page.locator(".esco-left").innerText()));
 
   // Click the AOI node -> detail view opens in the center.
   await page.locator('.esco-tree__node--aoi:has-text("ScaleAOI")').click();
@@ -60,6 +65,16 @@ try {
   check("AOI detail shows local tags (Scratch)", /Scratch/.test(detail));
   check("AOI detail shows routines (Logic)", /Logic/.test(detail));
   check("AOI detail shows 'Used by' (Main rung 0)", /used by/i.test(detail) && /Main/.test(detail) && /rung 0/.test(detail));
+
+  // Click the source-protected AOI -> protection state surfaces, logic withheld.
+  await page.locator('.esco-tree__node--aoi:has-text("SealedAOI")').click();
+  await page.locator('.esco-detail__title:has-text("SealedAOI")').waitFor({ timeout: 5000 });
+  const sealed = await page.locator(".esco-detail").innerText();
+
+  check("Protected AOI shows the Protected pill", /Protected/.test(sealed));
+  check("Protected AOI shows a source-protection banner", /source-protected/i.test(sealed));
+  check("Protected AOI shows its signature", /dead_beef/.test(sealed));
+  check("Protected AOI withholds logic", /source-protected and not exported/i.test(sealed));
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

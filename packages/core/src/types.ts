@@ -131,6 +131,12 @@ export interface AddOnInstruction {
   name: string;
   description?: string;
   revision?: string;
+  /** Safety/source signature ID, when the export includes one. */
+  signature?: string;
+  /** True when the AOI is source-protected, so its logic is not available to inspect. */
+  protected?: boolean;
+  /** Raw source-protection type (e.g. "Protected"), when present. */
+  protectionType?: string;
   parameters: AoiParameter[];
   localTags: AoiLocalTag[];
   /** Names of the AOI's imported routines (logic), read-only. */

@@ -94,9 +94,17 @@ function AoiDetail({ aoi, project, onOpenRoutine }: { aoi: AddOnInstruction; pro
       <header className="esco-detail__head">
         <h1 className="esco-detail__title">Add-On Instruction · {aoi.name}</h1>
         {aoi.revision ? <span className="esco-detail__tag">Rev {aoi.revision}</span> : null}
+        {aoi.signature ? <span className="esco-detail__tag">Sig {aoi.signature}</span> : null}
+        {aoi.protected ? <span className="esco-detail__tag esco-detail__tag--protected">Protected</span> : null}
         <span className="esco-detail__readonly">Read-only</span>
       </header>
       {aoi.description ? <p className="esco-detail__desc">{aoi.description}</p> : null}
+      {aoi.protected ? (
+        <p className="esco-detail__warning">
+          Source-protected{aoi.protectionType ? ` (${aoi.protectionType})` : ""}. The logic is encrypted in the
+          export and cannot be inspected; parameters and tags are shown where the export includes them.
+        </p>
+      ) : null}
 
       <section className="esco-detail__section">
         <h2>Parameters ({aoi.parameters.length})</h2>
@@ -142,7 +150,11 @@ function AoiDetail({ aoi, project, onOpenRoutine }: { aoi: AddOnInstruction; pro
       <section className="esco-detail__section">
         <h2>Routines ({aoi.routineNames.length})</h2>
         {aoi.routineNames.length === 0 ? (
-          <p className="esco-empty">No routines imported (logic not available).</p>
+          <p className="esco-empty">
+            {aoi.protected
+              ? "Logic is source-protected and not exported."
+              : "No routines imported (logic not available)."}
+          </p>
         ) : (
           <ul className="esco-detail__list">
             {aoi.routineNames.map((name) => (

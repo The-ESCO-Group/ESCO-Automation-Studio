@@ -539,3 +539,50 @@ describe("importL5X (structure: UDT / AOI / I/O)", () => {
     expect(deserializeProject(serializeProject(project))).toEqual(project);
   });
 });
+
+// A source-protected ("sealed") vendor AOI exported with an EncodedData blob and
+// a SourceProtectionType, plus a plain unprotected AOI alongside it.
+const PROTECTED_AOI = `<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content>
+  <Controller Use="Target" Name="ProtCtl">
+    <AddOnInstructionDefinitions>
+      <AddOnInstructionDefinition Name="VendorAOI" Revision="3.0" SignatureID="16#abcd_1234" SourceProtectionType="Protected">
+        <Description><![CDATA[Vendor-sealed instruction]]></Description>
+        <Parameters>
+          <Parameter Name="Enable" DataType="BOOL" Usage="Input" Required="true"/>
+        </Parameters>
+        <EncodedData EncodedType="EncryptedData"><![CDATA[QUJDREVG]]></EncodedData>
+      </AddOnInstructionDefinition>
+      <AddOnInstructionDefinition Name="OpenAOI" Revision="1.0">
+        <Parameters><Parameter Name="In" DataType="REAL" Usage="Input"/></Parameters>
+        <Routines><Routine Name="Logic" Type="RLL"/></Routines>
+      </AddOnInstructionDefinition>
+    </AddOnInstructionDefinitions>
+  </Controller>
+</RSLogix5000Content>`;
+
+describe("importL5X (source-protected AOI)", () => {
+  it("flags a source-protected AOI and reads its signature", () => {
+    const aois = importL5X(PROTECTED_AOI).project.controllers[0]!.addOnInstructions;
+    const vendor = aois.find((a) => a.name === "VendorAOI")!;
+    expect(vendor.protected).toBe(true);
+    expect(vendor.protectionType).toBe("Protected");
+    expect(vendor.signature).toBe("16#abcd_1234");
+    expect(vendor.revision).toBe("3.0");
+    expect(vendor.routineNames).toEqual([]); // logic is encrypted, not exported
+  });
+
+  it("leaves an unprotected AOI's protected/signature fields unset", () => {
+    const aois = importL5X(PROTECTED_AOI).project.controllers[0]!.addOnInstructions;
+    const open = aois.find((a) => a.name === "OpenAOI")!;
+    expect(open.protected).toBeUndefined();
+    expect(open.protectionType).toBeUndefined();
+    expect(open.signature).toBeUndefined();
+    expect(open.routineNames).toEqual(["Logic"]);
+  });
+
+  it("round-trips the protection metadata through serialize/deserialize", () => {
+    const { project } = importL5X(PROTECTED_AOI);
+    expect(deserializeProject(serializeProject(project))).toEqual(project);
+  });
+});

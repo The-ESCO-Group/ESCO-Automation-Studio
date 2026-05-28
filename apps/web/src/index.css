@@ -1571,6 +1571,11 @@ body {
   color: var(--text-dim);
 }
 
+.esco-detail__tag--protected {
+  border-color: var(--warn, #e0b050);
+  color: var(--warn, #e0b050);
+}
+
 .esco-detail__readonly {
   font-size: 11px;
   padding: 1px 8px;

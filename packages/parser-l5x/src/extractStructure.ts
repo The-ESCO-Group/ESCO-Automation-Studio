@@ -45,6 +45,12 @@ export function extractAddOnInstructions(controllerNode: L5XNode): AddOnInstruct
     if (!name) return [];
     const descriptionNode = child(aoiNode, "Description");
     const revision = attr(aoiNode, "Revision");
+    const signature = attr(aoiNode, "SignatureID");
+
+    // Source-protected ("sealed") AOIs export an EncodedData blob and/or a
+    // SourceProtectionType; their logic is encrypted and not available to inspect.
+    const protectionType = attr(aoiNode, "SourceProtectionType");
+    const isProtected = child(aoiNode, "EncodedData") != null || (protectionType != null && protectionType !== "None");
 
     const parameters = toArray<L5XNode>(child(child(aoiNode, "Parameters"), "Parameter")).flatMap(
       (paramNode) => {
@@ -91,6 +97,9 @@ export function extractAddOnInstructions(controllerNode: L5XNode): AddOnInstruct
         name,
         ...(descriptionNode ? { description: text(descriptionNode) } : {}),
         ...(revision ? { revision } : {}),
+        ...(signature ? { signature } : {}),
+        ...(isProtected ? { protected: true } : {}),
+        ...(protectionType && protectionType !== "None" ? { protectionType } : {}),
         parameters,
         localTags,
         routineNames,
