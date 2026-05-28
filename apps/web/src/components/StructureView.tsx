@@ -172,6 +172,48 @@ function AoiDetail({ aoi, project, onOpenRoutine }: { aoi: AddOnInstruction; pro
   );
 }
 
+/** Read-only I/O module tree: modules by slot, with an offline-only warning. */
+function IoDetail({ project, controllerId, moduleId }: { project: PlcProject; controllerId: string; moduleId?: string }) {
+  const controller = project.controllers.find((c) => c.id === controllerId) ?? project.controllers[0];
+  const modules = [...(controller?.ioConfiguration.modules ?? [])].sort(
+    (a, b) => (a.slot ?? 0) - (b.slot ?? 0),
+  );
+  return (
+    <div className="esco-detail">
+      <header className="esco-detail__head">
+        <h1 className="esco-detail__title">I/O Configuration{controller ? ` · ${controller.name}` : ""}</h1>
+        <span className="esco-detail__readonly">Read-only</span>
+      </header>
+      <p className="esco-detail__warning">
+        I/O configuration is imported metadata only. No controller communication.
+      </p>
+
+      <section className="esco-detail__section">
+        <h2>Modules ({modules.length})</h2>
+        {modules.length === 0 ? (
+          <p className="esco-empty">No I/O modules imported.</p>
+        ) : (
+          <table className="esco-detail__table">
+            <thead><tr><th>Name</th><th>Catalog / type</th><th>Slot</th><th>Parent</th><th>Comm path</th><th>Description</th></tr></thead>
+            <tbody>
+              {modules.map((m) => (
+                <tr key={m.id} className={m.id === moduleId ? "is-selected" : undefined}>
+                  <td>{m.name}</td>
+                  <td>{m.catalogNumber ?? "—"}</td>
+                  <td>{m.slot != null ? m.slot : "—"}</td>
+                  <td>{m.parentModule ?? "—"}</td>
+                  <td>{m.commPath ?? "—"}</td>
+                  <td>{m.description ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </div>
+  );
+}
+
 /** Dispatches to the read-only detail viewer for the selected structure node. */
 export function StructureView({ project, selection, onOpenRoutine }: Props) {
   if (selection?.kind === "aoi") {
@@ -181,6 +223,9 @@ export function StructureView({ project, selection, onOpenRoutine }: Props) {
   if (selection?.kind === "udt") {
     const udt = findUdt(project, selection.id);
     if (udt) return <UdtDetail udt={udt} project={project} />;
+  }
+  if (selection?.kind === "io") {
+    return <IoDetail project={project} controllerId={selection.controllerId} moduleId={selection.moduleId} />;
   }
   return (
     <div className="esco-detail">

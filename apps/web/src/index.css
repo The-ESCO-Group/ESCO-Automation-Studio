@@ -1657,6 +1657,25 @@ body {
   text-decoration: underline;
 }
 
+.esco-tree__group--button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.esco-tree__group--button:hover {
+  color: var(--accent);
+}
+
+.esco-detail__table tr.is-selected {
+  background: var(--accent-soft);
+}
+
 /* ---- Crash / error boundary fallback ---- */
 .esco-crash {
   display: flex;

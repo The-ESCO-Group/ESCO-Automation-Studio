@@ -145,17 +145,30 @@ export function ProjectExplorer({ project, selection, onSelect }: Props) {
 
               {controller.ioConfiguration.modules.length > 0 ? (
                 <li>
-                  <span className="esco-tree__group">
+                  <button
+                    type="button"
+                    className="esco-tree__group esco-tree__group--button"
+                    title="Open the I/O configuration"
+                    onClick={() => onSelect({ kind: "io", controllerId: controller.id })}
+                  >
                     I/O Modules ({controller.ioConfiguration.modules.length})
-                  </span>
+                  </button>
                   <ul className="esco-tree esco-tree--nested">
                     {controller.ioConfiguration.modules.map((module) => (
                       <li key={module.id}>
-                        <span className="esco-tree__leaf">
+                        <button
+                          type="button"
+                          className={`esco-tree__node esco-tree__node--module${
+                            !!selection && selection.kind === "io" && selection.moduleId === module.id
+                              ? " is-selected"
+                              : ""
+                          }`}
+                          onClick={() => onSelect({ kind: "io", controllerId: controller.id, moduleId: module.id })}
+                        >
                           {module.name}
                           {module.catalogNumber ? ` · ${module.catalogNumber}` : ""}
                           {module.slot != null ? ` · slot ${module.slot}` : ""}
-                        </span>
+                        </button>
                       </li>
                     ))}
                   </ul>
