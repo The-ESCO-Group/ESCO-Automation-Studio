@@ -103,9 +103,9 @@ export function toDomainProject(root: L5XNode, registry: InstructionRegistry): I
   const controller = createController(project.id, controllerName);
   controller.processorType = attr(controllerNode, "ProcessorType");
 
-  controller.controllerTags.push(
-    ...extractTags(child(controllerNode, "Tags"), controller.id, "controller"),
-  );
+  const controllerTags = extractTags(child(controllerNode, "Tags"), controller.id, "controller");
+  controller.controllerTags.push(...controllerTags.tags);
+  warnings.push(...controllerTags.warnings);
 
   const { programs, warnings: programWarnings } = extractPrograms(
     controllerNode,

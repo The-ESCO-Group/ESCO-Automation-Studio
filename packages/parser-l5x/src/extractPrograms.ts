@@ -24,9 +24,9 @@ export function extractPrograms(
       const program = createProgram(controllerId, name);
       const description = child(programNode, "Description");
       if (description) program.description = text(description);
-      program.programTags.push(
-        ...extractTags(child(programNode, "Tags"), controllerId, "program", program.id),
-      );
+      const programTags = extractTags(child(programNode, "Tags"), controllerId, "program", program.id);
+      program.programTags.push(...programTags.tags);
+      warnings.push(...programTags.warnings);
 
       const { routines, warnings: routineWarnings } = extractRoutines(
         programNode,

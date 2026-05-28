@@ -314,3 +314,115 @@ describe("importL5X (realistic fixture)", () => {
     expect(runtime.readTag("Run")).toBe(false); // stop breaks the seal
   });
 });
+
+// A stress fixture: two programs/routines, controller + program tags, an alias
+// tag, an unmodeled UDT data type, descriptions, a branch, the new core
+// instructions (ONS/RES/RTO/TOF/CTD), UDT-member and array operand paths, and an
+// unsupported instruction (JSR).
+const STRESS = `<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content SchemaRevision="1.0">
+  <Controller Use="Target" Name="PlantStress" ProcessorType="1756-L85E">
+    <Tags>
+      <Tag Name="Start" TagType="Base" DataType="BOOL"><Description><![CDATA[Master start]]></Description></Tag>
+      <Tag Name="Stop" TagType="Base" DataType="BOOL"/>
+      <Tag Name="Run" TagType="Base" DataType="BOOL"/>
+      <Tag Name="Reset" TagType="Base" DataType="BOOL"/>
+      <Tag Name="OneShot" TagType="Base" DataType="BOOL"/>
+      <Tag Name="DwellTimer" TagType="Base" DataType="TIMER"/>
+      <Tag Name="OffDelay" TagType="Base" DataType="TIMER"/>
+      <Tag Name="PartCounter" TagType="Base" DataType="COUNTER"/>
+      <Tag Name="Level" TagType="Base" DataType="DINT"/>
+      <Tag Name="MyArray" TagType="Base" DataType="DINT" Dimensions="8"/>
+      <Tag Name="PumpData" TagType="Base" DataType="PumpUdt"/>
+      <Tag Name="PumpRun" TagType="Base" DataType="BOOL"/>
+      <Tag Name="MotorCmd" TagType="Alias" AliasFor="Run"/>
+    </Tags>
+    <Programs>
+      <Program Name="Sequencer" MainRoutineName="Cycle">
+        <Tags>
+          <Tag Name="LocalStep" TagType="Base" DataType="DINT"/>
+        </Tags>
+        <Routines>
+          <Routine Name="Cycle" Type="RLL">
+            <RLLContent>
+              <Rung Number="0" Type="N"><Comment><![CDATA[Seal-in]]></Comment><Text><![CDATA[[XIC(Start),XIC(Run)]XIO(Stop)OTE(Run);]]></Text></Rung>
+              <Rung Number="1" Type="N"><Text><![CDATA[XIC(Run)RTO(DwellTimer,5000);]]></Text></Rung>
+              <Rung Number="2" Type="N"><Text><![CDATA[XIC(DwellTimer.DN)ONS(OneShot)CTU(PartCounter,10);]]></Text></Rung>
+              <Rung Number="3" Type="N"><Text><![CDATA[XIC(Reset)RES(DwellTimer)RES(PartCounter);]]></Text></Rung>
+              <Rung Number="4" Type="N"><Text><![CDATA[XIC(Start)TOF(OffDelay,2000);]]></Text></Rung>
+              <Rung Number="5" Type="N"><Text><![CDATA[MOV(MyArray[0],Level);]]></Text></Rung>
+              <Rung Number="6" Type="N"><Text><![CDATA[XIC(Start)JSR(SubRoutine);]]></Text></Rung>
+              <Rung Number="7" Type="N"><Text><![CDATA[XIC(PumpData.Status.Running)OTE(PumpRun);]]></Text></Rung>
+            </RLLContent>
+          </Routine>
+        </Routines>
+      </Program>
+      <Program Name="Aux" MainRoutineName="Faults">
+        <Routines>
+          <Routine Name="Faults" Type="RLL">
+            <RLLContent>
+              <Rung Number="0" Type="N"><Text><![CDATA[XIC(Stop)CTD(PartCounter,0);]]></Text></Rung>
+            </RLLContent>
+          </Routine>
+        </Routines>
+      </Program>
+    </Programs>
+  </Controller>
+</RSLogix5000Content>`;
+
+describe("importL5X (stress fixture)", () => {
+  it("parses programs, routines, rungs, and tags", () => {
+    const { summary } = importL5X(STRESS);
+    expect(summary.programs).toBe(2);
+    expect(summary.routines).toBe(2);
+    expect(summary.rungs).toBe(9); // 8 in Cycle + 1 in Faults
+    expect(summary.tags).toBe(14); // 13 controller + 1 program
+  });
+
+  it("treats only JSR as unsupported (the new instructions are supported)", () => {
+    const { summary } = importL5X(STRESS);
+    expect(summary.unsupportedInstructions).toEqual(["JSR"]);
+  });
+
+  it("warns about the unsupported instruction with routine/rung location", () => {
+    const { warnings } = importL5X(STRESS);
+    const jsr = warnings.find((w) => w.includes("JSR"));
+    expect(jsr).toBeDefined();
+    expect(jsr).toMatch(/Sequencer\/Cycle rung 6/);
+  });
+
+  it("imports an alias tag and warns about it", () => {
+    const { project, warnings } = importL5X(STRESS);
+    const motorCmd = project.controllers[0]!.controllerTags.find((t) => t.name === "MotorCmd");
+    expect(motorCmd?.aliasFor).toBe("Run");
+    expect(warnings.some((w) => w.includes("MotorCmd") && /alias/i.test(w))).toBe(true);
+  });
+
+  it("warns about an unmodeled (UDT) data type", () => {
+    const { warnings } = importL5X(STRESS);
+    expect(warnings.some((w) => w.includes("PumpData") && w.includes("PumpUdt"))).toBe(true);
+  });
+
+  it("preserves the unsupported instruction as a node", () => {
+    const { project } = importL5X(STRESS);
+    const types = routineNodes(programLadder(project, "Sequencer")).map((n) => n.instructionType);
+    expect(types).toContain("JSR");
+    expect(types).toContain("RTO");
+    expect(types).toContain("ONS");
+  });
+
+  it("round-trips through serialize/deserialize after import", () => {
+    const { project } = importL5X(STRESS);
+    const restored = deserializeProject(serializeProject(project));
+    expect(restored).toEqual(project);
+  });
+
+  it("simulates without crashing on the unsupported instruction", () => {
+    const { project } = importL5X(STRESS);
+    const runtime = createRuntime({ routine: programLadder(project, "Sequencer"), tags: [], registry });
+    runtime.writeTag("Start", true);
+    runtime.scanOnce(6000); // long enough for RTO to finish
+    expect(runtime.readTag("Run")).toBe(true); // seal-in energizes despite JSR pass-through
+    expect(runtime.readTag("DwellTimer.DN")).toBe(true); // RTO reached preset
+  });
+});

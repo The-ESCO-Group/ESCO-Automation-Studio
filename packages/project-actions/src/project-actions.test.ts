@@ -393,6 +393,40 @@ describe("project-actions: validation and IO", () => {
     expect(collectTagReferences(p, "Timer1").every((r) => r.tag === "Timer1")).toBe(true);
   });
 
+  it("validates a richer imported L5X cleanly (members/arrays resolve, JSR flagged)", () => {
+    const xml = `<?xml version="1.0"?>
+<RSLogix5000Content>
+  <Controller Name="Imported">
+    <Tags>
+      <Tag Name="Start" DataType="BOOL"/><Tag Name="Run" DataType="BOOL"/>
+      <Tag Name="Stop" DataType="BOOL"/><Tag Name="Dwell" DataType="TIMER"/>
+      <Tag Name="Cnt" DataType="COUNTER"/><Tag Name="Arr" DataType="DINT" Dimensions="4"/>
+      <Tag Name="Dest" DataType="DINT"/>
+    </Tags>
+    <Programs>
+      <Program Name="MainProgram" MainRoutineName="Main">
+        <Routines><Routine Name="Main" Type="RLL"><RLLContent>
+          <Rung Number="0"><Text><![CDATA[[XIC(Start),XIC(Run)]XIO(Stop)OTE(Run);]]></Text></Rung>
+          <Rung Number="1"><Text><![CDATA[XIC(Run)RTO(Dwell,1000);]]></Text></Rung>
+          <Rung Number="2"><Text><![CDATA[XIC(Dwell.DN)CTU(Cnt,5);]]></Text></Rung>
+          <Rung Number="3"><Text><![CDATA[MOV(Arr[0],Dest);]]></Text></Rung>
+          <Rung Number="4"><Text><![CDATA[XIC(Start)JSR(Sub);]]></Text></Rung>
+        </RLLContent></Routine></Routines>
+      </Program>
+    </Programs>
+  </Controller>
+</RSLogix5000Content>`;
+    const imported = importL5XFile(xml);
+    expect(imported.ok).toBe(true);
+
+    const result = validateProject(imported.project);
+    expect(result.ok).toBe(true);
+    // Member (Dwell.DN) and array (Arr[0]) paths resolve to defined base tags.
+    expect(result.findings?.some((f) => f.ruleId === "undefined-tag")).toBe(false);
+    // The unsupported JSR is reported as info, not an error.
+    expect(result.findings?.some((f) => f.ruleId === "unsupported-instruction")).toBe(true);
+  });
+
   it("imports an L5X file through the action layer", () => {
     const xml = `<?xml version="1.0"?>
 <RSLogix5000Content>
