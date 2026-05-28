@@ -1067,3 +1067,118 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Tag table editor ---- */
+.esco-tags {
+  padding: 16px;
+  height: 100%;
+  overflow: auto;
+}
+
+.esco-tags__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.esco-tags__search {
+  flex: 0 0 240px;
+  padding: 4px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font: inherit;
+}
+
+.esco-tags__count {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.esco-tags__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.esco-tags__input,
+.esco-tags__select {
+  padding: 4px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font: inherit;
+}
+
+.esco-tags__input { min-width: 160px; }
+
+.esco-tags__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.esco-tags__table th,
+.esco-tags__table td {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.esco-tags__table th {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.esco-tags__cell-input {
+  width: 100%;
+  min-width: 90px;
+  padding: 2px 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text);
+  font: inherit;
+}
+
+.esco-tags__cell-input:hover {
+  border-color: var(--border);
+}
+
+.esco-tags__cell-input:focus {
+  outline: none;
+  background: var(--bg);
+  border-color: var(--accent);
+}
+
+.esco-tags__value {
+  font-family: "Cascadia Code", "Consolas", monospace;
+  color: var(--text-dim);
+}
+
+.esco-role {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.esco-role--input { color: var(--text-dim); }
+.esco-role--output { color: var(--accent); border-color: var(--accent); }
+.esco-role--internal { color: var(--text-dim); }
+
+.esco-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

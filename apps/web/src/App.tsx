@@ -5,12 +5,15 @@ import {
   addRung,
   createTag,
   deleteRung,
+  deleteTag,
   exportProjectJson,
   findRoutine,
   getLadder,
   importL5XFile,
   importProjectFile,
   removeInstruction,
+  renameTag,
+  setTagDescription,
   updateInstructionOperand,
   type ProjectActionResult,
 } from "@esco/project-actions";
@@ -22,6 +25,7 @@ import { EditorArea } from "./components/EditorArea";
 import { PropertiesPanel } from "./components/PropertiesPanel";
 import { BottomPanel, type DockTab } from "./components/BottomPanel";
 import { WelcomeDashboard } from "./components/WelcomeDashboard";
+import { TagsView } from "./components/TagsView";
 import { Toasts } from "./components/Toasts";
 import type { Selection } from "./selection";
 import { createInitialProject, findMainRoutine } from "./project-edit";
@@ -80,6 +84,25 @@ export function App() {
     applyAction((p) => removeInstruction(p, { routineId: targetRoutineId(p), rungId, nodeId }));
   const handleCreateTag = (name: string, dataType: string) =>
     applyAction((p) => createTag(p, { name, dataType }));
+
+  // ---- Tag table editor (toast on failure; reset values when the tag set changes) ----
+  const runTagAction = (result: ProjectActionResult, successMsg?: string, resyncValues = true) => {
+    if (result.ok) {
+      setProject(result.project);
+      if (resyncValues) setValues(zeroValues(result.project));
+      if (successMsg) push("success", successMsg);
+    } else {
+      push("error", result.error ?? "Tag action failed.");
+    }
+  };
+  const handleAddTag = (name: string, dataType: string, description: string) =>
+    runTagAction(createTag(project, { name, dataType, description: description || undefined }), `Created tag ${name}.`);
+  const handleRenameTag = (from: string, to: string) =>
+    runTagAction(renameTag(project, { from, to }), `Renamed ${from} → ${to}.`);
+  const handleDeleteTag = (name: string) =>
+    runTagAction(deleteTag(project, { name }), `Deleted tag ${name}.`);
+  const handleEditDescription = (name: string, description: string) =>
+    runTagAction(setTagDescription(project, { name, description }), undefined, false);
 
   // ---- Simulation ----
   const handleToggleTag = (name: string) =>
@@ -222,6 +245,13 @@ export function App() {
           <button type="button" className="esco-btn" onClick={() => setView("welcome")}>
             Dashboard
           </button>
+          <button
+            type="button"
+            className={`esco-btn${view === "tags" ? " esco-btn--primary" : ""}`}
+            onClick={() => setView("tags")}
+          >
+            Tags
+          </button>
           <span className="esco-titlebar__divider" />
           <button type="button" className="esco-btn" onClick={handleExport}>
             Export Project
@@ -261,7 +291,16 @@ export function App() {
         </aside>
 
         <main className="esco-center">
-          {view === "routine" && openRoutine ? (
+          {view === "tags" ? (
+            <TagsView
+              project={project}
+              values={values}
+              onAddTag={handleAddTag}
+              onRenameTag={handleRenameTag}
+              onDeleteTag={handleDeleteTag}
+              onEditDescription={handleEditDescription}
+            />
+          ) : view === "routine" && openRoutine ? (
             <EditorArea
               project={project}
               routine={openRoutine}
@@ -284,6 +323,7 @@ export function App() {
               onOpenAi={() => setDockTab("ai")}
               onOpenCrossRef={() => setDockTab("xref")}
               onOpenWatch={() => setDockTab("watch")}
+              onOpenTags={() => setView("tags")}
             />
           )}
         </main>

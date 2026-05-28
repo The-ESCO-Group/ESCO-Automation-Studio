@@ -12,6 +12,7 @@ interface Props {
   onOpenAi: () => void;
   onOpenCrossRef: () => void;
   onOpenWatch: () => void;
+  onOpenTags: () => void;
 }
 
 const FEATURES = [
@@ -37,6 +38,7 @@ export function WelcomeDashboard({
   onOpenAi,
   onOpenCrossRef,
   onOpenWatch,
+  onOpenTags,
 }: Props) {
   const cards: Card[] = [
     { title: "Open Demo Routine", description: "Edit the seal-in motor starter ladder.", action: onOpenDemo, primary: true },
@@ -45,6 +47,7 @@ export function WelcomeDashboard({
     { title: "AI Assistant", description: "Explain logic and generate rungs (offline).", action: onOpenAi },
     { title: "Cross Reference", description: "See where each tag is used.", action: onOpenCrossRef },
     { title: "Watch / Simulation", description: "Toggle inputs and run the scan.", action: onOpenWatch },
+    { title: "Tag Table", description: "View, create, and manage tags.", action: onOpenTags },
   ];
 
   return (

@@ -34,6 +34,11 @@ export interface DeleteTagInput {
   name: string;
 }
 
+export interface SetTagDescriptionInput {
+  name: string;
+  description: string;
+}
+
 export interface CreateRoutineInput {
   programId: string;
   name: string;

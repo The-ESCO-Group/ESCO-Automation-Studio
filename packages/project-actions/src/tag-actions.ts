@@ -15,6 +15,7 @@ import type {
   DeleteTagInput,
   ProjectActionResult,
   RenameTagInput,
+  SetTagDescriptionInput,
 } from "./types";
 
 /** Create a new tag (controller-scoped by default). Fails if the name exists. */
@@ -56,6 +57,22 @@ export function createTag(
   }
 
   return ok(withControllerTag(project, tag), { tagId: tag.id });
+}
+
+/** Update a tag's description (no rename, no reference changes). */
+export function setTagDescription(
+  project: PlcProject,
+  input: SetTagDescriptionInput,
+): ProjectActionResult<{ name: string }> {
+  const name = input.name?.trim();
+  if (!name) return fail(project, "Tag name is required.");
+  if (!tagExists(project, name)) return fail(project, `Tag "${name}" does not exist.`);
+  return ok(
+    mapAllTags(project, (tag) =>
+      tag.name === name ? { ...tag, description: input.description } : tag,
+    ),
+    { name },
+  );
 }
 
 /** Count how many ladder operands reference `tagName` (by base name) across the project. */

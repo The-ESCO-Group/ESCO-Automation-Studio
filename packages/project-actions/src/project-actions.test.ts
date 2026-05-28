@@ -23,6 +23,7 @@ import {
   removeInstruction,
   renameTag,
   scanProject,
+  setTagDescription,
   updateInstructionOperand,
   validateProject,
   type TagValues,
@@ -130,6 +131,15 @@ describe("project-actions: tags", () => {
 
     const fixed = createTag(edited.project, { name: "Ghost", dataType: "BOOL" });
     expect(fixed.findings?.some((f) => f.ruleId === "undefined-tag")).toBe(false);
+  });
+
+  it("updates a tag description", () => {
+    const base = baseProject();
+    const created = createTag(base.project, { name: "Lamp", dataType: "BOOL" });
+    const described = setTagDescription(created.project, { name: "Lamp", description: "Status lamp" });
+    expect(described.ok).toBe(true);
+    const tag = described.project.controllers[0]!.controllerTags.find((t) => t.name === "Lamp");
+    expect(tag?.description).toBe("Status lamp");
   });
 
   it("renames a tag and remaps operand references", () => {
