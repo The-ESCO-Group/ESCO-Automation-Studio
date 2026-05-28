@@ -8,22 +8,27 @@ files.
 ## What it supports today
 
 - **Editable ladder logic** stored as a semantic AST (not text).
-- **Branch editing** — build single-level parallel / seal-in branches by hand
-  (add a parallel branch, add/remove legs, add instructions per leg).
+- **Branch editing** — build parallel / seal-in branches by hand, including
+  **nested** branches (add a parallel branch, add/remove legs, add instructions
+  per leg, nest a parallel inside a leg).
 - **Undo / redo** for every project edit (Ctrl+Z / Ctrl+Y), with copy /
   duplicate / paste of rungs.
 - **Offline scan-cycle simulation** with a Watch panel (toggle inputs, Scan
   Once / Run / Reset). Array tags (`DINT[n]`) are watched element-by-element.
+- **Simulator debugging** — an execution **trace** (per-instruction power flow)
+  and a **force** table that overrides values for offline what-if testing.
 - **Instruction set:** XIC, XIO, OTE, OTL, OTU, ONS, TON, TOF, RTO, CTU, CTD,
   RES, MOV, ADD, SUB, MUL, DIV, MOD, SQR, NEG, ABS, CLR, AND, OR, XOR, NOT,
   EQU, NEQ, GRT, GEQ, LES, LEQ, LIM, MEQ, JSR, SBR, RET, NOP, AFI.
 - **Multi-routine execution** — JSR runs a subroutine against shared tags, RET
   returns early, with a call-depth guard against runaway recursion.
 - **Validation engine** (undefined tags, type mismatches, missing operands,
-  unsupported instructions, array index bounds, double-coil, duplicate program
-  tags, alias target resolution).
-- **Project persistence** — export / import `.plcproj.json`, with an
-  unsaved-changes indicator and a crash-safe error boundary.
+  unsupported instructions, array index bounds, unknown members, double-coil,
+  duplicate tags, alias-target and unknown-routine resolution; program-scope
+  shadowing).
+- **Project persistence** — versioned `.plcproj.json` (format v2 + migrations),
+  browser autosave / recovery, an unsaved-changes guard, and a crash-safe error
+  boundary.
 - **Studio 5000 L5X import** (branches, member/array paths, descriptions, alias
   and unmodeled-type warnings, located warnings, import summary, plus read-only
   UDT / Add-On Instruction / I/O module structure). Import-only; unsupported

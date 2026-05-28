@@ -15,20 +15,26 @@ Status legend: ✅ done · 🔜 next · ⏳ later
 - ✅ Controlled project-actions API
 - ✅ Cross-reference panel — where each tag is read/written across routines
 - ✅ Tag table editor — create/rename/describe/delete with types
-- ✅ Branch editing UI — build single-level parallel/seal-in branches by hand
-- ✅ Routine & project compare — match by logic fingerprint, not just names
-- ✅ Compare report export (JSON/CSV)
+- ✅ Branch editing UI — parallel/seal-in **and nested** branches by hand
+- ✅ Routine & project compare — fingerprint match + strict/logical (OR-order)
+  canonicalization; JSON/CSV report export
 - ✅ AI assistant (offline/rule-based) + provider interface (local/mock/external
   seam, no API key) + UX polish
 - ✅ Undo / redo action history (Ctrl+Z/Y) + copy / duplicate / paste rungs
-- ✅ Single-dimension array tags (import, simulate, watch, bounds validation)
+- ✅ Single-dimension array tags + alias resolution (validation + simulation) +
+  UDT/structured member validation + program-scope shadowing
 - ✅ Validator rules: double-coil, duplicate program tag, alias target, array
-  bounds, unknown JSR routine
-- ✅ Crash-safe error boundary + unsaved-changes indicator/guard
+  bounds, unknown member, unknown routine
+- ✅ Crash-safe error boundary + unsaved-changes guard
+- ✅ Project format v2 + migration system + browser autosave/recovery
 - ✅ Instruction set: bitwise (AND/OR/XOR/NOT), math (MOD/SQR/NEG/ABS/CLR),
-  compare (LIM/MEQ)
+  compare (LIM/MEQ), program control (JSR/SBR/RET)
 - ✅ JSR / SBR / RET — offline multi-routine execution with a call-depth guard
+- ✅ Simulator debugging — execution trace + force table
 - ✅ UDT / Add-On Instruction / I/O module import + read-only explorer viewers
+- ✅ Performance: synthetic large-project generator + stress tests + import timing
+- ✅ CI (install/typecheck/test/build) + CHANGELOG + CONTRIBUTING + dependency
+  review + issue templates
 - ✅ In-repo E2E smoke harness (`pnpm e2e`)
 - ✅ Architecture & AI documentation
 
@@ -37,13 +43,12 @@ Status legend: ✅ done · 🔜 next · ⏳ later
 1. **More data/sequencer instructions:** COP/CPS/FLL/FAL, SQO/SQI, file ops.
 2. **AOI / UDT logic viewers** (definitions are imported; show their internal
    logic and parameters, not just names).
-3. **Nested / multi-level branch editing** (single-level is implemented;
-   imported nested branches are still flattened with a warning).
-4. **Real LLM connector** — implement an `external` `AssistantProvider` that
+3. **Real LLM connector** — implement an `external` `AssistantProvider` that
    calls a model; apply path and safety model unchanged; key via configuration.
-5. **Desktop packaging with Tauri** (native open/save, recent projects).
+4. **Desktop packaging with Tauri** — scaffold `apps/desktop` per
+   [docs/desktop.md](./desktop.md) (needs a Rust toolchain).
+5. **Editor virtualization** for very large routines.
 6. **L5X export research** (not yet implemented; import-only today).
-7. **Real project import stress testing** with large Studio 5000 exports.
 
 ## Constraints (unchanged)
 
