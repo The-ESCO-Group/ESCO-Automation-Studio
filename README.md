@@ -1,59 +1,90 @@
 # ESCO Automation Studio
 
-A Studio 5000-style PLC / automation IDE for ESCO Electric.
+A Studio 5000-style PLC / automation IDE for ESCO Electric — an **offline**
+engineering tool for editing, simulating, validating, and importing ladder
+logic. It does **not** communicate with any controller and never touches `.ACD`
+files.
 
-This is a clean monorepo foundation. It currently provides the workspace
-structure and a basic running IDE web shell. The PLC domain model, ladder
-editor, simulator, validator, L5X import, and AI assistant are built on top of
-this foundation in later phases (see `01_Planning/ESCO Automation Studio Plan.md`).
+## What it supports today
+
+- **Editable ladder logic** stored as a semantic AST (not text).
+- **Offline scan-cycle simulation** with a Watch panel (toggle inputs, Scan
+  Once / Run / Reset).
+- **Instruction set:** XIC, XIO, OTE, OTL, OTU, TON, CTU, MOV, ADD, SUB, MUL,
+  DIV, EQU, NEQ, GRT, GEQ, LES, LEQ.
+- **Validation engine** (undefined tags, type mismatches, missing operands,
+  unsupported instructions).
+- **Project persistence** — export / import `.plcproj.json`.
+- **Studio 5000 L5X import** (branches, member/array paths, descriptions,
+  import summary). Import-only; unsupported instructions are preserved
+  read-only.
+- **Tag table editor** — create / rename / describe / delete tags.
+- **Cross reference** — where each tag is read / written.
+- **Local, rule-based AI assistant** — explains logic and proposes previewable
+  plans applied only through the controlled action layer (no API key, offline).
 
 ## Requirements
 
 - Node.js >= 20 (developed on Node 24)
-- pnpm 9 (provided via Corepack: `corepack pnpm ...`)
+- pnpm 9 (via Corepack: `corepack pnpm ...`)
 
-## Install
-
-```bash
-corepack pnpm install
-```
-
-## Run the web IDE shell
+## Commands
 
 ```bash
-corepack pnpm dev
+corepack pnpm install        # install dependencies
+corepack pnpm -r typecheck   # type-check every package
+corepack pnpm test           # run the Vitest suite
+corepack pnpm dev            # start the web IDE (http://localhost:5173)
 ```
 
-Then open the URL Vite prints (default http://localhost:5173).
+> If `pnpm` is on your PATH you can drop the `corepack` prefix.
 
-> If you have `pnpm` on your PATH (e.g. after `npm i -g pnpm` or
-> `corepack enable` as administrator), you can drop the `corepack` prefix and
-> just run `pnpm install` / `pnpm dev`.
+## Run the demo
 
-## Workspace layout
+1. `corepack pnpm dev`, open http://localhost:5173.
+2. The **Welcome dashboard** lists what the tool does and quick actions.
+3. Click **Open Demo Routine** → toggle `StartPB` in **Watch** → **Scan Once** →
+   `MotorRun` energizes (seal-in starter).
+4. See [`docs/demo-script.md`](docs/demo-script.md) for the full walkthrough.
+
+## Architecture summary
+
+A pnpm monorepo built in dependency order; React lives only in `apps/web`.
 
 ```text
-apps/
-  web/                React + Vite IDE shell
-  api/                Backend API (stub, Node http)
-packages/
-  core/               PLC domain model (Project/Controller/Task/Program/Routine/Tag)
-  ladder/             Ladder semantic model (rungs, branches, nodes, operands)
-  instructions/       Instruction registry (XIC, XIO, OTE, ...)
-  simulator/          PLC scan-cycle runtime (skeleton)
-  validator/          Rule-based validation engine (skeleton)
-  parser-l5x/         L5X import (stub)
-  project-store/      Project save/load to .plcproj.json
-  ui/                 Shared UI components
-  shared/             IDs, errors, events, utilities
-docs/
-tests/
-scripts/
+core → ladder → instructions → simulator → validator
+                              → project-store → parser-l5x → project-actions → ai-assistant
+apps/web depends on the packages above (never the reverse).
 ```
+
+- `packages/core` — PLC domain model + data-type catalog.
+- `packages/ladder` — semantic ladder AST + immutable edits.
+- `packages/instructions` — instruction registry (single source of metadata).
+- `packages/simulator` — scan-cycle runtime.
+- `packages/validator` — rule-based validation.
+- `packages/project-store` — `.plcproj.json` serialize/deserialize.
+- `packages/parser-l5x` — Studio 5000 L5X import.
+- `packages/project-actions` — **the only sanctioned way to mutate a project**
+  (typed, immutable, validated). See [`docs/project-actions.md`](docs/project-actions.md).
+- `packages/ai-assistant` — offline assistant. See [`docs/ai-assistant.md`](docs/ai-assistant.md).
+- `apps/web` — React + Vite IDE shell.
+
+Full detail: [`docs/current-architecture.md`](docs/current-architecture.md),
+features: [`docs/current-features.md`](docs/current-features.md).
+
+## Safety / limitations (offline-only)
+
+- **No PLC / controller communication, download, or online editing.**
+- **No `.ACD` compile/decompile** — only `.plcproj.json` (read/write) and `.L5X`
+  (read).
+- No L5X export yet. The AI assistant is local/rule-based and changes the
+  project only through `packages/project-actions`, only on explicit Apply.
+
+Full list: [`docs/limitations.md`](docs/limitations.md). Roadmap:
+[`docs/roadmap.md`](docs/roadmap.md).
 
 ## Architecture rules
 
-- The UI must not own the PLC model. The model lives in `packages/core`.
-- Database/storage schema must not leak into React components.
-- Build in dependency order: core -> instructions -> ladder -> simulator ->
-  validator -> UI editor -> L5X import -> AI assistant.
+- The UI must not own the PLC model — it lives in `packages/core`.
+- All project mutations go through `packages/project-actions`.
+- The semantic ladder AST and the instruction registry are the sources of truth.
