@@ -24,6 +24,7 @@ const L5X = `<?xml version="1.0" encoding="UTF-8"?>
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
+page.on("dialog", (d) => d.accept().catch(() => {})); // accept the dirty-close confirm
 
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
@@ -98,6 +99,15 @@ try {
   try { await ribbon(page, "New").click(); await page.waitForTimeout(400); } catch {}
   check("New creates a blank project", /Controller_1|MainRoutine/i.test(await txt(page, ".esco-statusbar")), await txt(page, ".esco-statusbar"));
   check("New project has no fake logic (0 rungs)", (await cnt(page, ".esco-lad__rung")) === 0, `rungs=${await cnt(page, ".esco-lad__rung")}`);
+
+  // --- Close project -> honest empty state ---
+  const closeBtns = page.getByRole("button", { name: "Close", exact: true });
+  const closeCount = await closeBtns.count();
+  for (let i = 0; i < closeCount; i++) {
+    try { await closeBtns.nth(i).click({ timeout: 3000 }); await page.waitForTimeout(300); } catch { continue; }
+    if (/No controllers/i.test(await txt(page, ".esco-left"))) break;
+  }
+  check("Close returns to empty 'No project' state", /No controllers/i.test(await txt(page, ".esco-left")), await txt(page, ".esco-statusbar"));
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

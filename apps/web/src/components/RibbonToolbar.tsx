@@ -5,7 +5,9 @@ interface Props {
   canRedo: boolean;
   canPaste: boolean;
   canCopy: boolean;
+  canClose: boolean;
   onHome: () => void;
+  onClose: () => void;
   onTags: () => void;
   onCompare: () => void;
   onExport: () => void;
@@ -41,7 +43,9 @@ export function RibbonToolbar({
   canRedo,
   canPaste,
   canCopy,
+  canClose,
   onHome,
+  onClose,
   onTags,
   onCompare,
   onExport,
@@ -65,6 +69,7 @@ export function RibbonToolbar({
     { label: "Open", icon: "□", group: "File", action: onImportProject },
     { label: "Save", icon: "▣", group: "File", action: onExport },
     { label: "Save All", icon: "▤", group: "File", action: onExport },
+    { label: "Close", icon: "✕", group: "File", disabled: !canClose, title: "Close the current project", action: onClose },
     { label: "Print", icon: "⌘", group: "File", action: placeholder("Print") },
     { label: "Undo", icon: "↶", group: "Edit", disabled: !canUndo, action: onUndo },
     { label: "Redo", icon: "↷", group: "Edit", disabled: !canRedo, action: onRedo },

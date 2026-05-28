@@ -323,6 +323,23 @@ export function App() {
     push("success", "Created a blank routine.");
   };
 
+  const handleCloseProject = () => {
+    if (dirty && !window.confirm("Close the project? Unsaved changes will be lost.")) return;
+    history.reset(initialProject);
+    setSavedProject(initialProject);
+    setProjectOpen(false);
+    setValues(zeroValues(initialProject));
+    setForces({});
+    setTrace([]);
+    setRunning(false);
+    setRecovery(null);
+    setOpenRoutineId(undefined);
+    setSelection(null);
+    setView("welcome");
+    clearAutosave();
+    push("info", "Project closed.");
+  };
+
   // ---- Autosave recovery ----
   const handleRestoreAutosave = () => {
     if (!recovery) return;
@@ -566,7 +583,9 @@ export function App() {
           canRedo={history.canRedo}
           canPaste={clipboardRung !== null}
           canCopy={selectedRungId != null}
+          canClose={projectOpen}
           onHome={() => setView("welcome")}
+          onClose={handleCloseProject}
           onTags={() => requireProject(() => setView("tags"))}
           onCompare={() => requireProject(() => setView("compare"))}
           onExport={handleExport}
