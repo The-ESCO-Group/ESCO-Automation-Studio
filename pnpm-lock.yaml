@@ -35,6 +35,9 @@ importers:
       '@esco/ladder':
         specifier: workspace:*
         version: link:../../packages/ladder
+      '@esco/project-store':
+        specifier: workspace:*
+        version: link:../../packages/project-store
       '@esco/simulator':
         specifier: workspace:*
         version: link:../../packages/simulator
@@ -116,9 +119,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
     devDependencies:
+      '@esco/ladder':
+        specifier: workspace:*
+        version: link:../ladder
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@22.19.19)
 
   packages/shared:
     devDependencies:

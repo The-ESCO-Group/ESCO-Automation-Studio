@@ -68,10 +68,49 @@ body {
   color: var(--text-dim);
 }
 
-.esco-titlebar__status {
+.esco-titlebar__actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.esco-titlebar__status {
   color: var(--text-dim);
   font-size: 12px;
+}
+
+/* ---- Toast (import errors) ---- */
+.esco-toast {
+  position: fixed;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 70vw;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.esco-toast--error {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.esco-toast__close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
 }
 
 .esco-body {

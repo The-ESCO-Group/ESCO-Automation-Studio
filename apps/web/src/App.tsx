@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   addRung,
   appendInstruction,
@@ -6,6 +6,11 @@ import {
   removeRung,
   setOperandValue,
 } from "@esco/ladder";
+import {
+  deserializeProject,
+  serializeProject,
+  PLCPROJ_EXTENSION,
+} from "@esco/project-store";
 import { createDefaultEngine } from "@esco/validator";
 import { ProjectExplorer } from "./components/ProjectExplorer";
 import { EditorArea } from "./components/EditorArea";
@@ -18,6 +23,7 @@ import {
   withMainLadder,
   withNewTag,
 } from "./project-edit";
+import { downloadTextFile, readFileAsText, slugify } from "./file-io";
 import { scanOnce, watchRows, zeroValues, type TagValues } from "./simulation";
 
 const SCAN_INTERVAL_MS = 250;
@@ -27,6 +33,8 @@ export function App() {
   const [selection, setSelection] = useState<Selection>(null);
   const [values, setValues] = useState<TagValues>(() => zeroValues(project));
   const [running, setRunning] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const findings = useMemo(() => createDefaultEngine().run(project), [project]);
   const rows = watchRows(project, values);
@@ -53,6 +61,27 @@ export function App() {
   const handleScanOnce = () => setValues((current) => scanOnce(project, current));
   const handleReset = () => setValues(zeroValues(project));
 
+  // Persistence: export to / import from .plcproj.json (the AST is the source of truth).
+  const handleExport = () => {
+    downloadTextFile(`${slugify(project.name)}${PLCPROJ_EXTENSION}`, serializeProject(project));
+  };
+  const handleImportClick = () => fileInputRef.current?.click();
+  const handleFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // allow re-importing the same file
+    if (!file) return;
+    try {
+      const loaded = deserializeProject(await readFileAsText(file));
+      setProject(loaded);
+      setValues(zeroValues(loaded)); // reset watch values from the loaded BOOL tags
+      setRunning(false);
+      setSelection(null);
+      setImportError(null);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Failed to import project.");
+    }
+  };
+
   // Continuous run uses the latest project via a ref.
   const projectRef = useRef(project);
   projectRef.current = project;
@@ -73,8 +102,36 @@ export function App() {
           <span className="esco-titlebar__name">Automation Studio</span>
         </div>
         <div className="esco-titlebar__project">{project.name}</div>
+        <div className="esco-titlebar__actions">
+          <button type="button" className="esco-btn" onClick={handleExport}>
+            Export Project
+          </button>
+          <button type="button" className="esco-btn" onClick={handleImportClick}>
+            Import Project
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: "none" }}
+            onChange={handleFileSelected}
+          />
+        </div>
         <div className="esco-titlebar__status">Offline · No controller connected</div>
       </header>
+
+      {importError ? (
+        <div className="esco-toast esco-toast--error" role="alert">
+          <span>Import failed: {importError}</span>
+          <button
+            type="button"
+            className="esco-toast__close"
+            onClick={() => setImportError(null)}
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
 
       <div className="esco-body">
         <aside className="esco-left">
