@@ -27,6 +27,7 @@ const ORDER = [
   "props.mjs",
   "xref.mjs",
   "arrayvalues.mjs",
+  "structure.mjs",
   "compare.mjs",
   "ai.mjs",
   "persist.mjs",

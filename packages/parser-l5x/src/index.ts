@@ -8,6 +8,7 @@ export * from "./extractController";
 export * from "./extractTags";
 export * from "./extractRoutines";
 export * from "./extractPrograms";
+export * from "./extractStructure";
 export * from "./toDomainProject";
 
 /**

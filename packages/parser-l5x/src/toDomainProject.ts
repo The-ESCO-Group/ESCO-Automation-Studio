@@ -11,6 +11,7 @@ import { attr, child, toArray, type L5XNode } from "./parseL5X";
 import { mapTaskType, resolveController } from "./extractController";
 import { extractPrograms } from "./extractPrograms";
 import { extractTags } from "./extractTags";
+import { extractAddOnInstructions, extractDataTypes, extractModules } from "./extractStructure";
 
 /** A human-/UI-readable summary of what an import produced. */
 export interface ImportSummary {
@@ -106,6 +107,11 @@ export function toDomainProject(root: L5XNode, registry: InstructionRegistry): I
   const controllerTags = extractTags(child(controllerNode, "Tags"), controller.id, "controller");
   controller.controllerTags.push(...controllerTags.tags);
   warnings.push(...controllerTags.warnings);
+
+  // Structural metadata (read-only): UDTs, AOI definitions, and the I/O tree.
+  controller.dataTypes.push(...extractDataTypes(controllerNode));
+  controller.addOnInstructions.push(...extractAddOnInstructions(controllerNode));
+  controller.ioConfiguration.modules.push(...extractModules(controllerNode));
 
   const { programs, warnings: programWarnings } = extractPrograms(
     controllerNode,

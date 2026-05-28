@@ -440,3 +440,62 @@ describe("importL5X (stress fixture)", () => {
     expect(runtime.readTag("DwellTimer.DN")).toBe(true); // RTO reached preset
   });
 });
+
+const STRUCTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content>
+  <Controller Use="Target" Name="StructCtl">
+    <DataTypes>
+      <DataType Name="MotorUdt">
+        <Members>
+          <Member Name="Running" DataType="BOOL"><Description><![CDATA[Run feedback]]></Description></Member>
+          <Member Name="Speed" DataType="DINT"/>
+        </Members>
+      </DataType>
+    </DataTypes>
+    <AddOnInstructionDefinitions>
+      <AddOnInstructionDefinition Name="ScaleAOI"><Description><![CDATA[Analog scaler]]></Description></AddOnInstructionDefinition>
+    </AddOnInstructionDefinitions>
+    <Modules>
+      <Module Name="Local" CatalogNumber="1756-L83E" Slot="0"/>
+      <Module Name="DI_01" CatalogNumber="1756-IB16" Slot="1"/>
+    </Modules>
+    <Tags><Tag Name="Start" DataType="BOOL"/><Tag Name="Run" DataType="BOOL"/></Tags>
+    <Programs>
+      <Program Name="MainProgram" MainRoutineName="Main">
+        <Routines><Routine Name="Main" Type="RLL"><RLLContent>
+          <Rung Number="0"><Text><![CDATA[XIC(Start)OTE(Run);]]></Text></Rung>
+        </RLLContent></Routine></Routines>
+      </Program>
+    </Programs>
+  </Controller>
+</RSLogix5000Content>`;
+
+describe("importL5X (structure: UDT / AOI / I/O)", () => {
+  it("imports user-defined types with their members", () => {
+    const controller = importL5X(STRUCTURE).project.controllers[0]!;
+    expect(controller.dataTypes).toHaveLength(1);
+    const udt = controller.dataTypes[0]!;
+    expect(udt.name).toBe("MotorUdt");
+    expect(udt.members.map((m) => `${m.name}:${m.dataType}`)).toEqual(["Running:BOOL", "Speed:DINT"]);
+    expect(udt.members[0]!.description).toBe("Run feedback");
+  });
+
+  it("imports Add-On Instruction definitions with descriptions", () => {
+    const controller = importL5X(STRUCTURE).project.controllers[0]!;
+    expect(controller.addOnInstructions.map((a) => a.name)).toEqual(["ScaleAOI"]);
+    expect(controller.addOnInstructions[0]!.description).toBe("Analog scaler");
+  });
+
+  it("imports the I/O module tree with catalog and slot", () => {
+    const controller = importL5X(STRUCTURE).project.controllers[0]!;
+    expect(controller.ioConfiguration.modules.map((m) => m.name)).toEqual(["Local", "DI_01"]);
+    const di = controller.ioConfiguration.modules.find((m) => m.name === "DI_01")!;
+    expect(di.catalogNumber).toBe("1756-IB16");
+    expect(di.slot).toBe(1);
+  });
+
+  it("round-trips structure metadata through serialize/deserialize", () => {
+    const { project } = importL5X(STRUCTURE);
+    expect(deserializeProject(serializeProject(project))).toEqual(project);
+  });
+});

@@ -90,11 +90,63 @@ export function ProjectExplorer({ project, selection, onSelect }: Props) {
                         onClick={() => onSelect({ kind: "tag", id: tag.id })}
                       >
                         {tag.name} : {tag.dataType}
+                        {tag.dimension ? `[${tag.dimension}]` : ""}
                       </button>
                     </li>
                   ))}
                 </ul>
               </li>
+
+              {controller.dataTypes.length > 0 ? (
+                <li>
+                  <span className="esco-tree__group">Data Types ({controller.dataTypes.length})</span>
+                  <ul className="esco-tree esco-tree--nested">
+                    {controller.dataTypes.map((udt) => (
+                      <li key={udt.id}>
+                        <span className="esco-tree__leaf" title={`${udt.members.length} member(s)`}>
+                          {udt.name} · {udt.members.length} member{udt.members.length === 1 ? "" : "s"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ) : null}
+
+              {controller.addOnInstructions.length > 0 ? (
+                <li>
+                  <span className="esco-tree__group">
+                    Add-On Instructions ({controller.addOnInstructions.length})
+                  </span>
+                  <ul className="esco-tree esco-tree--nested">
+                    {controller.addOnInstructions.map((aoi) => (
+                      <li key={aoi.id}>
+                        <span className="esco-tree__leaf" title={aoi.description ?? ""}>
+                          {aoi.name}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ) : null}
+
+              {controller.ioConfiguration.modules.length > 0 ? (
+                <li>
+                  <span className="esco-tree__group">
+                    I/O Modules ({controller.ioConfiguration.modules.length})
+                  </span>
+                  <ul className="esco-tree esco-tree--nested">
+                    {controller.ioConfiguration.modules.map((module) => (
+                      <li key={module.id}>
+                        <span className="esco-tree__leaf">
+                          {module.name}
+                          {module.catalogNumber ? ` · ${module.catalogNumber}` : ""}
+                          {module.slot != null ? ` · slot ${module.slot}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ) : null}
             </ul>
           </li>
         ))}
