@@ -9,3 +9,8 @@ coverage/
 *.tsbuildinfo
 .env
 .env.local
+
+# E2E run artifacts (screenshots and generated fixtures)
+e2e/*.png
+e2e/*.L5X
+e2e/*.plcproj.json
