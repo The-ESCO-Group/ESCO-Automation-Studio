@@ -96,15 +96,23 @@ apps/web depends on the packages above (never the reverse).
 Full detail: [`docs/current-architecture.md`](docs/current-architecture.md),
 features: [`docs/current-features.md`](docs/current-features.md).
 
-## Safety / limitations (offline-only)
+## Safety / limitations (offline by default)
 
 - **No PLC / controller communication, download, or online editing.**
 - **No `.ACD` compile/decompile** — only `.plcproj.json` (read/write) and `.L5X`
   (read).
-- No L5X export yet. The AI assistant is local/rule-based and changes the
-  project only through `packages/project-actions`, only on explicit Apply.
+- **AI is offline/local by default** and changes the project only through
+  `packages/project-actions`, only on explicit Apply.
+- **Optional opt-in online AI agent** (Claude `claude-opus-4-7`): off by default,
+  uses your own API key (browser session-only) or a server proxy with an env key —
+  no key is bundled or committed. When enabled, it sends your prompt and project
+  context to the provider. It still edits only by proposing actions you Apply
+  through `project-actions`; it has no PLC/.ACD/file access. See
+  [`docs/online-ai-safety.md`](docs/online-ai-safety.md).
+- **Not a replacement for Studio 5000** — an offline engineering/simulation aid.
 
-Full list: [`docs/limitations.md`](docs/limitations.md). Roadmap:
+Full list: [`docs/limitations.md`](docs/limitations.md). Online AI safety:
+[`docs/online-ai-safety.md`](docs/online-ai-safety.md). Roadmap:
 [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Architecture rules

@@ -8,6 +8,10 @@ export * from "./provider";
 export * from "./localProvider";
 export * from "./mockProvider";
 export * from "./externalProvider";
+export * from "./agentConfig";
+export * from "./agentTools";
+export * from "./agentContext";
+export * from "./agentLoop";
 
 import { DEFAULT_PROVIDER_MODE, type AssistantProvider, type ProviderMode } from "./provider";
 import { LocalRuleBasedProvider } from "./localProvider";

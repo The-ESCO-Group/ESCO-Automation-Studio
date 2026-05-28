@@ -1,0 +1,68 @@
+/* Styles for the opt-in live online agent. Scoped to .esco-copilot-live and a
+   few online-only modifiers. Uses CSS-var fallbacks so it renders correctly
+   regardless of the shell's theme variable names. */
+
+.esco-copilot-live {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.esco-ai__notice--online {
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text-dim, #555);
+  background: var(--bg-elevated, #f6f3ec);
+  border-left: 3px solid var(--error, #b71c1c);
+  border-radius: 3px;
+}
+
+.esco-copilot-live__config {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.esco-copilot-live__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim, #555);
+}
+
+.esco-copilot-live__keystatus {
+  font-size: 11px;
+  color: var(--text-dim, #777);
+}
+
+.esco-copilot-live__transcript {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.esco-copilot-live__turn--tool code {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim, #666);
+  padding: 2px 6px;
+  border-left: 2px solid var(--border, #ccc);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.esco-copilot-live__turn--error {
+  color: var(--error, #b71c1c);
+}
+
+.esco-ai__working {
+  margin-top: 6px;
+  font-style: italic;
+  color: var(--text-dim, #777);
+}

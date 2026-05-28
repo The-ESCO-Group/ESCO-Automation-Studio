@@ -9,6 +9,21 @@ does not modify `.ACD` files, and requires no external API keys.
 First consolidated internal release. Offline Studio 5000-style IDE for viewing,
 editing, simulating, validating, importing, and comparing ladder logic.
 
+### Live AI agent (2026-05-28)
+- Added an **opt-in online agent** (Claude `claude-opus-4-7`) in the AI Copilot,
+  alongside the offline rule-based assistant (which remains the default).
+- The agent is **agentic but propose-only**: it inspects via a whitelisted set of
+  read tools and proposes write actions as a previewable plan; the real project is
+  never mutated during a run. Apply routes the plan through `@esco/project-actions`,
+  runs validation, and commits one undoable edit.
+- Two transports: `browser-key` (developer/local testing only — user-pasted key,
+  session-only, never written to disk) and `proxy` (production pattern — a
+  same-origin route injects `ANTHROPIC_API_KEY` from the server env; the browser
+  never sees the key). No key is bundled or committed.
+- Model/provider config centralized in `packages/ai-assistant/src/agentConfig.ts`.
+- Tool whitelist maps only to project-actions; no file/shell/network/PLC/.ACD/eval
+  tools exist. The agent loop is unit-tested with a mock provider (no real calls).
+
 ### Editor
 - Editable ladder logic on a semantic AST (not text).
 - Branch editing including **nested** parallel/seal-in branches.

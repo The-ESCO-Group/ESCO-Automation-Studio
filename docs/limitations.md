@@ -28,10 +28,14 @@ following are intentional boundaries and known gaps.
   **import**: `parseRungText` models only single-level `[A,B]` branches, so
   nested branches in an imported L5X rung are flattened to a series with a
   warning. Building nested branches in the editor works.
-- **Local / rule-based AI by default.** Intent matching is keyword-based. There
-  is an `AssistantProvider` seam (local / mock / external) ready for a real LLM,
-  but the external provider is unconfigured — no LLM connector, no API key, no
-  network calls.
+- **Local / rule-based AI by default.** Intent matching is keyword-based and runs
+  fully offline with no key or network. An **opt-in online agent** (Claude
+  `claude-opus-4-7`) is available in the Copilot: off by default; when enabled it
+  uses your own key (browser session-only) or a server proxy (env key) and sends
+  prompt + project context to the provider. It edits only by proposing actions you
+  Apply through `project-actions`, with no PLC/.ACD/file access. The `browser-key`
+  transport is for developer/local testing only; prefer the proxy/env-key pattern
+  for internal/production use. See `online-ai-safety.md`.
 - **Import robustness is still improving.** Real-world L5X variety (UDTs,
   AOIs, complex/nested branches, arrays) is partially handled; nested branches
   are flattened with a warning, and unmodeled members default to 0/false in
