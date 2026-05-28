@@ -139,6 +139,19 @@ export const ladderOperands: ValidationRule = {
               continue;
             }
 
+            // Model-only instructions are recognized but not simulated. Report
+            // them as info and skip operand tag-validation (their operands are
+            // often keywords/structures, not plain tags).
+            if (definition.modelOnly) {
+              findings.push({
+                ruleId: "model-only-instruction",
+                severity: "info",
+                message: `Instruction "${node.instructionType}" is recognized but model-only (preserved and displayed, not simulated).`,
+                target,
+              });
+              continue;
+            }
+
             definition.operands.forEach((operandDef, index) => {
               const value = node.operands[index]?.value?.trim() ?? "";
 

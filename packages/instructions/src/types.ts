@@ -7,7 +7,13 @@ export type InstructionCategory =
   | "compare"
   | "math"
   | "move"
-  | "program-control";
+  | "program-control"
+  | "sequencer"
+  | "shift"
+  | "file"
+  | "message"
+  | "alarm"
+  | "motion";
 
 export type InstructionStyle = "contact" | "coil" | "box" | "function";
 
@@ -60,6 +66,12 @@ export interface InstructionDefinition {
   category: InstructionCategory;
   description: string;
   operands: InstructionOperandDefinition[];
+  /**
+   * True for instructions that are recognized (so they parse, render, and don't
+   * count as "unsupported"), but are NOT simulated — their execute is a safe
+   * pass-through and the validator reports them as info, never an error.
+   */
+  modelOnly?: boolean;
   validate: InstructionValidator;
   execute: InstructionExecutor;
   render: {
