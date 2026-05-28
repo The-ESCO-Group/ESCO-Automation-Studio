@@ -8,6 +8,7 @@ import { COP, CPS, FLL, MVM } from "./data-movement";
 import { BRK, BTD, FOR, FRD, JMP, LBL, MCR, SWPB, TND, TOD } from "./conversion-control";
 import { ADVANCED_MODEL_ONLY } from "./advanced";
 import { FILE_ARRAY_INSTRUCTIONS } from "./file-array";
+import { STRING_ASCII_INSTRUCTIONS } from "./string-ascii";
 import { AFI, NOP } from "./program-control";
 import { JSR, RET, SBR } from "./routine-control";
 
@@ -23,6 +24,7 @@ export * from "./data-movement";
 export * from "./conversion-control";
 export * from "./advanced";
 export * from "./file-array";
+export * from "./string-ascii";
 export * from "./program-control";
 export * from "./routine-control";
 
@@ -41,6 +43,7 @@ export function createDefaultRegistry(): InstructionRegistry {
     NOP, AFI,
     TND, JMP, LBL, MCR, BRK, FOR,
     ...FILE_ARRAY_INSTRUCTIONS,
+    ...STRING_ASCII_INSTRUCTIONS,
     ...ADVANCED_MODEL_ONLY,
   ]) {
     registry.register(def);
