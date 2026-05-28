@@ -417,6 +417,21 @@ describe("project-actions: array tags", () => {
     expect(values["Dest"]).toBe(7); // read back via MOV(Arr[2], Dest)
   });
 
+  it("resolves alias reads/writes to the base tag in simulation", () => {
+    const base = baseProject();
+    const ctrl = base.project.controllers[0]!;
+    ctrl.controllerTags.push(makeTag(ctrl.id, "StartPB", "BOOL"));
+    ctrl.controllerTags.push(makeTag(ctrl.id, "Run", "BOOL"));
+    const alias = makeTag(ctrl.id, "MotorCmd", "BOOL");
+    alias.aliasFor = "Run";
+    ctrl.controllerTags.push(alias);
+
+    // XIC(StartPB) OTE(MotorCmd) — writing the alias must land on its base, Run.
+    const p = addRungFromText(base.project, { routineId: base.routineId, text: "XIC(StartPB)OTE(MotorCmd)" }).project;
+    const values = scanProject(p, { ...defaultValues(p), StartPB: true }).data!.values;
+    expect(values.Run).toBe(true);
+  });
+
   it("flags an out-of-range array index and accepts an in-range one", () => {
     const base = baseProject();
     const ctrl = base.project.controllers[0]!;

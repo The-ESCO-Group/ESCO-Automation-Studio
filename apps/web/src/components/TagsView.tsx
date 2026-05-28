@@ -151,7 +151,10 @@ export function TagsView({
                     }}
                   />
                 </td>
-                <td>{tag.dimension ? `${tag.dataType}[${tag.dimension}]` : tag.dataType}</td>
+                <td>
+                  {tag.dimension ? `${tag.dataType}[${tag.dimension}]` : tag.dataType}
+                  {tag.aliasFor ? <span className="esco-tags__alias"> → {tag.aliasFor}</span> : null}
+                </td>
                 <td>{tag.scope}</td>
                 <td>
                   <input

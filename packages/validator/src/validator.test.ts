@@ -142,6 +142,97 @@ describe("program-tag rules", () => {
   });
 });
 
+/** Build a controller project with controller/program tags, UDTs, and one rung. */
+function controllerProject(opts: {
+  controllerTags?: { name: string; type: string; aliasFor?: string }[];
+  programTags?: { name: string; type: string }[];
+  udts?: { name: string; members: string[] }[];
+  nodes: LadderNode[];
+}): PlcProject {
+  const project = createProject("Test");
+  const controller = createController(project.id, "Ctrl");
+  const program = createProgram(controller.id, "MainProgram");
+  const routine = createRoutine(program.id, "MainRoutine", "ladder");
+  program.mainRoutineId = routine.id;
+  const ladder = createLadderRoutine();
+  ladder.rungs.push(createRung(ladder.id, 0, opts.nodes));
+  routine.ladder = ladder;
+  program.routines.push(routine);
+  for (const t of opts.programTags ?? []) {
+    program.programTags.push(createTag(controller.id, t.name, t.type, { scope: "program", programId: program.id }));
+  }
+  controller.programs.push(program);
+  for (const t of opts.controllerTags ?? []) {
+    const tag = createTag(controller.id, t.name, t.type);
+    if (t.aliasFor) tag.aliasFor = t.aliasFor;
+    controller.controllerTags.push(tag);
+  }
+  for (const u of opts.udts ?? []) {
+    controller.dataTypes.push({
+      id: `udt-${u.name}`,
+      name: u.name,
+      members: u.members.map((m) => ({ name: m, dataType: "BOOL" })),
+    });
+  }
+  project.controllers.push(controller);
+  return project;
+}
+
+describe("tag scope, members, and aliases", () => {
+  it("a program tag shadows a controller tag of the same name", () => {
+    // Controller Shared:DINT shadowed by program Shared:BOOL; XIC expects BOOL.
+    const project = controllerProject({
+      controllerTags: [{ name: "Shared", type: "DINT" }],
+      programTags: [{ name: "Shared", type: "BOOL" }],
+      nodes: [createNode("XIC", [tagOperand("tag", "Shared")])],
+    });
+    expect(createDefaultEngine().run(project).some((f) => f.ruleId === "operand-type-mismatch")).toBe(false);
+  });
+
+  it("flags an unknown member on a structured (TIMER) tag, accepts a real one", () => {
+    const bad = controllerProject({
+      controllerTags: [{ name: "Timer1", type: "TIMER" }],
+      nodes: [createNode("XIC", [tagOperand("tag", "Timer1.XYZ")])],
+    });
+    expect(createDefaultEngine().run(bad).some((f) => f.ruleId === "unknown-member" && f.message.includes("XYZ"))).toBe(true);
+
+    const good = controllerProject({
+      controllerTags: [{ name: "Timer1", type: "TIMER" }],
+      nodes: [createNode("XIC", [tagOperand("tag", "Timer1.DN")])],
+    });
+    expect(createDefaultEngine().run(good).some((f) => f.ruleId === "unknown-member")).toBe(false);
+  });
+
+  it("flags an unknown member on a UDT tag, accepts a defined one", () => {
+    const bad = controllerProject({
+      controllerTags: [{ name: "Motor", type: "MotorUdt" }],
+      udts: [{ name: "MotorUdt", members: ["Status", "Cmd"] }],
+      nodes: [createNode("XIC", [tagOperand("tag", "Motor.Bogus")])],
+    });
+    expect(createDefaultEngine().run(bad).some((f) => f.ruleId === "unknown-member")).toBe(true);
+
+    const good = controllerProject({
+      controllerTags: [{ name: "Motor", type: "MotorUdt" }],
+      udts: [{ name: "MotorUdt", members: ["Status", "Cmd"] }],
+      nodes: [createNode("XIC", [tagOperand("tag", "Motor.Status")])],
+    });
+    expect(createDefaultEngine().run(good).some((f) => f.ruleId === "unknown-member")).toBe(false);
+  });
+
+  it("resolves an alias to its base type (no undefined / type mismatch)", () => {
+    const project = controllerProject({
+      controllerTags: [
+        { name: "Run", type: "BOOL" },
+        { name: "MotorCmd", type: "ALIAS", aliasFor: "Run" },
+      ],
+      nodes: [createNode("XIC", [tagOperand("tag", "MotorCmd")])],
+    });
+    const findings = createDefaultEngine().run(project);
+    expect(findings.some((f) => f.ruleId === "undefined-tag")).toBe(false);
+    expect(findings.some((f) => f.ruleId === "operand-type-mismatch")).toBe(false);
+  });
+});
+
 describe("operand validation for the new instructions", () => {
   it("flags a missing required operand", () => {
     // TON with only the timer operand — preset is missing.

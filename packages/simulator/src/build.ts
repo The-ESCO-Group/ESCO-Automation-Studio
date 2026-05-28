@@ -33,6 +33,8 @@ export function createRuntime(options: {
   routine?: LadderRoutine;
   /** Sibling routines by name, so a JSR in `routine` can resolve subroutines. */
   routines?: Map<string, LadderRoutine>;
+  /** Alias tag name → base tag, so alias reads/writes resolve to the base. */
+  aliases?: Map<string, string>;
   tags: TagDescriptor[];
   registry?: InstructionRegistry;
 }): PlcRuntime {
@@ -40,6 +42,9 @@ export function createRuntime(options: {
   const runtime = new PlcRuntime(registry);
   for (const tag of options.tags) {
     runtime.defineTag(tag);
+  }
+  if (options.aliases) {
+    for (const [name, base] of options.aliases) runtime.defineAlias(name, base);
   }
   if (options.routines) {
     runtime.loadRoutines(options.routines);

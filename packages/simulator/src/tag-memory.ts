@@ -15,6 +15,7 @@ export type PlcValue = boolean | number | string;
 export class TagMemory {
   private values = new Map<string, PlcValue>();
   private initial = new Map<string, PlcValue>();
+  private aliases = new Map<string, string>();
 
   /** Register a tag and its power-up value. Does not clobber a live value. */
   define(path: string, value: PlcValue = false): void {
@@ -24,12 +25,31 @@ export class TagMemory {
     }
   }
 
+  /** Map an alias tag name to its base tag, so reads/writes resolve to the base. */
+  defineAlias(name: string, base: string): void {
+    if (name && base) this.aliases.set(name, base);
+  }
+
+  /** Resolve the base segment of a path through any alias chain (`MotorCmd.DN` → `Run.DN`). */
+  private resolve(path: string): string {
+    if (this.aliases.size === 0) return path;
+    const match = path.match(/^([A-Za-z_][A-Za-z0-9_]*)(.*)$/);
+    if (!match) return path;
+    let base = match[1]!;
+    const seen = new Set<string>();
+    while (this.aliases.has(base) && !seen.has(base)) {
+      seen.add(base);
+      base = this.aliases.get(base)!;
+    }
+    return base + (match[2] ?? "");
+  }
+
   read(path: string): PlcValue {
-    return this.values.get(path) ?? false;
+    return this.values.get(this.resolve(path)) ?? false;
   }
 
   write(path: string, value: PlcValue): void {
-    this.values.set(path, value);
+    this.values.set(this.resolve(path), value);
   }
 
   readBool(path: string): boolean {
@@ -37,12 +57,12 @@ export class TagMemory {
   }
 
   writeBool(path: string, value: boolean): void {
-    this.values.set(path, value);
+    this.values.set(this.resolve(path), value);
   }
 
   /** Read a path as a number, coercing booleans/strings; missing values are 0. */
   readNumber(path: string): number {
-    const value = this.values.get(path);
+    const value = this.values.get(this.resolve(path));
     if (typeof value === "number") return value;
     if (typeof value === "boolean") return value ? 1 : 0;
     if (typeof value === "string") {

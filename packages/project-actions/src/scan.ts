@@ -1,8 +1,18 @@
 import { arrayElementNames, isStructuredType, memberDefs, type PlcProject } from "@esco/core";
+import { baseTagName } from "@esco/instructions";
 import type { LadderRoutine } from "@esco/ladder";
 import { collectOutputTags, createRuntime } from "@esco/simulator";
 import { defaultRoutineId, findRoutine, getAllTags, getLadder, validate } from "./helpers";
 import type { ProjectActionResult, ScanOptions } from "./types";
+
+/** Alias tag name → base tag name, for the simulator to resolve reads/writes. */
+function aliasMap(project: PlcProject): Map<string, string> {
+  const aliases = new Map<string, string>();
+  for (const tag of getAllTags(project)) {
+    if (tag.aliasFor) aliases.set(tag.name, baseTagName(tag.aliasFor));
+  }
+  return aliases;
+}
 
 /** Routines (by name) of the program that owns `routineId`, for JSR resolution. */
 function siblingRoutines(project: PlcProject, routineId: string): Map<string, LadderRoutine> {
@@ -75,7 +85,7 @@ export function scanProject(
   const routineId = options.routineId ?? defaultRoutineId(project);
   const ladder = getLadder(findRoutine(project, routineId ?? ""));
   const routines = siblingRoutines(project, routineId ?? "");
-  const runtime = createRuntime({ routine: ladder, routines, tags: [] });
+  const runtime = createRuntime({ routine: ladder, routines, aliases: aliasMap(project), tags: [] });
 
   for (const [path, value] of Object.entries(values)) {
     runtime.writeTag(path, value);

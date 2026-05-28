@@ -1499,6 +1499,11 @@ body {
   gap: 8px;
 }
 
+.esco-tags__alias {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
 /* ---- Crash / error boundary fallback ---- */
 .esco-crash {
   display: flex;

@@ -38,6 +38,11 @@ export class PlcRuntime {
     this.memory.define(descriptor.name, descriptor.initialValue);
   }
 
+  /** Register an alias so reads/writes of `name` resolve to `base` in memory. */
+  defineAlias(name: string, base: string): void {
+    this.memory.defineAlias(name, base);
+  }
+
   /** All declared tags, in declaration order (used by the Watch panel). */
   tags(): readonly TagDescriptor[] {
     return this.descriptors;

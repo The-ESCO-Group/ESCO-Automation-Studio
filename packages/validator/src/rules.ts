@@ -1,4 +1,4 @@
-import { parseArrayIndex } from "@esco/core";
+import { STRUCTURED_TYPES, memberDefs, parseArrayIndex } from "@esco/core";
 import { baseTagName, createDefaultRegistry, isNumericLiteral, isPlainTag } from "@esco/instructions";
 import { routineNodes, type LadderRoutine } from "@esco/ladder";
 import type { ValidationFinding, ValidationRule } from "./types";
@@ -78,20 +78,50 @@ export const ladderOperands: ValidationRule = {
   run({ project }) {
     const findings: ValidationFinding[] = [];
     for (const controller of project.controllers) {
-      const tagTypes = new Map<string, string>();
-      const tagDims = new Map<string, number>();
+      // Controller-scope tag types/dimensions/aliases (overlaid per program below).
+      const controllerTypes = new Map<string, string>();
+      const controllerDims = new Map<string, number>();
+      const controllerAlias = new Map<string, string>();
+      for (const tag of controller.controllerTags) {
+        controllerTypes.set(tag.name, tag.dataType);
+        if (tag.dimension && tag.dimension > 0) controllerDims.set(tag.name, tag.dimension);
+        if (tag.aliasFor) controllerAlias.set(tag.name, baseTagName(tag.aliasFor));
+      }
       const routineNames = new Set<string>();
-      const indexTag = (name: string, dataType: string, dimension?: number) => {
-        tagTypes.set(name, dataType);
-        if (dimension && dimension > 0) tagDims.set(name, dimension);
-      };
-      for (const tag of controller.controllerTags) indexTag(tag.name, tag.dataType, tag.dimension);
       for (const program of controller.programs) {
-        for (const tag of program.programTags) indexTag(tag.name, tag.dataType, tag.dimension);
         for (const routine of program.routines) routineNames.add(routine.name);
       }
 
+      // Known member names by structured/UDT type, for member-path validation.
+      const memberNames = new Map<string, Set<string>>();
+      for (const structured of Object.keys(STRUCTURED_TYPES)) {
+        memberNames.set(structured, new Set(memberDefs(structured).map((m) => m.name)));
+      }
+      for (const udt of controller.dataTypes) {
+        memberNames.set(udt.name, new Set(udt.members.map((m) => m.name)));
+      }
+
       for (const program of controller.programs) {
+        // Effective tags inside this program: controller scope overlaid with
+        // (shadowed by) the program's own tags.
+        const tagTypes = new Map(controllerTypes);
+        const tagDims = new Map(controllerDims);
+        const tagAlias = new Map(controllerAlias);
+        for (const tag of program.programTags) {
+          tagTypes.set(tag.name, tag.dataType);
+          if (tag.dimension && tag.dimension > 0) tagDims.set(tag.name, tag.dimension);
+          if (tag.aliasFor) tagAlias.set(tag.name, baseTagName(tag.aliasFor));
+        }
+        // Resolve a name to its effective data type, following alias chains.
+        const resolveType = (name: string, seen = new Set<string>()): string | undefined => {
+          if (seen.has(name)) return undefined; // alias cycle
+          if (tagAlias.has(name)) {
+            seen.add(name);
+            return resolveType(tagAlias.get(name)!, seen);
+          }
+          return tagTypes.get(name);
+        };
+
         for (const routine of program.routines) {
           const ladder = asLadderRoutine(routine.ladder);
           if (!ladder) continue;
@@ -143,8 +173,9 @@ export const ladderOperands: ValidationRule = {
               const base = baseTagName(value);
               if (base === "") return; // unparseable (expression) — skip
 
-              const dataType = tagTypes.get(base);
-              if (dataType === undefined) {
+              // A name is "known" if it is a tag or an alias (even if the alias
+              // target is missing — alias-target-missing reports that separately).
+              if (!tagTypes.has(base) && !tagAlias.has(base)) {
                 findings.push({
                   ruleId: "undefined-tag",
                   severity: "error",
@@ -153,6 +184,9 @@ export const ladderOperands: ValidationRule = {
                 });
                 return;
               }
+              // Effective type after alias resolution (undefined if alias target missing).
+              const dataType = resolveType(base);
+              if (dataType === undefined) return; // unresolved alias — covered elsewhere
 
               // Array bounds: an element index must be within the tag's dimension.
               const arrayRef = parseArrayIndex(value);
@@ -165,6 +199,23 @@ export const ladderOperands: ValidationRule = {
                     message: `Array index ${arrayRef.index} is out of range for "${arrayRef.base}" (size ${dim}).`,
                     target,
                   });
+                }
+              }
+
+              // Member path: validate the first member against the tag's structure/UDT.
+              const dotAt = value.indexOf(".");
+              if (dotAt >= 0 && !arrayRef) {
+                const members = memberNames.get(dataType);
+                if (members) {
+                  const firstMember = value.slice(dotAt + 1).split(/[.[]/)[0];
+                  if (firstMember && !members.has(firstMember)) {
+                    findings.push({
+                      ruleId: "unknown-member",
+                      severity: "warning",
+                      message: `Member "${firstMember}" does not exist on ${dataType} tag "${base}".`,
+                      target,
+                    });
+                  }
                 }
               }
 
