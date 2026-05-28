@@ -1310,6 +1310,13 @@ body {
   gap: 16px;
 }
 
+.esco-cmp__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .esco-cmp__title {
   font-size: 20px;
   margin: 0;

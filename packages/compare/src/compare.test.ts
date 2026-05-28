@@ -9,7 +9,7 @@ import {
 } from "@esco/core";
 import { addRung, appendInstruction, createLadderRoutine } from "@esco/ladder";
 import { importL5X } from "@esco/parser-l5x";
-import { compareProjects, compareRoutines } from "./index";
+import { compareProjects, compareReportCsv, compareReportJson, compareRoutines } from "./index";
 
 type RungSpec = [type: string, operand?: string][];
 
@@ -98,6 +98,32 @@ describe("compareProjects", () => {
     expect(result.changed[0]!.status).toBe("operand-changed");
     expect(result.onlyInLeft[0]!.routineName).toBe("OnlyLeft");
     expect(result.onlyInRight[0]!.routineName).toBe("OnlyRight");
+  });
+
+  it("serializes a compare report to JSON and CSV", () => {
+    const left = projectWith([
+      routineWith("Same", sealIn()),
+      routineWith("Edited", [[["XIC", "A"], ["OTE", "B"]]]),
+      routineWith("Only, Left", [[["XIC", "X"], ["OTE", "Y"]]]), // name has a comma
+    ]);
+    const right = projectWith([
+      routineWith("Same", sealIn()),
+      routineWith("Edited", [[["XIC", "A"], ["OTE", "Changed"]]]),
+    ]);
+    const result = compareProjects(left, right);
+
+    // JSON round-trips back to the same summary.
+    const json = compareReportJson(result);
+    expect(JSON.parse(json).summary).toEqual(result.summary);
+
+    // CSV has a header + one row per compared routine.
+    const csv = compareReportCsv(result);
+    const lines = csv.split("\r\n");
+    expect(lines[0]).toBe("Status,Left routine,Right routine,Match type,Difference summary");
+    expect(lines).toHaveLength(1 + result.summary.total);
+    expect(csv).toMatch(/MainProgram\/Same/);
+    // A routine name containing a comma is quoted as a single CSV cell.
+    expect(csv.includes('"MainProgram/Only, Left"')).toBe(true);
   });
 
   it("compares two imported L5X projects by logic despite a renamed routine", () => {

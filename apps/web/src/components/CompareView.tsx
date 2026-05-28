@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import type { PlcProject } from "@esco/core";
-import { compareProjects, type RoutineMatch, type RoutineRef } from "@esco/compare";
+import {
+  compareProjects,
+  compareReportCsv,
+  compareReportJson,
+  type ProjectComparison,
+  type RoutineMatch,
+  type RoutineRef,
+} from "@esco/compare";
+import { downloadTextFile, slugify } from "../file-io";
 
 interface Props {
   project: PlcProject;
@@ -78,6 +86,15 @@ export function CompareView({ project, comparison, onChooseFile }: Props) {
     [project, comparison],
   );
 
+  const exportReport = (format: "json" | "csv", data: ProjectComparison) => {
+    const base = `${slugify(project.name)}-vs-${slugify(comparison?.name ?? "comparison")}-compare`;
+    if (format === "json") {
+      downloadTextFile(`${base}.json`, compareReportJson(data));
+    } else {
+      downloadTextFile(`${base}.csv`, compareReportCsv(data));
+    }
+  };
+
   return (
     <div className="esco-cmp">
       <header className="esco-cmp__header">
@@ -88,9 +105,21 @@ export function CompareView({ project, comparison, onChooseFile }: Props) {
             and routines. Offline; nothing is sent anywhere.
           </p>
         </div>
-        <button type="button" className="esco-btn esco-btn--primary" onClick={onChooseFile}>
-          Choose comparison file…
-        </button>
+        <div className="esco-cmp__actions">
+          <button type="button" className="esco-btn esco-btn--primary" onClick={onChooseFile}>
+            Choose comparison file…
+          </button>
+          {result ? (
+            <>
+              <button type="button" className="esco-btn" onClick={() => exportReport("json", result)}>
+                Export JSON
+              </button>
+              <button type="button" className="esco-btn" onClick={() => exportReport("csv", result)}>
+                Export CSV
+              </button>
+            </>
+          ) : null}
+        </div>
       </header>
 
       {!comparison || !result ? (

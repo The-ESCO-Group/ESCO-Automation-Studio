@@ -1,10 +1,12 @@
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { readFileSync } from "node:fs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const URL = "http://localhost:5173/";
 const exportPath = join(here, "compare-original.plcproj.json");
+const csvPath = join(here, "compare-report.csv");
 
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
@@ -55,6 +57,19 @@ try {
   await page.locator(".esco-cmp__item--changed .esco-cmp__row").first().click();
   await page.locator(".esco-cmp__sidebyside").waitFor({ timeout: 5000 });
   check("changed row expands to a side-by-side diff", true);
+
+  // Export the compare report as CSV.
+  const [csvDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator('.esco-cmp__actions button:has-text("Export CSV")').click(),
+  ]);
+  await csvDownload.saveAs(csvPath);
+  const csv = readFileSync(csvPath, "utf-8");
+  check(
+    "CSV report downloads with the expected header",
+    /^Status,Left routine,Right routine,Match type,Difference summary/.test(csv),
+    csvDownload.suggestedFilename(),
+  );
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

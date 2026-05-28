@@ -14,3 +14,4 @@ coverage/
 e2e/*.png
 e2e/*.L5X
 e2e/*.plcproj.json
+e2e/*.csv
