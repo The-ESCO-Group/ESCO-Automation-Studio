@@ -91,7 +91,10 @@ function ContactGlyph({ node }: { node: LadderNode }) {
     <span
       className={nodeClass(`esco-lad__node esco-lad__node--${kind}`, editing, node.id)}
       title={node.instructionType}
-      onClick={() => editing.onSelectNode?.(editing.rungId, node.id)}
+      onClick={(event) => {
+        event.stopPropagation();
+        editing.onSelectNode?.(editing.rungId, node.id);
+      }}
     >
       <span className="esco-lad__bracket">{lhs}</span>
       <OperandInput editing={editing} nodeId={node.id} index={0} value={value} placeholder="tag" />
@@ -117,7 +120,10 @@ function BoxGlyph({ node }: { node: LadderNode }) {
     <span
       className={nodeClass(boxBase, editing, node.id)}
       title={supported ? node.instructionType : `${node.instructionType} (unsupported, read-only)`}
-      onClick={() => editing.onSelectNode?.(editing.rungId, node.id)}
+      onClick={(event) => {
+        event.stopPropagation();
+        editing.onSelectNode?.(editing.rungId, node.id);
+      }}
     >
       <span className="esco-lad__box-name">{node.instructionType}</span>
       {operandDefs.map((operandDef, index) => (

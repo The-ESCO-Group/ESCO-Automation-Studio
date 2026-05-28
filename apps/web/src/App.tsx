@@ -353,7 +353,7 @@ export function App() {
         </main>
 
         <aside className="esco-right">
-          <PropertiesPanel project={project} selection={selection} />
+          <PropertiesPanel project={project} selection={selection} values={values} findings={findings} />
         </aside>
       </div>
 

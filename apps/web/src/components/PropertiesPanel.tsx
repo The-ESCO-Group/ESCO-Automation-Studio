@@ -1,73 +1,229 @@
 import { Panel } from "@esco/ui";
-import type { PlcProject } from "@esco/core";
+import type { PlcProject, Tag } from "@esco/core";
+import { baseTagName, createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
+import { rungNodes, type LadderNode, type LadderRoutine, type LadderRung } from "@esco/ladder";
+import { collectTagReferences, findRoutine, getLadder } from "@esco/project-actions";
+import type { ValidationFinding } from "@esco/validator";
 import type { Selection } from "../selection";
+import type { TagValues } from "../simulation";
+
+const registry = createDefaultRegistry();
 
 interface Props {
   project: PlcProject;
   selection: Selection;
+  values: TagValues;
+  findings: ValidationFinding[];
 }
 
-type Row = { label: string; value: string };
+interface Row {
+  label: string;
+  value: string;
+}
 
-function rowsFor(project: PlcProject, selection: Selection): Row[] {
-  if (!selection) return [];
+function findTag(project: PlcProject, id: string): Tag | undefined {
   for (const controller of project.controllers) {
-    if (selection.kind === "controller" && controller.id === selection.id) {
-      return [
+    const ctrlTag = controller.controllerTags.find((t) => t.id === id);
+    if (ctrlTag) return ctrlTag;
+    for (const program of controller.programs) {
+      const progTag = program.programTags.find((t) => t.id === id);
+      if (progTag) return progTag;
+    }
+  }
+  return undefined;
+}
+
+function tagValue(values: TagValues, tag: Tag): string {
+  return String(values[tag.name] ?? (tag.dataType === "BOOL" ? false : 0));
+}
+
+/** Distinct tags read / written across a set of nodes (member paths → base tag). */
+function readsWrites(nodes: LadderNode[]): { reads: string[]; writes: string[] } {
+  const reads = new Set<string>();
+  const writes = new Set<string>();
+  for (const node of nodes) {
+    const def = registry.get(node.instructionType);
+    node.operands.forEach((operand, index) => {
+      const value = operand.value.trim();
+      if (!value || isNumericLiteral(value)) return;
+      const base = baseTagName(value);
+      if (!base) return;
+      (def?.operands[index]?.direction === "write" ? writes : reads).add(base);
+    });
+  }
+  return { reads: [...reads], writes: [...writes] };
+}
+
+function routineFindings(findings: ValidationFinding[], routineName: string): ValidationFinding[] {
+  return findings.filter((f) => f.target?.includes(`/${routineName}`));
+}
+
+interface View {
+  heading: string;
+  rows: Row[];
+  findings?: ValidationFinding[];
+  hint?: string;
+}
+
+function buildView(props: Props): View | null {
+  const { project, selection, values, findings } = props;
+  if (!selection) return null;
+
+  if (selection.kind === "controller") {
+    const controller = project.controllers.find((c) => c.id === selection.id);
+    if (!controller) return null;
+    return {
+      heading: "Controller",
+      rows: [
         { label: "Name", value: controller.name },
         { label: "Processor", value: controller.processorType ?? "—" },
         { label: "Programs", value: String(controller.programs.length) },
         { label: "Tasks", value: String(controller.tasks.length) },
-      ];
-    }
-    for (const program of controller.programs) {
-      if (selection.kind === "program" && program.id === selection.id) {
-        return [
-          { label: "Name", value: program.name },
-          { label: "Routines", value: String(program.routines.length) },
-          { label: "Main routine", value: program.mainRoutineId ? "set" : "—" },
-        ];
-      }
-      for (const routine of program.routines) {
-        if (selection.kind === "routine" && routine.id === selection.id) {
-          return [
-            { label: "Name", value: routine.name },
-            { label: "Language", value: routine.language },
-            { label: "Program", value: program.name },
-          ];
-        }
-      }
-    }
-    for (const tag of controller.controllerTags) {
-      if (selection.kind === "tag" && tag.id === selection.id) {
-        return [
-          { label: "Name", value: tag.name },
-          { label: "Data type", value: tag.dataType },
-          { label: "Scope", value: tag.scope },
-          { label: "Value", value: String(tag.value ?? "—") },
-          { label: "Description", value: tag.description ?? "—" },
-        ];
-      }
-    }
+        { label: "Tags", value: String(controller.controllerTags.length) },
+      ],
+    };
   }
-  return [];
+
+  if (selection.kind === "program") {
+    for (const controller of project.controllers) {
+      const program = controller.programs.find((p) => p.id === selection.id);
+      if (program) {
+        return {
+          heading: "Program",
+          rows: [
+            { label: "Name", value: program.name },
+            { label: "Routines", value: String(program.routines.length) },
+            { label: "Program tags", value: String(program.programTags.length) },
+            { label: "Description", value: program.description ?? "—" },
+          ],
+        };
+      }
+    }
+    return null;
+  }
+
+  if (selection.kind === "tag") {
+    const tag = findTag(project, selection.id);
+    if (!tag) return null;
+    const refs = collectTagReferences(project, tag.name);
+    const written = refs.some((r) => r.direction === "write");
+    return {
+      heading: "Tag",
+      rows: [
+        { label: "Name", value: tag.name },
+        { label: "Type", value: tag.dataType },
+        { label: "Scope", value: tag.scope },
+        { label: "Role", value: written ? "output" : refs.length ? "input" : "internal" },
+        { label: "References", value: String(refs.length) },
+        { label: "Value", value: tagValue(values, tag) },
+        { label: "Description", value: tag.description ?? "—" },
+      ],
+    };
+  }
+
+  if (selection.kind === "routine") {
+    const routine = findRoutine(project, selection.id);
+    if (!routine) return null;
+    const ladder = getLadder(routine) as LadderRoutine | undefined;
+    const nodes = ladder ? ladder.rungs.flatMap((r) => rungNodes(r)) : [];
+    const { reads, writes } = readsWrites(nodes);
+    return {
+      heading: "Routine",
+      rows: [
+        { label: "Name", value: routine.name },
+        { label: "Language", value: routine.language },
+        { label: "Rungs", value: String(ladder?.rungs.length ?? 0) },
+        { label: "Tags read", value: reads.join(", ") || "—" },
+        { label: "Outputs", value: writes.join(", ") || "—" },
+      ],
+      findings: routineFindings(findings, routine.name),
+    };
+  }
+
+  // rung / instruction
+  const routine = findRoutine(project, selection.routineId);
+  const ladder = getLadder(routine) as LadderRoutine | undefined;
+  const rung: LadderRung | undefined = ladder?.rungs.find((r) => r.id === selection.rungId);
+  if (!routine || !rung) return null;
+
+  if (selection.kind === "instruction") {
+    const node = rungNodes(rung).find((n) => n.id === selection.nodeId);
+    if (!node) return null;
+    const def = registry.get(node.instructionType);
+    const rows: Row[] = [
+      { label: "Instruction", value: node.instructionType },
+      { label: "Name", value: def?.displayName ?? "Unsupported (read-only)" },
+      { label: "Routine", value: routine.name },
+      { label: "Rung", value: String(rung.number) },
+    ];
+    node.operands.forEach((operand, index) => {
+      const dir = def?.operands[index]?.direction ?? "read";
+      rows.push({
+        label: def?.operands[index]?.label ?? `op${index}`,
+        value: `${operand.value || "—"} (${dir})`,
+      });
+    });
+    return { heading: "Instruction", rows, hint: def?.description };
+  }
+
+  const { reads, writes } = readsWrites(rungNodes(rung));
+  return {
+    heading: "Rung",
+    rows: [
+      { label: "Routine", value: routine.name },
+      { label: "Rung", value: String(rung.number) },
+      { label: "Comment", value: rung.comment ?? "—" },
+      { label: "Instructions", value: String(rungNodes(rung).length) },
+      { label: "Tags read", value: reads.join(", ") || "—" },
+      { label: "Tags written", value: writes.join(", ") || "—" },
+    ],
+    findings: routineFindings(findings, routine.name),
+  };
 }
 
-export function PropertiesPanel({ project, selection }: Props) {
-  const rows = rowsFor(project, selection);
+export function PropertiesPanel(props: Props) {
+  const view = buildView(props);
+
   return (
     <Panel title="Properties">
-      {rows.length === 0 ? (
-        <p className="esco-empty">Nothing selected.</p>
+      {!view ? (
+        <div className="esco-props__hints">
+          <p className="esco-empty">Nothing selected.</p>
+          <ul>
+            <li>Select a routine to edit its ladder.</li>
+            <li>Click a rung or instruction to inspect it.</li>
+            <li>Select a tag to see its references and value.</li>
+          </ul>
+        </div>
       ) : (
-        <dl className="esco-props">
-          {rows.map((row) => (
-            <div className="esco-props__row" key={row.label}>
-              <dt>{row.label}</dt>
-              <dd>{row.value}</dd>
+        <>
+          <div className="esco-props__heading">{view.heading}</div>
+          <dl className="esco-props">
+            {view.rows.map((row) => (
+              <div className="esco-props__row" key={row.label}>
+                <dt>{row.label}</dt>
+                <dd>{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+          {view.hint ? <p className="esco-props__hint">{view.hint}</p> : null}
+          {view.findings ? (
+            <div className="esco-props__findings">
+              <div className="esco-props__heading">Validation ({view.findings.length})</div>
+              {view.findings.length === 0 ? (
+                <p className="esco-empty">No findings for this routine.</p>
+              ) : (
+                <ul>
+                  {view.findings.slice(0, 6).map((f, i) => (
+                    <li key={i} className={`esco-props__finding esco-props__finding--${f.severity}`}>
+                      {f.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          ))}
-        </dl>
+          ) : null}
+        </>
       )}
     </Panel>
   );

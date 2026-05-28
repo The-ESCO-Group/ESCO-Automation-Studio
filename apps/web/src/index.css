@@ -1301,3 +1301,61 @@ body {
 .esco-lad__box--unsupported .esco-lad__box-name {
   color: var(--warning);
 }
+
+/* ---- Properties panel (detail pass) ---- */
+.esco-props__heading {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  margin: 6px 0 4px;
+}
+
+.esco-props__hint {
+  margin: 6px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.esco-props__hints ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.esco-props__findings {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
+.esco-props__findings ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.esco-props__finding {
+  font-size: 11px;
+  margin-bottom: 3px;
+}
+
+.esco-props__finding--error { color: var(--error); }
+.esco-props__finding--warning { color: var(--warning); }
+.esco-props__finding--info { color: var(--info); }
+
+/* ---- Cross reference direction badges ---- */
+.esco-xref__dir {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.esco-xref__dir--write {
+  color: var(--accent);
+  border-color: var(--accent);
+}
