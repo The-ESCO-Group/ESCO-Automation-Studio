@@ -39,12 +39,16 @@ import { createInitialProject, findMainRoutine } from "./project-edit";
 import { downloadTextFile, readFileAsText, slugify } from "./file-io";
 import { scanOnce, watchRows, zeroValues, type TagValues } from "./simulation";
 import { useToasts } from "./toasts";
+import { useHistoryState } from "./history";
 
 const SCAN_INTERVAL_MS = 250;
 type CenterView = "welcome" | "routine" | "tags" | "compare";
 
 export function App() {
-  const [project, setProject] = useState(createInitialProject);
+  const [initialProject] = useState(createInitialProject);
+  const history = useHistoryState(initialProject);
+  const project = history.present;
+  const setProject = history.set;
   const [selection, setSelection] = useState<Selection>(null);
   const [values, setValues] = useState<TagValues>(() => zeroValues(project));
   const [running, setRunning] = useState(false);
@@ -140,6 +144,18 @@ export function App() {
   const handleEditDescription = (name: string, description: string) =>
     runTagAction(setTagDescription(project, { name, description }), undefined, false);
 
+  // ---- Undo / redo (reverts project edits; simulation values resync) ----
+  const handleUndo = () => {
+    if (!history.canUndo) return;
+    if (history.undoTarget) setValues(zeroValues(history.undoTarget));
+    history.undo();
+  };
+  const handleRedo = () => {
+    if (!history.canRedo) return;
+    if (history.redoTarget) setValues(zeroValues(history.redoTarget));
+    history.redo();
+  };
+
   // ---- Simulation ----
   const handleToggleTag = (name: string) =>
     setValues((current) => ({ ...current, [name]: current[name] !== true }));
@@ -171,7 +187,7 @@ export function App() {
 
   // ---- File workflows ----
   const loadProject = (loaded: PlcProject) => {
-    setProject(loaded);
+    history.reset(loaded); // opening/importing a project is a fresh undo baseline
     setValues(zeroValues(loaded));
     setRunning(false);
     const main = findMainRoutine(loaded);
@@ -273,6 +289,31 @@ export function App() {
     return () => clearInterval(id);
   }, [running]);
 
+  // Undo/redo keyboard shortcuts (latest handlers via refs; native undo in text fields).
+  const undoRef = useRef(handleUndo);
+  const redoRef = useRef(handleRedo);
+  undoRef.current = handleUndo;
+  redoRef.current = handleRedo;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return; // let the browser handle undo inside text fields
+      }
+      const key = event.key.toLowerCase();
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undoRef.current();
+      } else if (key === "y" || (key === "z" && event.shiftKey)) {
+        event.preventDefault();
+        redoRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const validationLabel = errorCount
     ? `${errorCount} error${errorCount > 1 ? "s" : ""}`
     : warnCount
@@ -304,6 +345,25 @@ export function App() {
         </div>
 
         <div className="esco-titlebar__actions">
+          <button
+            type="button"
+            className="esco-btn"
+            title="Undo (Ctrl+Z)"
+            disabled={!history.canUndo}
+            onClick={handleUndo}
+          >
+            ↶ Undo
+          </button>
+          <button
+            type="button"
+            className="esco-btn"
+            title="Redo (Ctrl+Y)"
+            disabled={!history.canRedo}
+            onClick={handleRedo}
+          >
+            ↷ Redo
+          </button>
+          <span className="esco-titlebar__divider" />
           <button type="button" className="esco-btn" onClick={() => setView("welcome")}>
             Dashboard
           </button>

@@ -20,6 +20,7 @@ const ORDER = [
   "instr.mjs",
   "newinstr.mjs",
   "branchedit.mjs",
+  "undoredo.mjs",
   "tags.mjs",
   "props.mjs",
   "xref.mjs",
