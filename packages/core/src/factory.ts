@@ -80,7 +80,7 @@ export function createTag(
   controllerId: string,
   name: string,
   dataType: string,
-  options: Partial<Pick<Tag, "scope" | "programId" | "description" | "value">> = {},
+  options: Partial<Pick<Tag, "scope" | "programId" | "description" | "value" | "dimension">> = {},
 ): Tag {
   return {
     id: createId("tag"),
@@ -91,5 +91,6 @@ export function createTag(
     programId: options.programId,
     description: options.description,
     value: options.value,
+    ...(options.dimension && options.dimension > 0 ? { dimension: options.dimension } : {}),
   };
 }

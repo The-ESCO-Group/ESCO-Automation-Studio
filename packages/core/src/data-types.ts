@@ -52,3 +52,19 @@ export function isNumericType(dataType: string): boolean {
 export function memberDefs(dataType: string): StructMember[] {
   return STRUCTURED_TYPES[dataType] ?? [];
 }
+
+/** Element value-paths for an array tag: `Name[0]` … `Name[dimension-1]`. */
+export function arrayElementNames(name: string, dimension: number): string[] {
+  const count = Math.max(0, Math.floor(dimension));
+  return Array.from({ length: count }, (_, i) => `${name}[${i}]`);
+}
+
+/**
+ * Parse an array element reference into its base tag and index.
+ *  - "MyArray[3]" → { base: "MyArray", index: 3 }
+ *  - "Plain" / "Tag.Member" → null
+ */
+export function parseArrayIndex(operand: string): { base: string; index: number } | null {
+  const match = operand.trim().match(/^([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]$/);
+  return match ? { base: match[1]!, index: Number(match[2]) } : null;
+}

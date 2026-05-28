@@ -1,4 +1,4 @@
-import { isStructuredType, memberDefs, type PlcProject } from "@esco/core";
+import { arrayElementNames, isStructuredType, memberDefs, type PlcProject } from "@esco/core";
 import { collectOutputTags, createRuntime } from "@esco/simulator";
 import { defaultRoutineId, findRoutine, getAllTags, getLadder, validate } from "./helpers";
 import type { ProjectActionResult, ScanOptions } from "./types";
@@ -10,11 +10,18 @@ export type TagValues = Record<string, boolean | number>;
 
 const zeroFor = (type: string): boolean | number => (type === "BOOL" ? false : 0);
 
-/** Every value path the project tracks: atomic tag names + structured members. */
+/**
+ * Every value path the project tracks: atomic tag names, structured members,
+ * and — for array tags — one path per element (`Name[0]`…`Name[n-1]`).
+ */
 function allPaths(project: PlcProject): { path: string; type: string }[] {
   const paths: { path: string; type: string }[] = [];
   for (const tag of getAllTags(project)) {
-    if (isStructuredType(tag.dataType)) {
+    if (tag.dimension && tag.dimension > 0 && !isStructuredType(tag.dataType)) {
+      for (const element of arrayElementNames(tag.name, tag.dimension)) {
+        paths.push({ path: element, type: tag.dataType });
+      }
+    } else if (isStructuredType(tag.dataType)) {
       for (const member of memberDefs(tag.dataType)) {
         paths.push({ path: `${tag.name}.${member.name}`, type: member.type });
       }

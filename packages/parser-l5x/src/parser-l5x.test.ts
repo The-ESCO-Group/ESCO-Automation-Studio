@@ -398,6 +398,12 @@ describe("importL5X (stress fixture)", () => {
     expect(warnings.some((w) => w.includes("MotorCmd") && /alias/i.test(w))).toBe(true);
   });
 
+  it("imports an array tag's first dimension", () => {
+    const { project } = importL5X(STRESS);
+    const myArray = project.controllers[0]!.controllerTags.find((t) => t.name === "MyArray");
+    expect(myArray?.dimension).toBe(8);
+  });
+
   it("warns about an unmodeled (UDT) data type", () => {
     const { warnings } = importL5X(STRESS);
     expect(warnings.some((w) => w.includes("PumpData") && w.includes("PumpUdt"))).toBe(true);

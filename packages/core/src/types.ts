@@ -83,6 +83,9 @@ export interface Tag {
   scope: TagScope;
   dataType: string;
 
+  /** First-dimension length for a single-dimension array tag (e.g. DINT[8] → 8). */
+  dimension?: number;
+
   description?: string;
   value?: unknown;
   aliasFor?: string;

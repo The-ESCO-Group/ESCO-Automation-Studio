@@ -4,6 +4,7 @@ import {
   createProgram,
   createProject,
   createRoutine,
+  createTag as makeTag,
   type PlcProject,
 } from "@esco/core";
 import { createLadderRoutine, type LadderRoutine } from "@esco/ladder";
@@ -392,6 +393,41 @@ describe("project-actions: branch editing", () => {
     expect(
       result.findings?.some((f) => f.ruleId === "undefined-tag" && f.message.includes("GhostInBranch")),
     ).toBe(true);
+  });
+});
+
+describe("project-actions: array tags", () => {
+  it("expands an array tag into element value-paths and simulates them", () => {
+    const base = baseProject();
+    const ctrl = base.project.controllers[0]!;
+    ctrl.controllerTags.push(makeTag(ctrl.id, "Arr", "DINT", { dimension: 8 }));
+    ctrl.controllerTags.push(makeTag(ctrl.id, "Dest", "DINT"));
+    const p = addRungFromText(base.project, {
+      routineId: base.routineId,
+      text: "MOV(7,Arr[2])MOV(Arr[2],Dest)",
+    }).project;
+
+    const defaults = defaultValues(p);
+    expect(defaults["Arr[0]"]).toBe(0);
+    expect(defaults["Arr[7]"]).toBe(0);
+    expect("Arr[8]" in defaults).toBe(false); // dimension is 8 → indices 0..7
+
+    const values = scanProject(p, defaults).data!.values;
+    expect(values["Arr[2]"]).toBe(7); // written by MOV(7, Arr[2])
+    expect(values["Dest"]).toBe(7); // read back via MOV(Arr[2], Dest)
+  });
+
+  it("flags an out-of-range array index and accepts an in-range one", () => {
+    const base = baseProject();
+    const ctrl = base.project.controllers[0]!;
+    ctrl.controllerTags.push(makeTag(ctrl.id, "Arr", "DINT", { dimension: 4 }));
+    ctrl.controllerTags.push(makeTag(ctrl.id, "Dest", "DINT"));
+
+    const bad = addRungFromText(base.project, { routineId: base.routineId, text: "MOV(Arr[10],Dest)" }).project;
+    expect(validateProject(bad).findings?.some((f) => f.ruleId === "array-index-out-of-range")).toBe(true);
+
+    const good = addRungFromText(base.project, { routineId: base.routineId, text: "MOV(Arr[3],Dest)" }).project;
+    expect(validateProject(good).findings?.some((f) => f.ruleId === "array-index-out-of-range")).toBe(false);
   });
 });
 

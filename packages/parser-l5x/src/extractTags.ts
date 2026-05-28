@@ -38,12 +38,16 @@ export function extractTags(
     const aliasFor = attr(tagNode, "AliasFor");
     const dataType = attr(tagNode, "DataType") ?? (aliasFor ? "ALIAS" : "BOOL");
     const descriptionNode = child(tagNode, "Description");
+    // Dimensions may be "8" or multi-dim "8 4"; model the first (outer) dimension.
+    const firstDim = Number((attr(tagNode, "Dimensions") ?? "").trim().split(/\s+/)[0]);
+    const dimension = Number.isFinite(firstDim) && firstDim > 0 ? firstDim : undefined;
 
     const tag = createTag(controllerId, name, dataType, {
       scope,
       programId,
       description: descriptionNode ? text(descriptionNode) : undefined,
       value: dataType === "BOOL" ? false : 0,
+      dimension,
     });
 
     if (aliasFor) {

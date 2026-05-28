@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { PlcProject, Tag } from "@esco/core";
-import { TAG_DATA_TYPES, isStructuredType, memberDefs } from "@esco/core";
+import { TAG_DATA_TYPES, arrayElementNames, isStructuredType, memberDefs } from "@esco/core";
 import { collectTagReferences, outputTags } from "@esco/project-actions";
 import { getTags } from "../project-edit";
 import type { TagValues } from "../simulation";
@@ -22,6 +22,13 @@ interface TagRow {
 }
 
 function formatValue(values: TagValues, tag: Tag): string {
+  if (tag.dimension && tag.dimension > 0 && !isStructuredType(tag.dataType)) {
+    const zero = tag.dataType === "BOOL" ? false : 0;
+    const preview = arrayElementNames(tag.name, Math.min(tag.dimension, 8)).map(
+      (element) => String(values[element] ?? zero),
+    );
+    return `[${preview.join(", ")}${tag.dimension > 8 ? ", …" : ""}]`;
+  }
   if (isStructuredType(tag.dataType)) {
     return memberDefs(tag.dataType)
       .map((m) => `${m.name}=${String(values[`${tag.name}.${m.name}`] ?? (m.type === "BOOL" ? false : 0))}`)
@@ -144,7 +151,7 @@ export function TagsView({
                     }}
                   />
                 </td>
-                <td>{tag.dataType}</td>
+                <td>{tag.dimension ? `${tag.dataType}[${tag.dimension}]` : tag.dataType}</td>
                 <td>{tag.scope}</td>
                 <td>
                   <input

@@ -1,3 +1,4 @@
+import { parseArrayIndex } from "@esco/core";
 import { baseTagName, createDefaultRegistry, isNumericLiteral, isPlainTag } from "@esco/instructions";
 import { routineNodes, type LadderRoutine } from "@esco/ladder";
 import type { ValidationFinding, ValidationRule } from "./types";
@@ -78,9 +79,14 @@ export const ladderOperands: ValidationRule = {
     const findings: ValidationFinding[] = [];
     for (const controller of project.controllers) {
       const tagTypes = new Map<string, string>();
-      for (const tag of controller.controllerTags) tagTypes.set(tag.name, tag.dataType);
+      const tagDims = new Map<string, number>();
+      const indexTag = (name: string, dataType: string, dimension?: number) => {
+        tagTypes.set(name, dataType);
+        if (dimension && dimension > 0) tagDims.set(name, dimension);
+      };
+      for (const tag of controller.controllerTags) indexTag(tag.name, tag.dataType, tag.dimension);
       for (const program of controller.programs) {
-        for (const tag of program.programTags) tagTypes.set(tag.name, tag.dataType);
+        for (const tag of program.programTags) indexTag(tag.name, tag.dataType, tag.dimension);
       }
 
       for (const program of controller.programs) {
@@ -130,7 +136,24 @@ export const ladderOperands: ValidationRule = {
                   message: `Undefined tag "${base}" referenced in routine "${routine.name}".`,
                   target,
                 });
-              } else if (
+                return;
+              }
+
+              // Array bounds: an element index must be within the tag's dimension.
+              const arrayRef = parseArrayIndex(value);
+              if (arrayRef) {
+                const dim = tagDims.get(arrayRef.base);
+                if (dim !== undefined && arrayRef.index >= dim) {
+                  findings.push({
+                    ruleId: "array-index-out-of-range",
+                    severity: "error",
+                    message: `Array index ${arrayRef.index} is out of range for "${arrayRef.base}" (size ${dim}).`,
+                    target,
+                  });
+                }
+              }
+
+              if (
                 isPlainTag(value) &&
                 operandDef.allowedTypes &&
                 !operandDef.allowedTypes.includes(dataType)
