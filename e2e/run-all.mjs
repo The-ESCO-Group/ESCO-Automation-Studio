@@ -20,6 +20,7 @@ const ORDER = [
   "instr.mjs",
   "newinstr.mjs",
   "branchedit.mjs",
+  "nestedbranch.mjs",
   "undoredo.mjs",
   "copypaste.mjs",
   "dirtystate.mjs",

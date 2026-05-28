@@ -97,6 +97,8 @@ export interface RemoveInstructionInput {
 export interface BranchInput {
   routineId: string;
   rungId: string;
+  /** Branch to operate on (defaults to the rung root). Pass a leg id to nest. */
+  branchId?: string;
 }
 
 export interface RemoveBranchLegInput {

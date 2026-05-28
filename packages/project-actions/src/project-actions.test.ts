@@ -431,6 +431,109 @@ describe("project-actions: array tags", () => {
   });
 });
 
+describe("project-actions: nested branch editing", () => {
+  // Build  [ XIC(Sel0) , [ XIC(Sel1) , XIC(Sel2) ] ] OTE(Out)  through actions:
+  // a parallel on the root, then a nested parallel inside leg 2.
+  function buildNested() {
+    const base = baseProject();
+    const { routineId } = base;
+    const rung = addRung(base.project, { routineId });
+    let p = rung.project;
+    const rungId = rung.data!.rungId;
+
+    const addToBranch = (branchId: string, type: string, tag: string) => {
+      const added = addInstructionToBranch(p, { routineId, rungId, branchId, instructionType: type });
+      p = added.project;
+      p = updateInstructionOperand(p, { routineId, rungId, nodeId: added.data!.nodeId, value: tag }).project;
+    };
+
+    // Parallel on the root: root = leg1(main) | leg2.
+    p = addParallelBranch(p, { routineId, rungId }).project;
+    const rootId = rootOf(p, rungId).id;
+    const leg2Id = rootOf(p, rungId).parallelBranches![0]!.id;
+
+    // Nested parallel inside leg 2: leg2 = legA | legB.
+    p = addParallelBranch(p, { routineId, rungId, branchId: leg2Id }).project;
+    const nestedLegId = rootOf(p, rungId).parallelBranches![0]!.parallelBranches![0]!.id;
+
+    addToBranch(rootId, "XIC", "Sel0"); // main line
+    addToBranch(leg2Id, "XIC", "Sel1"); // leg 2 series
+    addToBranch(nestedLegId, "XIC", "Sel2"); // nested leg
+
+    // Downstream output after the root merge.
+    const ote = addInstruction(p, { routineId, rungId, instructionType: "OTE" });
+    p = ote.project;
+    p = updateInstructionOperand(p, { routineId, rungId, nodeId: ote.data!.nodeId, value: "Out" }).project;
+
+    for (const name of ["Sel0", "Sel1", "Sel2", "Out"]) {
+      p = createTag(p, { name, dataType: "BOOL" }).project;
+    }
+    return { project: p, routineId, rungId, leg2Id, nestedLegId };
+  }
+
+  it("creates a nested parallel branch inside a leg", () => {
+    const { project, rungId } = buildNested();
+    const leg2 = rootOf(project, rungId).parallelBranches![0]!;
+    expect(leg2.parallelBranches).toHaveLength(1); // nesting present
+  });
+
+  it("simulates nested OR logic (any of the selectors energizes the output)", () => {
+    const { project } = buildNested();
+    const off = scanProject(project, defaultValues(project)).data!.values;
+    expect(off.Out).toBe(false);
+
+    // Only the deeply-nested selector is true → still energizes via the nested OR.
+    const viaNested = scanProject(project, { ...defaultValues(project), Sel2: true }).data!.values;
+    expect(viaNested.Out).toBe(true);
+
+    const viaMain = scanProject(project, { ...defaultValues(project), Sel0: true }).data!.values;
+    expect(viaMain.Out).toBe(true);
+  });
+
+  it("cross-references an operand inside a nested branch", () => {
+    const { project } = buildNested();
+    const refs = collectTagReferences(project, "Sel2");
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs[0]!.instructionType).toBe("XIC");
+  });
+
+  it("validates an undefined tag inside a nested branch", () => {
+    const { project, routineId, rungId, nestedLegId } = buildNested();
+    const added = addInstructionToBranch(project, { routineId, rungId, branchId: nestedLegId, instructionType: "XIC" });
+    const result = updateInstructionOperand(added.project, {
+      routineId,
+      rungId,
+      nodeId: added.data!.nodeId,
+      value: "GhostNested",
+    });
+    expect(
+      result.findings?.some((f) => f.ruleId === "undefined-tag" && f.message.includes("GhostNested")),
+    ).toBe(true);
+  });
+
+  it("preserves the nested branch through export/import", () => {
+    const { project, rungId } = buildNested();
+    const restored = importProjectFile(exportProjectJson(project).data!.text);
+    expect(restored.ok).toBe(true);
+    const leg2 = rootOf(restored.project, rungId).parallelBranches![0]!;
+    expect(leg2.parallelBranches).toHaveLength(1);
+  });
+
+  it("removes an empty nested leg, refuses a populated one", () => {
+    const { project, routineId, rungId, nestedLegId } = buildNested();
+    // nestedLeg has XIC(Sel2) → cannot remove.
+    expect(removeBranchLeg(project, { routineId, rungId, branchId: nestedLegId }).ok).toBe(false);
+
+    // Add an empty nested leg and remove it.
+    const leg2Id = rootOf(project, rungId).parallelBranches![0]!.id;
+    const withLeg = addBranchLeg(project, { routineId, rungId, branchId: leg2Id });
+    const legs = rootOf(withLeg.project, rungId).parallelBranches![0]!.parallelBranches!;
+    const emptyLeg = legs[legs.length - 1]!.id;
+    const removed = removeBranchLeg(withLeg.project, { routineId, rungId, branchId: emptyLeg });
+    expect(removed.ok).toBe(true);
+  });
+});
+
 describe("project-actions: subroutine execution (JSR / RET)", () => {
   it("runs a subroutine via JSR against shared memory", () => {
     const base = baseProject();

@@ -184,55 +184,88 @@ export function setRungComment(
   return mapRung(routine, rungId, (rung) => ({ ...rung, comment: comment || undefined }));
 }
 
+/** Rebuild a branch tree, applying `fn` to the branch whose id matches `id`. */
+function mapBranchById(
+  branch: LadderBranch,
+  id: string,
+  fn: (b: LadderBranch) => LadderBranch,
+): LadderBranch {
+  if (branch.id === id) return fn(branch);
+  const result: LadderBranch = { ...branch };
+  if (branch.parallelBranches) {
+    result.parallelBranches = branch.parallelBranches.map((leg) => mapBranchById(leg, id, fn));
+  }
+  if (branch.next) result.next = mapBranchById(branch.next, id, fn);
+  return result;
+}
+
 /**
- * Add a parallel branch group to a rung. The rung's existing main-line series
- * (`root.nodes`) becomes the first leg; a new empty alternate leg is added
- * beside it, and a downstream series continuation (`root.next`) is ensured so
- * the normal palette appends instructions *after* the parallel merge rather than
- * into a leg. Single-level parallels only — the MVP scope.
+ * Add a parallel branch group to a target branch (defaults to the rung root).
+ * The target's existing series becomes the first leg; a new empty alternate leg
+ * is added beside it, and a downstream continuation (`next`) is ensured so the
+ * palette appends *after* the merge. Targeting a leg creates a nested parallel.
  */
-export function addParallelBranch(routine: LadderRoutine, rungId: string): LadderRoutine {
-  return mapRung(routine, rungId, (rung) => {
-    const root = rung.root;
-    return {
-      ...rung,
-      root: {
-        ...root,
-        parallelBranches: [...(root.parallelBranches ?? []), createBranch([])],
-        next: root.next ?? createBranch([]),
-      },
-    };
-  });
+export function addParallelBranch(
+  routine: LadderRoutine,
+  rungId: string,
+  branchId?: string,
+): LadderRoutine {
+  return mapRung(routine, rungId, (rung) => ({
+    ...rung,
+    root: mapBranchById(rung.root, branchId ?? rung.root.id, (branch) => ({
+      ...branch,
+      parallelBranches: [...(branch.parallelBranches ?? []), createBranch([])],
+      next: branch.next ?? createBranch([]),
+    })),
+  }));
 }
 
-/** Add another empty alternate leg to a rung that already has a parallel group. */
-export function addBranchLeg(routine: LadderRoutine, rungId: string): LadderRoutine {
-  return mapRung(routine, rungId, (rung) => {
-    const root = rung.root;
-    if (!root.parallelBranches || root.parallelBranches.length === 0) return rung;
-    return {
-      ...rung,
-      root: { ...root, parallelBranches: [...root.parallelBranches, createBranch([])] },
-    };
-  });
+/** Add another empty alternate leg to a target branch that already has a parallel group. */
+export function addBranchLeg(
+  routine: LadderRoutine,
+  rungId: string,
+  branchId?: string,
+): LadderRoutine {
+  return mapRung(routine, rungId, (rung) => ({
+    ...rung,
+    root: mapBranchById(rung.root, branchId ?? rung.root.id, (branch) =>
+      branch.parallelBranches && branch.parallelBranches.length > 0
+        ? { ...branch, parallelBranches: [...branch.parallelBranches, createBranch([])] }
+        : branch,
+    ),
+  }));
 }
 
-/** Remove an alternate leg from a rung's parallel group by branch id. */
+/** Remove a parallel leg (by id) from anywhere in a rung's branch tree. */
 export function removeBranchLeg(
   routine: LadderRoutine,
   rungId: string,
   branchId: string,
 ): LadderRoutine {
-  return mapRung(routine, rungId, (rung) => {
-    const root = rung.root;
-    if (!root.parallelBranches) return rung;
-    const filtered = root.parallelBranches.filter((leg) => leg.id !== branchId);
-    if (filtered.length === root.parallelBranches.length) return rung; // id not found
-    const nextRoot: LadderBranch = { ...root };
-    if (filtered.length > 0) nextRoot.parallelBranches = filtered;
-    else delete nextRoot.parallelBranches;
-    return { ...rung, root: nextRoot };
-  });
+  return mapRung(routine, rungId, (rung) => ({ ...rung, root: removeLegFromTree(rung.root, branchId) }));
+}
+
+function removeLegFromTree(branch: LadderBranch, legId: string): LadderBranch {
+  const result: LadderBranch = { ...branch };
+  if (branch.parallelBranches) {
+    const filtered = branch.parallelBranches
+      .filter((leg) => leg.id !== legId)
+      .map((leg) => removeLegFromTree(leg, legId));
+    if (filtered.length > 0) result.parallelBranches = filtered;
+    else delete result.parallelBranches;
+  }
+  if (branch.next) result.next = removeLegFromTree(branch.next, legId);
+  return result;
+}
+
+/** True when `legId` is a parallel leg (in some branch's parallelBranches) of the rung. */
+export function isParallelLeg(root: LadderBranch, legId: string): boolean {
+  const visit = (branch: LadderBranch): boolean => {
+    const legs = branch.parallelBranches ?? [];
+    if (legs.some((leg) => leg.id === legId)) return true;
+    return legs.some(visit) || (branch.next ? visit(branch.next) : false);
+  };
+  return visit(root);
 }
 
 /** Append `node` to the series of a specific branch (by id) within a rung's tree. */

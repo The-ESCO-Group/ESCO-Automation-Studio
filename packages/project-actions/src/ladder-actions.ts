@@ -12,6 +12,7 @@ import {
   duplicateRung as ladderDuplicateRung,
   findBranchInRoot,
   insertRungFromRoot,
+  isParallelLeg,
   removeBranchLeg as ladderRemoveBranchLeg,
   removeInstruction as ladderRemoveInstruction,
   removeRung as ladderRemoveRung,
@@ -248,25 +249,29 @@ export function updateInstructionOperand(
 
 /**
  * Add a parallel (OR) branch to a rung — e.g. to build a seal-in by hand. The
- * existing main-line series becomes the first leg; a new empty alternate leg is
- * added and a downstream continuation ensured. Single-level parallels (MVP).
+ * target branch's existing series becomes the first leg; a new empty alternate
+ * leg is added and a downstream continuation ensured. Targets the rung root by
+ * default; pass `branchId` to add a *nested* parallel inside an existing leg.
  */
 export function addParallelBranch(
   project: PlcProject,
   input: BranchInput,
 ): ProjectActionResult<{ rungId: string }> {
-  if (!rungExists(project, input.routineId, input.rungId)) {
-    return fail(project, `Rung "${input.rungId}" not found.`);
+  const ladder = getLadder(findRoutine(project, input.routineId));
+  const rung = ladder?.rungs.find((r) => r.id === input.rungId);
+  if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
+  if (input.branchId && !findBranchInRoot(rung.root, input.branchId)) {
+    return fail(project, `Branch "${input.branchId}" not found in the rung.`);
   }
   return ok(
-    withRoutineLadder(project, input.routineId, (ladder) =>
-      ladderAddParallelBranch(ladder, input.rungId),
+    withRoutineLadder(project, input.routineId, (current) =>
+      ladderAddParallelBranch(current, input.rungId, input.branchId),
     ),
     { rungId: input.rungId },
   );
 }
 
-/** Add another empty leg to a rung's existing parallel branch group. */
+/** Add another empty leg to a target branch's existing parallel group (root by default). */
 export function addBranchLeg(
   project: PlcProject,
   input: BranchInput,
@@ -274,18 +279,20 @@ export function addBranchLeg(
   const ladder = getLadder(findRoutine(project, input.routineId));
   const rung = ladder?.rungs.find((r) => r.id === input.rungId);
   if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
-  if (!rung.root.parallelBranches || rung.root.parallelBranches.length === 0) {
+  const target = input.branchId ? findBranchInRoot(rung.root, input.branchId) : rung.root;
+  if (!target) return fail(project, `Branch "${input.branchId}" not found in the rung.`);
+  if (!target.parallelBranches || target.parallelBranches.length === 0) {
     return fail(project, "Add a parallel branch before adding a leg.");
   }
   return ok(
     withRoutineLadder(project, input.routineId, (current) =>
-      ladderAddBranchLeg(current, input.rungId),
+      ladderAddBranchLeg(current, input.rungId, input.branchId),
     ),
     { rungId: input.rungId },
   );
 }
 
-/** Remove an empty alternate leg from a rung's parallel group. */
+/** Remove an empty parallel leg (anywhere in the rung's branch tree, incl. nested). */
 export function removeBranchLeg(
   project: PlcProject,
   input: RemoveBranchLegInput,
@@ -293,9 +300,11 @@ export function removeBranchLeg(
   const ladder = getLadder(findRoutine(project, input.routineId));
   const rung = ladder?.rungs.find((r) => r.id === input.rungId);
   if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
-  const leg = (rung.root.parallelBranches ?? []).find((b) => b.id === input.branchId);
-  if (!leg) return fail(project, "Branch leg not found (only alternate legs can be removed).");
-  if (leg.nodes.length > 0 || leg.parallelBranches?.length || leg.next) {
+  if (!isParallelLeg(rung.root, input.branchId)) {
+    return fail(project, "Branch leg not found (only parallel legs can be removed).");
+  }
+  const leg = findBranchInRoot(rung.root, input.branchId);
+  if (leg && (leg.nodes.length > 0 || leg.parallelBranches?.length || leg.next)) {
     return fail(project, "Only an empty branch leg can be removed.");
   }
   return ok(

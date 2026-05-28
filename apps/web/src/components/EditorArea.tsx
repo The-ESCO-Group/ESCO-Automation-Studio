@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { PlcProject, Routine } from "@esco/core";
 import { baseTagName, createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
-import { routineNodes, type LadderRung, type LadderRoutine } from "@esco/ladder";
+import { routineNodes, type LadderBranch, type LadderRung, type LadderRoutine } from "@esco/ladder";
 import { tagExists } from "../project-edit";
 import { RungDiagram } from "./LadderView";
 
@@ -40,6 +40,24 @@ interface Props {
  * legs (the main line plus each alternate) with per-leg add buttons, so a
  * seal-in / OR structure can be built by hand. Single-level parallels only.
  */
+interface BranchRow {
+  branch: LadderBranch;
+  depth: number;
+  /** A parallel leg (vs the main line) — only legs can be removed. */
+  isLeg: boolean;
+}
+
+/** Flatten the rung's branch tree into editable rows (main line, then nested legs). */
+function collectBranchRows(root: LadderBranch): BranchRow[] {
+  const rows: BranchRow[] = [];
+  const walk = (branch: LadderBranch, depth: number, isLeg: boolean) => {
+    rows.push({ branch, depth, isLeg });
+    for (const leg of branch.parallelBranches ?? []) walk(leg, depth + 1, true);
+  };
+  walk(root, 0, false);
+  return rows;
+}
+
 function BranchEditor({
   rung,
   onAddParallelBranch,
@@ -48,80 +66,80 @@ function BranchEditor({
   onAddToBranch,
 }: {
   rung: LadderRung;
-  onAddParallelBranch: (rungId: string) => void;
-  onAddBranchLeg: (rungId: string) => void;
+  onAddParallelBranch: (rungId: string, branchId?: string) => void;
+  onAddBranchLeg: (rungId: string, branchId?: string) => void;
   onRemoveBranchLeg: (rungId: string, branchId: string) => void;
   onAddToBranch: (rungId: string, branchId: string, instructionType: string) => void;
 }) {
-  const parallel = rung.root.parallelBranches ?? [];
-  const hasParallel = parallel.length > 0;
-  const legs = [
-    { branch: rung.root, label: "Leg 1 (main)", main: true },
-    ...parallel.map((branch, index) => ({ branch, label: `Leg ${index + 2}`, main: false })),
-  ];
+  const rows = collectBranchRows(rung.root);
 
   return (
     <div className="esco-branch-edit" onClick={(event) => event.stopPropagation()}>
       <div className="esco-branch-edit__head">
         <span className="esco-branch-edit__title">Branches</span>
-        <button
-          type="button"
-          className="esco-btn esco-btn--instr"
-          onClick={() => onAddParallelBranch(rung.id)}
-        >
-          + Parallel Branch
-        </button>
-        {hasParallel ? (
-          <button
-            type="button"
-            className="esco-btn esco-btn--instr"
-            onClick={() => onAddBranchLeg(rung.id)}
-          >
-            + Branch Leg
-          </button>
-        ) : null}
+        <span className="esco-branch-edit__hint">
+          + Parallel makes a seal-in / OR branch; add a parallel inside a leg to nest.
+        </span>
       </div>
 
-      {hasParallel ? (
-        <div className="esco-branch-edit__legs">
-          {legs.map((leg) => {
-            const empty = leg.branch.nodes.length === 0;
-            return (
-              <div className="esco-branch-leg" key={leg.branch.id}>
-                <span className="esco-branch-leg__name">{leg.label}</span>
-                {empty ? (
-                  <span className="esco-branch-leg__empty">Empty branch leg — add instruction</span>
-                ) : null}
-                {BRANCH_INSTRUCTIONS.map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    className="esco-btn esco-btn--instr"
-                    onClick={() => onAddToBranch(rung.id, leg.branch.id, type)}
-                  >
-                    + {type}
-                  </button>
-                ))}
-                {!leg.main ? (
-                  <button
-                    type="button"
-                    className="esco-btn esco-btn--danger"
-                    disabled={!empty}
-                    title={empty ? "Remove this leg" : "Only empty legs can be removed"}
-                    onClick={() => onRemoveBranchLeg(rung.id, leg.branch.id)}
-                  >
-                    Remove Leg
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <span className="esco-branch-edit__hint">
-          Add a parallel branch to build seal-in / OR logic.
-        </span>
-      )}
+      <div className="esco-branch-edit__legs">
+        {rows.map((row) => {
+          const { branch, depth, isLeg } = row;
+          const empty =
+            branch.nodes.length === 0 && !(branch.parallelBranches?.length ?? 0) && !branch.next;
+          const hasParallel = (branch.parallelBranches?.length ?? 0) > 0;
+          return (
+            <div
+              className="esco-branch-leg"
+              key={branch.id}
+              style={{ marginLeft: `${depth * 16}px` }}
+            >
+              <span className="esco-branch-leg__name">{depth === 0 ? "Main line" : "Leg"}</span>
+              {branch.nodes.length === 0 ? (
+                <span className="esco-branch-leg__empty">Empty branch leg — add instruction</span>
+              ) : null}
+              {BRANCH_INSTRUCTIONS.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  className="esco-btn esco-btn--instr"
+                  onClick={() => onAddToBranch(rung.id, branch.id, type)}
+                >
+                  + {type}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="esco-btn esco-btn--instr"
+                title={depth === 0 ? "Add a parallel branch" : "Add a nested parallel branch"}
+                onClick={() => onAddParallelBranch(rung.id, branch.id)}
+              >
+                + Parallel
+              </button>
+              {hasParallel ? (
+                <button
+                  type="button"
+                  className="esco-btn esco-btn--instr"
+                  onClick={() => onAddBranchLeg(rung.id, branch.id)}
+                >
+                  + Leg
+                </button>
+              ) : null}
+              {isLeg ? (
+                <button
+                  type="button"
+                  className="esco-btn esco-btn--danger"
+                  disabled={!empty}
+                  title={empty ? "Remove this leg" : "Only empty legs can be removed"}
+                  onClick={() => onRemoveBranchLeg(rung.id, branch.id)}
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

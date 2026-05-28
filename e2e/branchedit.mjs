@@ -21,8 +21,8 @@ try {
   await page.locator(".esco-branch-edit").waitFor({ timeout: 8000 });
   check("branch editor appears for the selected rung", true);
 
-  // Create a parallel branch -> two legs (main + alternate).
-  await page.locator('.esco-branch-edit button:has-text("Parallel Branch")').click();
+  // Create a parallel branch off the main line -> two legs (main + alternate).
+  await leg(page, 0).locator('button:has-text("Parallel")').click();
   await page.waitForFunction(() => document.querySelectorAll(".esco-branch-leg").length === 2);
   check("add parallel branch -> 2 legs", true);
   check("empty legs show the placeholder", (await page.locator(".esco-branch-leg__empty").count()) >= 1);

@@ -148,11 +148,11 @@ export function App() {
   const handleCreateTag = (name: string, dataType: string) =>
     applyAction((p) => createTag(p, { name, dataType }));
 
-  // ---- Branch editing (single-level parallel/seal-in branches) ----
-  const handleAddParallelBranch = (rungId: string) =>
-    applyAction((p) => addParallelBranch(p, { routineId: targetRoutineId(p), rungId }));
-  const handleAddBranchLeg = (rungId: string) =>
-    applyAction((p) => addBranchLeg(p, { routineId: targetRoutineId(p), rungId }));
+  // ---- Branch editing (parallel/seal-in branches, incl. nested) ----
+  const handleAddParallelBranch = (rungId: string, branchId?: string) =>
+    applyAction((p) => addParallelBranch(p, { routineId: targetRoutineId(p), rungId, branchId }));
+  const handleAddBranchLeg = (rungId: string, branchId?: string) =>
+    applyAction((p) => addBranchLeg(p, { routineId: targetRoutineId(p), rungId, branchId }));
   const handleRemoveBranchLeg = (rungId: string, branchId: string) =>
     applyAction((p) => removeBranchLeg(p, { routineId: targetRoutineId(p), rungId, branchId }));
   const handleAddToBranch = (rungId: string, branchId: string, type: string) =>
