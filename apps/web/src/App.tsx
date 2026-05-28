@@ -32,6 +32,7 @@ import { PropertiesPanel } from "./components/PropertiesPanel";
 import { BottomPanel, type DockTab } from "./components/BottomPanel";
 import { WelcomeDashboard } from "./components/WelcomeDashboard";
 import { TagsView } from "./components/TagsView";
+import { CompareView } from "./components/CompareView";
 import { Toasts } from "./components/Toasts";
 import type { Selection } from "./selection";
 import { createInitialProject, findMainRoutine } from "./project-edit";
@@ -40,7 +41,7 @@ import { scanOnce, watchRows, zeroValues, type TagValues } from "./simulation";
 import { useToasts } from "./toasts";
 
 const SCAN_INTERVAL_MS = 250;
-type CenterView = "welcome" | "routine" | "tags";
+type CenterView = "welcome" | "routine" | "tags" | "compare";
 
 export function App() {
   const [project, setProject] = useState(createInitialProject);
@@ -51,9 +52,11 @@ export function App() {
   const [openRoutineId, setOpenRoutineId] = useState<string | undefined>(undefined);
   const [dockTab, setDockTab] = useState<DockTab>("watch");
   const [lastImport, setLastImport] = useState<{ name: string; summary: ImportSummary } | null>(null);
+  const [comparison, setComparison] = useState<{ name: string; project: PlcProject } | null>(null);
   const { toasts, push, dismiss } = useToasts();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const l5xInputRef = useRef<HTMLInputElement>(null);
+  const compareInputRef = useRef<HTMLInputElement>(null);
 
   const findings = useMemo(() => createDefaultEngine().run(project), [project]);
   const rows = useMemo(() => watchRows(project, values), [project, values]);
@@ -193,6 +196,27 @@ export function App() {
   };
   const handleImportClick = () => fileInputRef.current?.click();
   const handleImportL5XClick = () => l5xInputRef.current?.click();
+  const handleCompareFileClick = () => compareInputRef.current?.click();
+
+  // Load a second project (.plcproj.json or .L5X) to compare against the current one.
+  const handleComparisonSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const isL5X = /\.(l5x|xml)$/i.test(file.name);
+    try {
+      const text = await readFileAsText(file);
+      const result = isL5X ? importL5XFile(text) : importProjectFile(text);
+      if (result.ok) {
+        setComparison({ name: file.name, project: result.project });
+        push("success", `Loaded "${file.name}" for comparison.`);
+      } else {
+        push("error", result.error ?? "Failed to load the comparison file.");
+      }
+    } catch (error) {
+      push("error", error instanceof Error ? error.message : "Failed to read the file.");
+    }
+  };
 
   const handleFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -290,6 +314,13 @@ export function App() {
           >
             Tags
           </button>
+          <button
+            type="button"
+            className={`esco-btn${view === "compare" ? " esco-btn--primary" : ""}`}
+            onClick={() => setView("compare")}
+          >
+            Compare
+          </button>
           <span className="esco-titlebar__divider" />
           <button type="button" className="esco-btn" onClick={handleExport}>
             Export Project
@@ -314,6 +345,13 @@ export function App() {
             style={{ display: "none" }}
             onChange={handleL5XSelected}
           />
+          <input
+            ref={compareInputRef}
+            type="file"
+            accept=".json,.plcproj.json,.l5x,.L5X,.xml,application/json"
+            style={{ display: "none" }}
+            onChange={handleComparisonSelected}
+          />
         </div>
 
         <span className="esco-badge esco-badge--offline" title="No PLC/controller communication">
@@ -337,6 +375,12 @@ export function App() {
               onRenameTag={handleRenameTag}
               onDeleteTag={handleDeleteTag}
               onEditDescription={handleEditDescription}
+            />
+          ) : view === "compare" ? (
+            <CompareView
+              project={project}
+              comparison={comparison}
+              onChooseFile={handleCompareFileClick}
             />
           ) : view === "routine" && openRoutine ? (
             <EditorArea

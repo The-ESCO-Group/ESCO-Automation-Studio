@@ -32,6 +32,9 @@ importers:
       '@esco/ai-assistant':
         specifier: workspace:*
         version: link:../../packages/ai-assistant
+      '@esco/compare':
+        specifier: workspace:*
+        version: link:../../packages/compare
       '@esco/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -103,6 +106,25 @@ importers:
         specifier: workspace:*
         version: link:../validator
     devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@22.19.19)
+
+  packages/compare:
+    dependencies:
+      '@esco/core':
+        specifier: workspace:*
+        version: link:../core
+      '@esco/ladder':
+        specifier: workspace:*
+        version: link:../ladder
+    devDependencies:
+      '@esco/parser-l5x':
+        specifier: workspace:*
+        version: link:../parser-l5x
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

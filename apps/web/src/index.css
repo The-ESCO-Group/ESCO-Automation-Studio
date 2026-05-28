@@ -1296,6 +1296,167 @@ body {
   color: var(--text-dim);
 }
 
+/* ---- Compare view ---- */
+.esco-cmp {
+  padding: 18px 22px;
+  overflow: auto;
+  height: 100%;
+}
+
+.esco-cmp__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.esco-cmp__title {
+  font-size: 20px;
+  margin: 0;
+}
+
+.esco-cmp__subtitle {
+  margin: 4px 0 0;
+  max-width: 640px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.esco-cmp__empty {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+}
+
+.esco-cmp__bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.esco-cmp__current {
+  font-size: 13px;
+  margin-right: 6px;
+}
+
+.esco-cmp__chip {
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.esco-cmp__chip--match { color: var(--ok, #5fd07a); border-color: var(--ok, #5fd07a); }
+.esco-cmp__chip--changed { color: var(--warn, #e0b050); border-color: var(--warn, #e0b050); }
+.esco-cmp__chip--left { color: var(--info, #5aa0e0); border-color: var(--info, #5aa0e0); }
+.esco-cmp__chip--right { color: var(--accent); border-color: var(--accent); }
+
+.esco-cmp__warnings {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  color: var(--warn, #e0b050);
+  font-size: 12px;
+}
+
+.esco-cmp__section {
+  margin-top: 18px;
+}
+
+.esco-cmp__section h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.esco-cmp__list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.esco-cmp__item {
+  font-size: 13px;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+
+.esco-cmp__item--changed {
+  border-color: var(--border);
+}
+
+.esco-cmp__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.esco-cmp__caret { color: var(--text-dim); }
+.esco-cmp__name { font-weight: 500; }
+.esco-cmp__name--right { color: var(--text-dim); }
+
+.esco-cmp__badge {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+.esco-cmp__badge--operand-changed { color: var(--warn, #e0b050); }
+.esco-cmp__badge--structure-changed { color: var(--error); }
+
+.esco-cmp__matched-by {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.esco-cmp__detail {
+  margin-top: 8px;
+}
+
+.esco-cmp__sidebyside {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.esco-cmp__col h4 {
+  margin: 0 0 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.esco-cmp__rung {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.esco-cmp__rung.is-diff {
+  background: var(--accent-soft);
+}
+
 .esco-lad__rung-no {
   display: inline-flex;
   align-items: center;

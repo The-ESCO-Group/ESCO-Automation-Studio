@@ -14,6 +14,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@esco/ai-assistant": pkgSrc("ai-assistant"),
+      "@esco/compare": pkgSrc("compare"),
       "@esco/core": pkgSrc("core"),
       "@esco/shared": pkgSrc("shared"),
       "@esco/ladder": pkgSrc("ladder"),

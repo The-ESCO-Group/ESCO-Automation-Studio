@@ -23,6 +23,7 @@ const ORDER = [
   "tags.mjs",
   "props.mjs",
   "xref.mjs",
+  "compare.mjs",
   "ai.mjs",
   "persist.mjs",
   "l5x.mjs",
