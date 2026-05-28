@@ -102,6 +102,26 @@ export interface UserDefinedType {
 export interface UdtMember {
   name: string;
   dataType: string;
+  /** First-dimension length when the member is an array. */
+  dimension?: number;
+  description?: string;
+}
+
+/** An Add-On Instruction parameter (Input / Output / InOut). */
+export interface AoiParameter {
+  name: string;
+  dataType: string;
+  /** Parameter usage: "Input" | "Output" | "InOut" (as imported). */
+  usage?: string;
+  required?: boolean;
+  defaultValue?: string;
+  description?: string;
+}
+
+/** A local (private) tag inside an Add-On Instruction. */
+export interface AoiLocalTag {
+  name: string;
+  dataType: string;
   description?: string;
 }
 
@@ -109,6 +129,11 @@ export interface AddOnInstruction {
   id: string;
   name: string;
   description?: string;
+  revision?: string;
+  parameters: AoiParameter[];
+  localTags: AoiLocalTag[];
+  /** Names of the AOI's imported routines (logic), read-only. */
+  routineNames: string[];
 }
 
 export interface IOConfiguration {
@@ -120,4 +145,7 @@ export interface IoModule {
   name: string;
   catalogNumber?: string;
   slot?: number;
+  description?: string;
+  parentModule?: string;
+  commPath?: string;
 }

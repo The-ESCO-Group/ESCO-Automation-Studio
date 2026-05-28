@@ -5,4 +5,7 @@ export type Selection =
   | { kind: "tag"; id: string }
   | { kind: "rung"; routineId: string; rungId: string }
   | { kind: "instruction"; routineId: string; rungId: string; nodeId: string }
+  | { kind: "aoi"; id: string }
+  | { kind: "udt"; id: string }
+  | { kind: "io"; controllerId: string; moduleId?: string }
   | null;

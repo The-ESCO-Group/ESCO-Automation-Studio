@@ -1545,6 +1545,118 @@ body {
 .esco-tracetable tr.is-true td:nth-child(4) { color: var(--ok, #5fd07a); }
 .esco-tracetable tr.is-false td:nth-child(4) { color: var(--text-dim); }
 
+/* ---- Structure detail viewers (AOI / UDT / I/O) ---- */
+.esco-detail {
+  padding: 18px 22px;
+  overflow: auto;
+  height: 100%;
+}
+
+.esco-detail__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.esco-detail__title {
+  font-size: 18px;
+  margin: 0;
+}
+
+.esco-detail__tag {
+  font-size: 11px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+}
+
+.esco-detail__readonly {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.esco-detail__desc {
+  margin: 6px 0 0;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.esco-detail__warning {
+  margin: 12px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--warn, #e0b050);
+  border-radius: 6px;
+  color: var(--warn, #e0b050);
+  font-size: 12px;
+}
+
+.esco-detail__section {
+  margin-top: 18px;
+}
+
+.esco-detail__section h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.esco-detail__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.esco-detail__table th,
+.esco-detail__table td {
+  text-align: left;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.esco-detail__table th {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.esco-detail__list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.esco-detail__muted {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.esco-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.esco-link:hover {
+  text-decoration: underline;
+}
+
 /* ---- Crash / error boundary fallback ---- */
 .esco-crash {
   display: flex;

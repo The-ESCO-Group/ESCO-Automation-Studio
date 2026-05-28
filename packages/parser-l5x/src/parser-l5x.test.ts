@@ -455,21 +455,33 @@ const STRUCTURE = `<?xml version="1.0" encoding="UTF-8"?>
         <Members>
           <Member Name="Running" DataType="BOOL"><Description><![CDATA[Run feedback]]></Description></Member>
           <Member Name="Speed" DataType="DINT"/>
+          <Member Name="History" DataType="DINT" Dimension="8"/>
         </Members>
       </DataType>
     </DataTypes>
     <AddOnInstructionDefinitions>
-      <AddOnInstructionDefinition Name="ScaleAOI"><Description><![CDATA[Analog scaler]]></Description></AddOnInstructionDefinition>
+      <AddOnInstructionDefinition Name="ScaleAOI" Revision="2.1">
+        <Description><![CDATA[Analog scaler]]></Description>
+        <Parameters>
+          <Parameter Name="In" DataType="REAL" Usage="Input" Required="true" Default="0.0"><Description><![CDATA[Raw input]]></Description></Parameter>
+          <Parameter Name="Out" DataType="REAL" Usage="Output"/>
+        </Parameters>
+        <LocalTags>
+          <LocalTag Name="Scratch" DataType="DINT"><Description><![CDATA[scratch]]></Description></LocalTag>
+        </LocalTags>
+        <Routines><Routine Name="Logic" Type="RLL"/></Routines>
+      </AddOnInstructionDefinition>
     </AddOnInstructionDefinitions>
     <Modules>
       <Module Name="Local" CatalogNumber="1756-L83E" Slot="0"/>
-      <Module Name="DI_01" CatalogNumber="1756-IB16" Slot="1"/>
+      <Module Name="DI_01" CatalogNumber="1756-IB16" Slot="1" ParentModule="Local"><Description><![CDATA[Field inputs]]></Description></Module>
     </Modules>
-    <Tags><Tag Name="Start" DataType="BOOL"/><Tag Name="Run" DataType="BOOL"/></Tags>
+    <Tags><Tag Name="Start" DataType="BOOL"/><Tag Name="Run" DataType="BOOL"/><Tag Name="ScaleInst" DataType="ScaleAOI"/></Tags>
     <Programs>
       <Program Name="MainProgram" MainRoutineName="Main">
         <Routines><Routine Name="Main" Type="RLL"><RLLContent>
           <Rung Number="0"><Text><![CDATA[XIC(Start)OTE(Run);]]></Text></Rung>
+          <Rung Number="1"><Text><![CDATA[ScaleAOI(ScaleInst);]]></Text></Rung>
         </RLLContent></Routine></Routines>
       </Program>
     </Programs>
@@ -477,19 +489,39 @@ const STRUCTURE = `<?xml version="1.0" encoding="UTF-8"?>
 </RSLogix5000Content>`;
 
 describe("importL5X (structure: UDT / AOI / I/O)", () => {
-  it("imports user-defined types with their members", () => {
+  it("imports user-defined types with their members (incl. array dimension)", () => {
     const controller = importL5X(STRUCTURE).project.controllers[0]!;
     expect(controller.dataTypes).toHaveLength(1);
     const udt = controller.dataTypes[0]!;
     expect(udt.name).toBe("MotorUdt");
-    expect(udt.members.map((m) => `${m.name}:${m.dataType}`)).toEqual(["Running:BOOL", "Speed:DINT"]);
+    expect(udt.members.map((m) => `${m.name}:${m.dataType}`)).toEqual([
+      "Running:BOOL",
+      "Speed:DINT",
+      "History:DINT",
+    ]);
     expect(udt.members[0]!.description).toBe("Run feedback");
+    expect(udt.members.find((m) => m.name === "History")?.dimension).toBe(8);
   });
 
-  it("imports Add-On Instruction definitions with descriptions", () => {
-    const controller = importL5X(STRUCTURE).project.controllers[0]!;
-    expect(controller.addOnInstructions.map((a) => a.name)).toEqual(["ScaleAOI"]);
-    expect(controller.addOnInstructions[0]!.description).toBe("Analog scaler");
+  it("imports Add-On Instruction definitions with parameters, local tags, and routines", () => {
+    const aoi = importL5X(STRUCTURE).project.controllers[0]!.addOnInstructions[0]!;
+    expect(aoi.name).toBe("ScaleAOI");
+    expect(aoi.description).toBe("Analog scaler");
+    expect(aoi.revision).toBe("2.1");
+    expect(aoi.parameters.map((p) => `${p.name}:${p.usage}`)).toEqual(["In:Input", "Out:Output"]);
+    expect(aoi.parameters[0]!.required).toBe(true);
+    expect(aoi.parameters[0]!.defaultValue).toBe("0.0");
+    expect(aoi.parameters[0]!.description).toBe("Raw input");
+    expect(aoi.localTags.map((t) => t.name)).toEqual(["Scratch"]);
+    expect(aoi.routineNames).toEqual(["Logic"]);
+  });
+
+  it("imports a module description and parent module", () => {
+    const di = importL5X(STRUCTURE).project.controllers[0]!.ioConfiguration.modules.find(
+      (m) => m.name === "DI_01",
+    )!;
+    expect(di.description).toBe("Field inputs");
+    expect(di.parentModule).toBe("Local");
   });
 
   it("imports the I/O module tree with catalog and slot", () => {

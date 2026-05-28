@@ -31,6 +31,7 @@ const ORDER = [
   "xref.mjs",
   "arrayvalues.mjs",
   "structure.mjs",
+  "aoidetail.mjs",
   "compare.mjs",
   "ai.mjs",
   "persist.mjs",

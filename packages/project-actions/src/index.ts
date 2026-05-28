@@ -7,3 +7,4 @@ export * from "./scan";
 export * from "./io-actions";
 export * from "./cross-reference";
 export * from "./generate";
+export * from "./structure";

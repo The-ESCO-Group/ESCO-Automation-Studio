@@ -15,6 +15,7 @@ import {
   addParallelBranch,
   addRung,
   addRungFromText,
+  aoiReferences,
   collectTagReferences,
   createRoutine as createRoutineAction,
   createTag,
@@ -32,7 +33,9 @@ import {
   renameTag,
   scanProject,
   setTagDescription,
+  tagsUsingType,
   traceScan,
+  udtMemberPaths,
   updateInstructionOperand,
   validateProject,
   type TagValues,
@@ -112,6 +115,46 @@ describe("project-actions: build a rung and scan it", () => {
     // Stop pressed -> MotorRun drops.
     values = scanProject(project, { ...values, StopPB: true }).data!.values;
     expect(values.MotorRun).toBe(false);
+  });
+});
+
+describe("project-actions: structure helpers", () => {
+  const xml = `<?xml version="1.0"?>
+<RSLogix5000Content><Controller Name="C">
+  <DataTypes><DataType Name="MotorUdt"><Members>
+    <Member Name="Running" DataType="BOOL"/><Member Name="Speed" DataType="DINT"/>
+  </Members></DataType></DataTypes>
+  <AddOnInstructionDefinitions>
+    <AddOnInstructionDefinition Name="ScaleAOI"><Parameters>
+      <Parameter Name="In" DataType="REAL" Usage="Input"/>
+    </Parameters></AddOnInstructionDefinition>
+  </AddOnInstructionDefinitions>
+  <Tags><Tag Name="M1" DataType="MotorUdt"/><Tag Name="Inst" DataType="ScaleAOI"/></Tags>
+  <Programs><Program Name="MainProgram" MainRoutineName="Main">
+    <Routines><Routine Name="Main" Type="RLL"><RLLContent>
+      <Rung Number="0"><Text><![CDATA[ScaleAOI(Inst);]]></Text></Rung>
+    </RLLContent></Routine></Routines>
+  </Program></Programs>
+</Controller></RSLogix5000Content>`;
+
+  it("finds AOI call references in routines", () => {
+    const project = importL5XFile(xml).project;
+    const refs = aoiReferences(project, "ScaleAOI");
+    expect(refs).toHaveLength(1);
+    expect(refs[0]!.routineName).toBe("Main");
+    expect(refs[0]!.rungNumber).toBe(0);
+  });
+
+  it("finds tags that use a UDT type", () => {
+    const project = importL5XFile(xml).project;
+    expect(tagsUsingType(project, "MotorUdt").map((t) => t.name)).toContain("M1");
+    expect(tagsUsingType(project, "ScaleAOI").map((t) => t.name)).toContain("Inst");
+  });
+
+  it("previews UDT member access paths", () => {
+    const project = importL5XFile(xml).project;
+    const udt = project.controllers[0]!.dataTypes[0]!;
+    expect(udtMemberPaths(udt)).toEqual(["MotorUdt.Running", "MotorUdt.Speed"]);
   });
 });
 

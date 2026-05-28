@@ -140,6 +140,9 @@ function buildView(props: Props): View | null {
     };
   }
 
+  // Structure nodes (AOI / UDT / I/O) have their own center detail view.
+  if (selection.kind !== "rung" && selection.kind !== "instruction") return null;
+
   // rung / instruction
   const routine = findRoutine(project, selection.routineId);
   const ladder = getLadder(routine) as LadderRoutine | undefined;

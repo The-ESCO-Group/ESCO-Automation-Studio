@@ -36,6 +36,7 @@ import { BottomPanel, type DockTab } from "./components/BottomPanel";
 import { WelcomeDashboard } from "./components/WelcomeDashboard";
 import { TagsView } from "./components/TagsView";
 import { CompareView } from "./components/CompareView";
+import { StructureView } from "./components/StructureView";
 import { Toasts } from "./components/Toasts";
 import type { Selection } from "./selection";
 import { createInitialProject, findMainRoutine } from "./project-edit";
@@ -46,7 +47,7 @@ import { useHistoryState } from "./history";
 import { clearAutosave, loadAutosave, saveAutosave, type AutosaveEntry } from "./autosave";
 
 const SCAN_INTERVAL_MS = 250;
-type CenterView = "welcome" | "routine" | "tags" | "compare";
+type CenterView = "welcome" | "routine" | "tags" | "compare" | "structure";
 
 export function App() {
   const [initialProject] = useState(createInitialProject);
@@ -90,6 +91,8 @@ export function App() {
     if (sel?.kind === "routine") {
       setOpenRoutineId(sel.id);
       setView("routine");
+    } else if (sel?.kind === "aoi" || sel?.kind === "udt" || sel?.kind === "io") {
+      setView("structure");
     }
   };
 
@@ -593,6 +596,8 @@ export function App() {
               comparison={comparison}
               onChooseFile={handleCompareFileClick}
             />
+          ) : view === "structure" ? (
+            <StructureView project={project} selection={selection} onOpenRoutine={handleOpenRoutine} />
           ) : view === "routine" && openRoutine ? (
             <EditorArea
               project={project}

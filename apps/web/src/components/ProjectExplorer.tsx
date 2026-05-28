@@ -120,9 +120,16 @@ export function ProjectExplorer({ project, selection, onSelect }: Props) {
                   <ul className="esco-tree esco-tree--nested">
                     {controller.addOnInstructions.map((aoi) => (
                       <li key={aoi.id}>
-                        <span className="esco-tree__leaf" title={aoi.description ?? ""}>
+                        <button
+                          type="button"
+                          className={`esco-tree__node esco-tree__node--aoi${
+                            isSelected("aoi", aoi.id) ? " is-selected" : ""
+                          }`}
+                          title={aoi.description ?? ""}
+                          onClick={() => onSelect({ kind: "aoi", id: aoi.id })}
+                        >
                           {aoi.name}
-                        </span>
+                        </button>
                       </li>
                     ))}
                   </ul>
