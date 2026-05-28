@@ -48,6 +48,11 @@ export class PlcRuntime {
     this.routine = routine;
   }
 
+  /** Register sibling routines by name so a JSR in the scanned routine resolves. */
+  loadRoutines(routines: Map<string, LadderRoutine>): void {
+    this.executor.setRoutines(routines);
+  }
+
   start(): void {
     this.running = true;
   }

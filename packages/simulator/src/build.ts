@@ -31,6 +31,8 @@ export function collectOutputTags(
 /** Build a runtime for a given routine and tag set, sharing one registry. */
 export function createRuntime(options: {
   routine?: LadderRoutine;
+  /** Sibling routines by name, so a JSR in `routine` can resolve subroutines. */
+  routines?: Map<string, LadderRoutine>;
   tags: TagDescriptor[];
   registry?: InstructionRegistry;
 }): PlcRuntime {
@@ -38,6 +40,9 @@ export function createRuntime(options: {
   const runtime = new PlcRuntime(registry);
   for (const tag of options.tags) {
     runtime.defineTag(tag);
+  }
+  if (options.routines) {
+    runtime.loadRoutines(options.routines);
   }
   if (options.routine) {
     runtime.loadRoutine(options.routine);

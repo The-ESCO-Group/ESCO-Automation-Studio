@@ -39,7 +39,7 @@ const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
                 <Text><![CDATA[XIC(StartPB)MOV(123,SomeDint);]]></Text>
               </Rung>
               <Rung Number="3" Type="N">
-                <Text><![CDATA[XIC(StartPB)JSR(SubRoutine);]]></Text>
+                <Text><![CDATA[XIC(StartPB)PID(SubRoutine);]]></Text>
               </Rung>
             </RLLContent>
           </Routine>
@@ -82,9 +82,9 @@ describe("parseRungText", () => {
   });
 
   it("preserves unsupported instructions and reports them", () => {
-    const parsed = parseRungText("XIC(StartPB)JSR(SubRoutine);", registry);
-    expect(parsed.unsupportedTypes).toContain("JSR");
-    expect(parsed.root.nodes.map((n) => n.instructionType)).toEqual(["XIC", "JSR"]);
+    const parsed = parseRungText("XIC(StartPB)PID(SubRoutine);", registry);
+    expect(parsed.unsupportedTypes).toContain("PID");
+    expect(parsed.root.nodes.map((n) => n.instructionType)).toEqual(["XIC", "PID"]);
   });
 
   it("parses the new core instructions with named operands", () => {
@@ -156,8 +156,8 @@ describe("importL5X (fixture)", () => {
     expect(controller.tasks[0]!.name).toBe("MainTask");
     expect(controller.tasks[0]!.scheduledProgramIds).toEqual([program.id]);
 
-    // The JSR on rung 3 is unsupported and surfaced as a warning.
-    expect(warnings.some((w) => w.includes("JSR"))).toBe(true);
+    // The PID on rung 3 is unsupported and surfaced as a warning.
+    expect(warnings.some((w) => w.includes("PID"))).toBe(true);
   });
 
   it("rejects non-L5X input with a clear error", () => {
@@ -171,13 +171,13 @@ describe("L5X → domain → .plcproj.json round trip", () => {
     const restored = deserializeProject(serializeProject(project));
     expect(restored).toEqual(project);
     expect(routineNodes(mainLadder(restored)).map((n) => n.instructionType)).toEqual([
-      "XIC", "XIO", "OTE", "XIC", "TON", "XIC", "MOV", "XIC", "JSR",
+      "XIC", "XIO", "OTE", "XIC", "TON", "XIC", "MOV", "XIC", "PID",
     ]);
   });
 });
 
 describe("Imported supported logic simulates", () => {
-  it("scans the imported MainRoutine (XIC/OTE, TON, MOV; JSR passes through)", () => {
+  it("scans the imported MainRoutine (XIC/OTE, TON, MOV; PID passes through)", () => {
     const { project } = importL5X(FIXTURE);
     const runtime = createRuntime({ routine: mainLadder(project), tags: [], registry });
 
@@ -244,7 +244,7 @@ const REALISTIC = `<?xml version="1.0" encoding="UTF-8"?>
           <Routine Name="Logic" Type="RLL">
             <RLLContent>
               <Rung Number="0" Type="N"><Text><![CDATA[XIC(Start)CTU(PartCounter,5);]]></Text></Rung>
-              <Rung Number="1" Type="N"><Text><![CDATA[XIC(Start)ADD(Level,1,Level)JSR(SubRoutine);]]></Text></Rung>
+              <Rung Number="1" Type="N"><Text><![CDATA[XIC(Start)ADD(Level,1,Level)PID(SubRoutine);]]></Text></Rung>
               <Rung Number="2" Type="N"><Text><![CDATA[GRT(Level,Setpoint)OTE(Motor);]]></Text></Rung>
             </RLLContent>
           </Routine>
@@ -275,7 +275,7 @@ describe("importL5X (realistic fixture)", () => {
     expect(summary.routines).toBe(2);
     expect(summary.rungs).toBe(6);
     expect(summary.tags).toBe(10); // 9 controller + 1 program
-    expect(summary.unsupportedInstructions).toEqual(["JSR"]);
+    expect(summary.unsupportedInstructions).toEqual(["PID"]);
   });
 
   it("extracts descriptions on tags, programs, and routines", () => {
@@ -296,11 +296,11 @@ describe("importL5X (realistic fixture)", () => {
     expect(controller.tasks[0]?.scheduledProgramIds).toHaveLength(2);
   });
 
-  it("preserves all instructions as nodes, including the unsupported JSR", () => {
+  it("preserves all instructions as nodes, including the unsupported PID", () => {
     const { project } = importL5X(REALISTIC);
     const types = routineNodes(programLadder(project, "Mixer")).map((n) => n.instructionType);
     expect(types).toContain("ADD"); // supported
-    expect(types).toContain("JSR"); // unsupported, preserved read-only
+    expect(types).toContain("PID"); // unsupported, preserved read-only
   });
 
   it("simulates the imported branch (seal-in) routine", () => {
@@ -326,7 +326,7 @@ describe("importL5X (realistic fixture)", () => {
 // A stress fixture: two programs/routines, controller + program tags, an alias
 // tag, an unmodeled UDT data type, descriptions, a branch, the new core
 // instructions (ONS/RES/RTO/TOF/CTD), UDT-member and array operand paths, and an
-// unsupported instruction (JSR).
+// unsupported instruction (PID).
 const STRESS = `<?xml version="1.0" encoding="UTF-8"?>
 <RSLogix5000Content SchemaRevision="1.0">
   <Controller Use="Target" Name="PlantStress" ProcessorType="1756-L85E">
@@ -359,7 +359,7 @@ const STRESS = `<?xml version="1.0" encoding="UTF-8"?>
               <Rung Number="3" Type="N"><Text><![CDATA[XIC(Reset)RES(DwellTimer)RES(PartCounter);]]></Text></Rung>
               <Rung Number="4" Type="N"><Text><![CDATA[XIC(Start)TOF(OffDelay,2000);]]></Text></Rung>
               <Rung Number="5" Type="N"><Text><![CDATA[MOV(MyArray[0],Level);]]></Text></Rung>
-              <Rung Number="6" Type="N"><Text><![CDATA[XIC(Start)JSR(SubRoutine);]]></Text></Rung>
+              <Rung Number="6" Type="N"><Text><![CDATA[XIC(Start)PID(SubRoutine);]]></Text></Rung>
               <Rung Number="7" Type="N"><Text><![CDATA[XIC(PumpData.Status.Running)OTE(PumpRun);]]></Text></Rung>
             </RLLContent>
           </Routine>
@@ -387,14 +387,14 @@ describe("importL5X (stress fixture)", () => {
     expect(summary.tags).toBe(14); // 13 controller + 1 program
   });
 
-  it("treats only JSR as unsupported (the new instructions are supported)", () => {
+  it("treats only PID as unsupported (the new instructions are supported)", () => {
     const { summary } = importL5X(STRESS);
-    expect(summary.unsupportedInstructions).toEqual(["JSR"]);
+    expect(summary.unsupportedInstructions).toEqual(["PID"]);
   });
 
   it("warns about the unsupported instruction with routine/rung location", () => {
     const { warnings } = importL5X(STRESS);
-    const jsr = warnings.find((w) => w.includes("JSR"));
+    const jsr = warnings.find((w) => w.includes("PID"));
     expect(jsr).toBeDefined();
     expect(jsr).toMatch(/Sequencer\/Cycle rung 6/);
   });
@@ -420,7 +420,7 @@ describe("importL5X (stress fixture)", () => {
   it("preserves the unsupported instruction as a node", () => {
     const { project } = importL5X(STRESS);
     const types = routineNodes(programLadder(project, "Sequencer")).map((n) => n.instructionType);
-    expect(types).toContain("JSR");
+    expect(types).toContain("PID");
     expect(types).toContain("RTO");
     expect(types).toContain("ONS");
   });
@@ -436,7 +436,7 @@ describe("importL5X (stress fixture)", () => {
     const runtime = createRuntime({ routine: programLadder(project, "Sequencer"), tags: [], registry });
     runtime.writeTag("Start", true);
     runtime.scanOnce(6000); // long enough for RTO to finish
-    expect(runtime.readTag("Run")).toBe(true); // seal-in energizes despite JSR pass-through
+    expect(runtime.readTag("Run")).toBe(true); // seal-in energizes despite PID pass-through
     expect(runtime.readTag("DwellTimer.DN")).toBe(true); // RTO reached preset
   });
 });

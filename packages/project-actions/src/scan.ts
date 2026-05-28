@@ -1,7 +1,24 @@
 import { arrayElementNames, isStructuredType, memberDefs, type PlcProject } from "@esco/core";
+import type { LadderRoutine } from "@esco/ladder";
 import { collectOutputTags, createRuntime } from "@esco/simulator";
 import { defaultRoutineId, findRoutine, getAllTags, getLadder, validate } from "./helpers";
 import type { ProjectActionResult, ScanOptions } from "./types";
+
+/** Routines (by name) of the program that owns `routineId`, for JSR resolution. */
+function siblingRoutines(project: PlcProject, routineId: string): Map<string, LadderRoutine> {
+  const map = new Map<string, LadderRoutine>();
+  for (const controller of project.controllers) {
+    for (const program of controller.programs) {
+      if (!program.routines.some((routine) => routine.id === routineId)) continue;
+      for (const routine of program.routines) {
+        const ladder = getLadder(routine);
+        if (ladder) map.set(routine.name, ladder);
+      }
+      return map;
+    }
+  }
+  return map;
+}
 
 /** Default per-scan time step (ms) for the timer model. */
 export const SCAN_STEP_MS = 250;
@@ -57,7 +74,8 @@ export function scanProject(
 ): ProjectActionResult<{ values: TagValues }> {
   const routineId = options.routineId ?? defaultRoutineId(project);
   const ladder = getLadder(findRoutine(project, routineId ?? ""));
-  const runtime = createRuntime({ routine: ladder, tags: [] });
+  const routines = siblingRoutines(project, routineId ?? "");
+  const runtime = createRuntime({ routine: ladder, routines, tags: [] });
 
   for (const [path, value] of Object.entries(values)) {
     runtime.writeTag(path, value);

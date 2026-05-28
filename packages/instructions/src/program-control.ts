@@ -1,10 +1,8 @@
 import type { InstructionDefinition } from "./types";
 
 /**
- * Simple program-control utility instructions. JSR/RET (routine calls) are
- * intentionally not modelled yet — the offline simulator scans a single
- * routine, so an unmodelled JSR is left as an unsupported pass-through rather
- * than implying cross-routine execution that isn't really happening.
+ * Simple program-control utility instructions (NOP/AFI). Routine-call control
+ * (JSR/SBR/RET) lives in routine-control.ts and drives multi-routine execution.
  */
 
 /** NOP - No Operation. Passes the rung condition straight through. */

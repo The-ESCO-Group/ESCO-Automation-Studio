@@ -80,6 +80,7 @@ export const ladderOperands: ValidationRule = {
     for (const controller of project.controllers) {
       const tagTypes = new Map<string, string>();
       const tagDims = new Map<string, number>();
+      const routineNames = new Set<string>();
       const indexTag = (name: string, dataType: string, dimension?: number) => {
         tagTypes.set(name, dataType);
         if (dimension && dimension > 0) tagDims.set(name, dimension);
@@ -87,6 +88,7 @@ export const ladderOperands: ValidationRule = {
       for (const tag of controller.controllerTags) indexTag(tag.name, tag.dataType, tag.dimension);
       for (const program of controller.programs) {
         for (const tag of program.programTags) indexTag(tag.name, tag.dataType, tag.dimension);
+        for (const routine of program.routines) routineNames.add(routine.name);
       }
 
       for (const program of controller.programs) {
@@ -123,6 +125,19 @@ export const ladderOperands: ValidationRule = {
               }
 
               if (isNumericLiteral(value)) return; // a constant, not a tag reference
+
+              // A routine reference (e.g. JSR) is not a tag — check it resolves instead.
+              if (operandDef.isRoutineRef) {
+                if (!routineNames.has(value)) {
+                  findings.push({
+                    ruleId: "unknown-routine",
+                    severity: "warning",
+                    message: `${node.instructionType} references unknown routine "${value}".`,
+                    target,
+                  });
+                }
+                return;
+              }
 
               // Resolve the base tag of a member/array path (e.g. Timer1.DN -> Timer1).
               const base = baseTagName(value);

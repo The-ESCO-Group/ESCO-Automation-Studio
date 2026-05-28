@@ -5,6 +5,7 @@ import { EQU, GEQ, GRT, LEQ, LES, MOV, NEQ } from "./move-compare";
 import { ADD, DIV, MUL, SUB } from "./math";
 import { ABS, AND, CLR, LIM, MEQ, MOD, NEG, NOT, OR, SQR, XOR } from "./compute";
 import { AFI, NOP } from "./program-control";
+import { JSR, RET, SBR } from "./routine-control";
 
 export * from "./types";
 export * from "./registry";
@@ -15,6 +16,7 @@ export * from "./move-compare";
 export * from "./math";
 export * from "./compute";
 export * from "./program-control";
+export * from "./routine-control";
 
 /** Default registry seeded with the supported instruction set. */
 export function createDefaultRegistry(): InstructionRegistry {
@@ -25,6 +27,7 @@ export function createDefaultRegistry(): InstructionRegistry {
     MOV, EQU, GRT, LES, NEQ, LEQ, GEQ,
     ADD, SUB, MUL, DIV,
     AND, OR, XOR, NOT, MOD, SQR, NEG, ABS, CLR, LIM, MEQ,
+    JSR, SBR, RET,
     NOP, AFI,
   ]) {
     registry.register(def);

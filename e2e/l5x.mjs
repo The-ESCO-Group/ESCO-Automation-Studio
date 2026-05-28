@@ -25,7 +25,7 @@ const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
               <Rung Number="0" Type="N"><Comment><![CDATA[Start / stop motor]]></Comment><Text><![CDATA[XIC(StartPB)XIO(StopPB)OTE(MotorRun);]]></Text></Rung>
               <Rung Number="1" Type="N"><Text><![CDATA[XIC(StartPB)MOV(123,SomeDint);]]></Text></Rung>
               <Rung Number="2" Type="N"><Text><![CDATA[XIC(StartPB)TON(Timer1,1000);]]></Text></Rung>
-              <Rung Number="3" Type="N"><Text><![CDATA[XIC(StartPB)JSR(SubRoutine);]]></Text></Rung>
+              <Rung Number="3" Type="N"><Text><![CDATA[XIC(StartPB)PID(SubRoutine);]]></Text></Rung>
             </RLLContent>
           </Routine>
         </Routines>
@@ -66,7 +66,7 @@ try {
 
   // Import notice flags the unsupported ADD instruction.
   const notice = await page.locator(".esco-toast").innerText().catch(() => "");
-  check("import notice warns about unsupported JSR", /JSR/.test(notice), notice.slice(0, 80));
+  check("import notice warns about unsupported PID", /PID/.test(notice), notice.slice(0, 80));
 
   // Open the imported routine.
   await page.locator('button:has-text("MainRoutine")').first().click();

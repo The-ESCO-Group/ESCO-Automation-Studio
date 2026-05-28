@@ -431,6 +431,53 @@ describe("project-actions: array tags", () => {
   });
 });
 
+describe("project-actions: subroutine execution (JSR / RET)", () => {
+  it("runs a subroutine via JSR against shared memory", () => {
+    const base = baseProject();
+    const created = createRoutineAction(base.project, { programId: base.programId, name: "Sub" });
+    let p = created.project;
+    const subId = created.data!.routineId;
+    p = addRungFromText(p, { routineId: subId, text: "MOV(99,Result)" }).project;
+    p = addRungFromText(p, { routineId: base.routineId, text: "XIC(Run)JSR(Sub)" }).project;
+    p = createTag(p, { name: "Run", dataType: "BOOL" }).project;
+    p = createTag(p, { name: "Result", dataType: "DINT" }).project;
+
+    // Run = true → JSR(Sub) executes → Result = 99.
+    let values = scanProject(p, { ...defaultValues(p), Run: true }, { routineId: base.routineId }).data!.values;
+    expect(values.Result).toBe(99);
+
+    // Run = false → the JSR is not taken → Result stays 0.
+    values = scanProject(p, defaultValues(p), { routineId: base.routineId }).data!.values;
+    expect(values.Result).toBe(0);
+  });
+
+  it("RET ends a subroutine early (later rungs do not run)", () => {
+    const base = baseProject();
+    const created = createRoutineAction(base.project, { programId: base.programId, name: "Sub" });
+    let p = created.project;
+    const subId = created.data!.routineId;
+    p = addRungFromText(p, { routineId: subId, text: "MOV(1,A)" }).project; // runs
+    p = addRungFromText(p, { routineId: subId, text: "RET()" }).project; // returns
+    p = addRungFromText(p, { routineId: subId, text: "MOV(2,B)" }).project; // skipped
+    p = addRungFromText(p, { routineId: base.routineId, text: "JSR(Sub)" }).project;
+    for (const name of ["A", "B"]) p = createTag(p, { name, dataType: "DINT" }).project;
+
+    const values = scanProject(p, defaultValues(p), { routineId: base.routineId }).data!.values;
+    expect(values.A).toBe(1); // executed before RET
+    expect(values.B).toBe(0); // RET ended the routine before this rung
+  });
+
+  it("flags a JSR to an unknown routine as a warning (not an undefined tag)", () => {
+    const base = baseProject();
+    const p = addRungFromText(base.project, { routineId: base.routineId, text: "JSR(DoesNotExist)" }).project;
+    const result = validateProject(p);
+    expect(result.findings?.some((f) => f.ruleId === "unknown-routine")).toBe(true);
+    expect(
+      result.findings?.some((f) => f.ruleId === "undefined-tag" && f.message.includes("DoesNotExist")),
+    ).toBe(false);
+  });
+});
+
 describe("project-actions: validation and IO", () => {
   it("validateProject returns findings", () => {
     const built = buildMotorRung(baseProject());
@@ -475,7 +522,7 @@ describe("project-actions: validation and IO", () => {
     expect(collectTagReferences(p, "Timer1").every((r) => r.tag === "Timer1")).toBe(true);
   });
 
-  it("validates a richer imported L5X cleanly (members/arrays resolve, JSR flagged)", () => {
+  it("validates a richer imported L5X cleanly (members/arrays resolve, PID flagged)", () => {
     const xml = `<?xml version="1.0"?>
 <RSLogix5000Content>
   <Controller Name="Imported">
@@ -492,7 +539,7 @@ describe("project-actions: validation and IO", () => {
           <Rung Number="1"><Text><![CDATA[XIC(Run)RTO(Dwell,1000);]]></Text></Rung>
           <Rung Number="2"><Text><![CDATA[XIC(Dwell.DN)CTU(Cnt,5);]]></Text></Rung>
           <Rung Number="3"><Text><![CDATA[MOV(Arr[0],Dest);]]></Text></Rung>
-          <Rung Number="4"><Text><![CDATA[XIC(Start)JSR(Sub);]]></Text></Rung>
+          <Rung Number="4"><Text><![CDATA[XIC(Start)PID(Sub);]]></Text></Rung>
         </RLLContent></Routine></Routines>
       </Program>
     </Programs>
@@ -505,7 +552,7 @@ describe("project-actions: validation and IO", () => {
     expect(result.ok).toBe(true);
     // Member (Dwell.DN) and array (Arr[0]) paths resolve to defined base tags.
     expect(result.findings?.some((f) => f.ruleId === "undefined-tag")).toBe(false);
-    // The unsupported JSR is reported as info, not an error.
+    // The unsupported PID is reported as info, not an error.
     expect(result.findings?.some((f) => f.ruleId === "unsupported-instruction")).toBe(true);
   });
 

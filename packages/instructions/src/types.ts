@@ -18,6 +18,8 @@ export interface InstructionOperandDefinition {
   allowedTypes?: string[];
   /** Whether the instruction reads or writes this operand's tag (defaults to "read"). */
   direction?: "read" | "write";
+  /** True when the operand names a routine (e.g. JSR), not a tag — skips tag validation. */
+  isRoutineRef?: boolean;
 }
 
 /** Read/write access an instruction needs against the tag memory during a scan. */
@@ -34,6 +36,14 @@ export interface InstructionRuntimeContext {
    * yields its value; anything else is read as a tag/member path.
    */
   numeric(operandValue: string): number;
+  /**
+   * Execute another routine by name against the same tag memory (JSR). Provided
+   * by the executor when sibling routines are known; a no-op otherwise. The
+   * executor enforces a call-depth limit to prevent infinite recursion.
+   */
+  callRoutine?(name: string): void;
+  /** Request an early return from the current routine (RET). */
+  requestReturn?(): void;
 }
 
 export type InstructionValidator = (node: LadderNode) => string[];

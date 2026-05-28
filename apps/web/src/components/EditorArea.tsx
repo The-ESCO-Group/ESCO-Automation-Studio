@@ -138,7 +138,7 @@ const INSTRUCTION_GROUPS: { label: string; types: string[] }[] = [
   { label: "Move / Math", types: ["MOV", "ADD", "SUB", "MUL", "DIV", "MOD", "SQR", "NEG", "ABS", "CLR"] },
   { label: "Bitwise", types: ["AND", "OR", "XOR", "NOT"] },
   { label: "Compare", types: ["EQU", "NEQ", "GRT", "GEQ", "LES", "LEQ", "LIM", "MEQ"] },
-  { label: "Program", types: ["NOP", "AFI"] },
+  { label: "Program", types: ["JSR", "SBR", "RET", "NOP", "AFI"] },
 ];
 
 /** Collect tag references that don't exist yet, with the type they should be. */
