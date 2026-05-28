@@ -62,6 +62,19 @@ function orRoutine(name: string, legA: string, legB: string): Routine {
   return routine;
 }
 
+describe("compare stress", () => {
+  it("matches a large project (self) routine-for-routine", () => {
+    const make = () =>
+      Array.from({ length: 100 }, (_, i) =>
+        routineWith(`R${i}`, [[["XIC", `A${i}`], ["XIO", `B${i}`], ["OTE", `C${i}`]]]),
+      );
+    const result = compareProjects(projectWith(make()), projectWith(make()));
+    expect(result.summary.matched).toBe(100);
+    expect(result.summary.changed).toBe(0);
+    expect(result.summary.onlyInLeft).toBe(0);
+  });
+});
+
 describe("compare canonicalization (OR-leg order)", () => {
   it("reordered OR legs are identical in logical mode, changed in strict mode", () => {
     const r1 = orRoutine("A", "Start", "Run");

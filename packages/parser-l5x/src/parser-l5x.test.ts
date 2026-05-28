@@ -163,6 +163,12 @@ describe("importL5X (fixture)", () => {
   it("rejects non-L5X input with a clear error", () => {
     expect(() => importL5X("{ not xml")).toThrow(/L5X/i);
   });
+
+  it("reports an import duration metric", () => {
+    const { summary } = importL5X(FIXTURE);
+    expect(typeof summary.durationMs).toBe("number");
+    expect(summary.durationMs).toBeGreaterThanOrEqual(0);
+  });
 });
 
 describe("L5X → domain → .plcproj.json round trip", () => {

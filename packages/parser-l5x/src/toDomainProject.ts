@@ -21,6 +21,8 @@ export interface ImportSummary {
   tags: number;
   unsupportedInstructions: string[];
   warnings: string[];
+  /** Wall-clock import time in milliseconds (set by importL5X). */
+  durationMs?: number;
 }
 
 export interface ImportResult {

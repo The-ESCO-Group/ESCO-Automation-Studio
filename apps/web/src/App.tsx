@@ -336,6 +336,10 @@ export function App() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    const LARGE_L5X_MB = 25;
+    if (file.size > LARGE_L5X_MB * 1024 * 1024) {
+      push("warning", `Large L5X (${Math.round(file.size / 1048576)} MB) — import may take a moment.`);
+    }
     try {
       const result = importL5XFile(await readFileAsText(file));
       if (!result.ok || !result.data) {
@@ -349,9 +353,10 @@ export function App() {
       const unsupported = s.unsupportedInstructions.length
         ? ` Unsupported: ${s.unsupportedInstructions.join(", ")}.`
         : "";
+      const timing = s.durationMs != null ? ` (${s.durationMs} ms)` : "";
       push(
         s.warnings.length ? "warning" : "success",
-        `Imported "${result.project.name}": ${counts}.${unsupported}${s.warnings.length ? ` ${s.warnings.length} warning(s).` : ""}`,
+        `Imported "${result.project.name}"${timing}: ${counts}.${unsupported}${s.warnings.length ? ` ${s.warnings.length} warning(s).` : ""}`,
       );
     } catch (error) {
       push("error", error instanceof Error ? error.message : "Failed to read the file.");

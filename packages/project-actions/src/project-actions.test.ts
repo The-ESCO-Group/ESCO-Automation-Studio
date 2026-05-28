@@ -23,6 +23,7 @@ import {
   deleteTag,
   duplicateRung,
   exportProjectJson,
+  generateLargeProject,
   importL5XFile,
   importProjectFile,
   pasteRung,
@@ -111,6 +112,30 @@ describe("project-actions: build a rung and scan it", () => {
     // Stop pressed -> MotorRun drops.
     values = scanProject(project, { ...values, StopPB: true }).data!.values;
     expect(values.MotorRun).toBe(false);
+  });
+});
+
+describe("project-actions: large project stress", () => {
+  it("validates, cross-references, and scans a large synthetic project", () => {
+    // ~640 rungs, 300 tags, 16 routines.
+    const project = generateLargeProject({
+      controllerTags: 300,
+      programs: 4,
+      routinesPerProgram: 4,
+      rungsPerRoutine: 40,
+    });
+    expect(project.controllers[0]!.controllerTags).toHaveLength(300);
+
+    const validated = validateProject(project);
+    expect(validated.ok).toBe(true);
+    // Every operand resolves (tags exist) → no undefined-tag findings.
+    expect(validated.findings?.some((f) => f.ruleId === "undefined-tag")).toBe(false);
+
+    const refs = collectTagReferences(project);
+    expect(refs.length).toBeGreaterThan(1000);
+
+    const scan = scanProject(project, defaultValues(project));
+    expect(scan.ok).toBe(true);
   });
 });
 
