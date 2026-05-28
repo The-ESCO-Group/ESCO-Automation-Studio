@@ -156,6 +156,9 @@ export const ladderOperands: ValidationRule = {
 
               if (isNumericLiteral(value)) return; // a constant, not a tag reference
 
+              // A rung label or keyword (e.g. JMP/LBL) is not a tag — skip validation.
+              if (operandDef.isLabelRef) return;
+
               // A routine reference (e.g. JSR) is not a tag — check it resolves instead.
               if (operandDef.isRoutineRef) {
                 if (!routineNames.has(value)) {

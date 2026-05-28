@@ -20,6 +20,8 @@ export interface InstructionOperandDefinition {
   direction?: "read" | "write";
   /** True when the operand names a routine (e.g. JSR), not a tag — skips tag validation. */
   isRoutineRef?: boolean;
+  /** True when the operand names a rung label or keyword (e.g. JMP/LBL), not a tag — skips tag validation. */
+  isLabelRef?: boolean;
 }
 
 /** Read/write access an instruction needs against the tag memory during a scan. */
