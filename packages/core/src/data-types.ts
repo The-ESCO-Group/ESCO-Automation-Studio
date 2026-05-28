@@ -29,7 +29,10 @@ export const STRUCTURED_TYPES: Record<string, StructMember[]> = {
     { name: "PRE", type: "DINT" },
     { name: "ACC", type: "DINT" },
     { name: "CU", type: "BOOL" },
+    { name: "CD", type: "BOOL" },
     { name: "DN", type: "BOOL" },
+    { name: "OV", type: "BOOL" },
+    { name: "UN", type: "BOOL" },
   ],
 };
 

@@ -459,3 +459,201 @@ describe("Latches - OTL / OTU", () => {
     expect(memory.readBool("Latch")).toBe(false);
   });
 });
+
+describe("ONS - One Shot", () => {
+  const ons = registry.get("ONS")!;
+
+  it("passes true once on a false→true edge, then false while held", () => {
+    const memory = new TagMemory();
+    expect(ons.execute(node("ONS", "OneShot"), contextFor(memory, true))).toBe(true); // edge
+    expect(ons.execute(node("ONS", "OneShot"), contextFor(memory, true))).toBe(false); // held
+    expect(ons.execute(node("ONS", "OneShot"), contextFor(memory, true))).toBe(false);
+  });
+
+  it("re-arms after the rung goes false, then fires on the next edge", () => {
+    const memory = new TagMemory();
+    ons.execute(node("ONS", "OneShot"), contextFor(memory, true)); // fire
+    ons.execute(node("ONS", "OneShot"), contextFor(memory, false)); // re-arm
+    expect(ons.execute(node("ONS", "OneShot"), contextFor(memory, true))).toBe(true); // fires again
+  });
+
+  it("never fires while the rung is false", () => {
+    const memory = new TagMemory();
+    expect(ons.execute(node("ONS", "OneShot"), contextFor(memory, false))).toBe(false);
+  });
+});
+
+describe("RES - Reset", () => {
+  const res = registry.get("RES")!;
+
+  it("clears a TIMER's ACC and status bits when the rung is true", () => {
+    const memory = new TagMemory();
+    memory.write("T.ACC", 500);
+    memory.writeBool("T.EN", true);
+    memory.writeBool("T.TT", true);
+    memory.writeBool("T.DN", true);
+    res.execute(node("RES", "T"), contextFor(memory, true));
+    expect(memory.readNumber("T.ACC")).toBe(0);
+    expect(memory.readBool("T.EN")).toBe(false);
+    expect(memory.readBool("T.TT")).toBe(false);
+    expect(memory.readBool("T.DN")).toBe(false);
+  });
+
+  it("clears a COUNTER's ACC and DN when the rung is true", () => {
+    const memory = new TagMemory();
+    memory.write("C.ACC", 7);
+    memory.writeBool("C.DN", true);
+    res.execute(node("RES", "C"), contextFor(memory, true));
+    expect(memory.readNumber("C.ACC")).toBe(0);
+    expect(memory.readBool("C.DN")).toBe(false);
+  });
+
+  it("has no effect when the rung is false", () => {
+    const memory = new TagMemory();
+    memory.write("T.ACC", 500);
+    res.execute(node("RES", "T"), contextFor(memory, false));
+    expect(memory.readNumber("T.ACC")).toBe(500);
+  });
+});
+
+describe("TOF - Timer Off Delay", () => {
+  const tof = registry.get("TOF")!;
+
+  it("holds DN true and ACC at 0 while the rung is true", () => {
+    const memory = new TagMemory();
+    tof.execute(node("TOF", "T", "1000"), contextFor(memory, true, 250));
+    expect(memory.readBool("T.DN")).toBe(true);
+    expect(memory.readNumber("T.ACC")).toBe(0);
+    expect(memory.readBool("T.EN")).toBe(true);
+  });
+
+  it("times after the rung goes false and drops DN once ACC ≥ PRE", () => {
+    const memory = new TagMemory();
+    tof.execute(node("TOF", "T", "1000"), contextFor(memory, true, 250)); // DN true, ACC 0
+    // First false scan: still timing → DN stays true.
+    tof.execute(node("TOF", "T", "1000"), contextFor(memory, false, 250));
+    expect(memory.readNumber("T.ACC")).toBe(250);
+    expect(memory.readBool("T.DN")).toBe(true);
+    expect(memory.readBool("T.TT")).toBe(true);
+    // Three more false scans reach PRE (4 × 250 = 1000) → DN drops.
+    tof.execute(node("TOF", "T", "1000"), contextFor(memory, false, 250));
+    tof.execute(node("TOF", "T", "1000"), contextFor(memory, false, 250));
+    tof.execute(node("TOF", "T", "1000"), contextFor(memory, false, 250));
+    expect(memory.readNumber("T.ACC")).toBe(1000);
+    expect(memory.readBool("T.DN")).toBe(false);
+    expect(memory.readBool("T.TT")).toBe(false);
+  });
+});
+
+describe("RTO - Retentive Timer On", () => {
+  const rto = registry.get("RTO")!;
+
+  it("retains ACC across a false rung and resumes accumulating", () => {
+    const memory = new TagMemory();
+    rto.execute(node("RTO", "T", "1000"), contextFor(memory, true, 300));
+    expect(memory.readNumber("T.ACC")).toBe(300);
+    // Rung false: ACC retained (the point of RTO), EN/TT cleared.
+    rto.execute(node("RTO", "T", "1000"), contextFor(memory, false, 300));
+    expect(memory.readNumber("T.ACC")).toBe(300);
+    expect(memory.readBool("T.EN")).toBe(false);
+    expect(memory.readBool("T.TT")).toBe(false);
+    // Resume: continues from 300.
+    rto.execute(node("RTO", "T", "1000"), contextFor(memory, true, 300));
+    expect(memory.readNumber("T.ACC")).toBe(600);
+  });
+
+  it("sets DN at PRE, retains DN when false, and RES clears it", () => {
+    const memory = new TagMemory();
+    const res = registry.get("RES")!;
+    for (let i = 0; i < 4; i++) {
+      rto.execute(node("RTO", "T", "1000"), contextFor(memory, true, 300)); // 300,600,900,1000
+    }
+    expect(memory.readNumber("T.ACC")).toBe(1000);
+    expect(memory.readBool("T.DN")).toBe(true);
+    // DN retained even with the rung false.
+    rto.execute(node("RTO", "T", "1000"), contextFor(memory, false, 300));
+    expect(memory.readBool("T.DN")).toBe(true);
+    // RES clears ACC and DN.
+    res.execute(node("RES", "T"), contextFor(memory, true));
+    expect(memory.readNumber("T.ACC")).toBe(0);
+    expect(memory.readBool("T.DN")).toBe(false);
+  });
+});
+
+describe("CTD - Count Down", () => {
+  const ctd = registry.get("CTD")!;
+
+  it("decrements ACC only on a rising edge of the rung", () => {
+    const memory = new TagMemory();
+    memory.write("C.ACC", 5);
+    ctd.execute(node("CTD", "C", "0"), contextFor(memory, true)); // edge → 4
+    expect(memory.readNumber("C.ACC")).toBe(4);
+    ctd.execute(node("CTD", "C", "0"), contextFor(memory, true)); // held → no change
+    expect(memory.readNumber("C.ACC")).toBe(4);
+    ctd.execute(node("CTD", "C", "0"), contextFor(memory, false)); // falling edge
+    ctd.execute(node("CTD", "C", "0"), contextFor(memory, true)); // edge → 3
+    expect(memory.readNumber("C.ACC")).toBe(3);
+  });
+});
+
+describe("NOP / AFI - program-control utilities", () => {
+  it("NOP passes the rung condition through unchanged", () => {
+    expect(registry.get("NOP")!.execute(node("NOP"), contextFor(new TagMemory(), true))).toBe(true);
+    expect(registry.get("NOP")!.execute(node("NOP"), contextFor(new TagMemory(), false))).toBe(false);
+  });
+
+  it("AFI always evaluates false", () => {
+    expect(registry.get("AFI")!.execute(node("AFI"), contextFor(new TagMemory(), true))).toBe(false);
+    expect(registry.get("AFI")!.execute(node("AFI"), contextFor(new TagMemory(), false))).toBe(false);
+  });
+});
+
+describe("Integration - XIC(Btn) ONS(OneShot) CTU(Counter1, 5)", () => {
+  it("counts exactly once per button press, however long it is held", () => {
+    const rung = singleRung([
+      node("XIC", "Btn"),
+      node("ONS", "OneShot"),
+      node("CTU", "Counter1", "5"),
+    ]);
+    const executor = new RungExecutor(registry);
+    const memory = new TagMemory();
+
+    // Hold the button for several scans → counts once.
+    memory.writeBool("Btn", true);
+    executor.execute(rung, memory);
+    executor.execute(rung, memory);
+    executor.execute(rung, memory);
+    expect(memory.readNumber("Counter1.ACC")).toBe(1);
+
+    // Release and press again → second count.
+    memory.writeBool("Btn", false);
+    executor.execute(rung, memory);
+    memory.writeBool("Btn", true);
+    executor.execute(rung, memory);
+    expect(memory.readNumber("Counter1.ACC")).toBe(2);
+  });
+});
+
+describe("Integration - RTO retained, RES on a later rung clears it", () => {
+  it("accumulates RTO time, then a reset rung clears the retained value", () => {
+    const base = createLadderRoutine();
+    const routine = {
+      ...base,
+      rungs: [
+        createRung(base.id, 0, [node("XIC", "Run"), node("RTO", "T", "1000")]),
+        createRung(base.id, 1, [node("XIC", "ResetBtn"), node("RES", "T")]),
+      ],
+    };
+    const runtime = createRuntime({ registry, routine, tags: [] });
+
+    runtime.writeTag("Run", true);
+    runtime.scanOnce(300); // ACC 300
+    runtime.scanOnce(300); // ACC 600
+    expect(runtime.readTag("T.ACC")).toBe(600);
+
+    // Press reset: rung 0 bumps ACC, then rung 1 (RES) clears it within the scan.
+    runtime.writeTag("ResetBtn", true);
+    runtime.scanOnce(300);
+    expect(runtime.readTag("T.ACC")).toBe(0);
+  });
+});

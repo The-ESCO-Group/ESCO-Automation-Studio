@@ -31,10 +31,11 @@ interface UndefinedTag {
 
 /** Instruction palette grouped by category. */
 const INSTRUCTION_GROUPS: { label: string; types: string[] }[] = [
-  { label: "Bit", types: ["XIC", "XIO", "OTE", "OTL", "OTU"] },
-  { label: "Timer / Counter", types: ["TON", "CTU"] },
+  { label: "Bit", types: ["XIC", "XIO", "OTE", "OTL", "OTU", "ONS"] },
+  { label: "Timer / Counter", types: ["TON", "TOF", "RTO", "CTU", "CTD", "RES"] },
   { label: "Move / Math", types: ["MOV", "ADD", "SUB", "MUL", "DIV"] },
   { label: "Compare", types: ["EQU", "NEQ", "GRT", "GEQ", "LES", "LEQ"] },
+  { label: "Program", types: ["NOP", "AFI"] },
 ];
 
 /** Collect tag references that don't exist yet, with the type they should be. */

@@ -86,6 +86,34 @@ describe("parseRungText", () => {
     expect(parsed.unsupportedTypes).toContain("JSR");
     expect(parsed.root.nodes.map((n) => n.instructionType)).toEqual(["XIC", "JSR"]);
   });
+
+  it("parses the new core instructions with named operands", () => {
+    expect(opValues("XIC(Btn)ONS(OneShot)CTD(Down,0);")).toEqual([
+      ["XIC", "Btn"],
+      ["ONS", "OneShot"],
+      ["CTD", "Down", "0"],
+    ]);
+    expect(opValues("XIC(Run)RTO(DwellTimer,5000);")).toEqual([
+      ["XIC", "Run"],
+      ["RTO", "DwellTimer", "5000"],
+    ]);
+    expect(opValues("XIC(Off)TOF(OffTimer,1000);")).toEqual([
+      ["XIC", "Off"],
+      ["TOF", "OffTimer", "1000"],
+    ]);
+    expect(opValues("XIC(Rst)RES(DwellTimer);")).toEqual([
+      ["XIC", "Rst"],
+      ["RES", "DwellTimer"],
+    ]);
+  });
+
+  it("treats the new instructions as supported (none flagged unsupported)", () => {
+    const parsed = parseRungText("ONS(B)TOF(T,1000)RTO(T2,500)CTD(C,0)RES(T)NOP()AFI();", registry);
+    expect(parsed.unsupportedTypes).toEqual([]);
+    expect(parsed.root.nodes.map((n) => n.instructionType)).toEqual([
+      "ONS", "TOF", "RTO", "CTD", "RES", "NOP", "AFI",
+    ]);
+  });
 });
 
 describe("importL5X (fixture)", () => {

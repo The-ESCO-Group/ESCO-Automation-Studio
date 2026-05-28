@@ -74,6 +74,31 @@ describe("project-store serialize/deserialize", () => {
     expect(() => deserializeProject(JSON.stringify(file))).toThrow(/format version/i);
   });
 
+  it("round-trips the new core instructions (ONS, RTO, RES, CTD, NOP, AFI)", () => {
+    const project = demoProject();
+    const routine = project.controllers[0]!.programs[0]!.routines[0]!;
+    let ladder = routine.ladder as LadderRoutine;
+    ladder = addRung(ladder);
+    const rungId = ladder.rungs[ladder.rungs.length - 1]!.id;
+    ladder = appendNode(ladder, rungId, createNode("ONS", [tagOperand("storage", "OneShot")]));
+    ladder = appendNode(ladder, rungId, createNode("RTO", [tagOperand("timer", "Dwell"), tagOperand("preset", "5000")]));
+    ladder = appendNode(ladder, rungId, createNode("RES", [tagOperand("structure", "Dwell")]));
+    ladder = appendNode(ladder, rungId, createNode("CTD", [tagOperand("counter", "Down"), tagOperand("preset", "0")]));
+    ladder = appendNode(ladder, rungId, createNode("NOP", []));
+    ladder = appendNode(ladder, rungId, createNode("AFI", []));
+    routine.ladder = ladder;
+
+    const restored = deserializeProject(serializeProject(project));
+    expect(restored).toEqual(project);
+    const restoredLadder = restored.controllers[0]!.programs[0]!.routines[0]!.ladder as LadderRoutine;
+    const newRung = restoredLadder.rungs[restoredLadder.rungs.length - 1]!;
+    expect(newRung.root.nodes.map((n) => n.instructionType)).toEqual([
+      "ONS", "RTO", "RES", "CTD", "NOP", "AFI",
+    ]);
+    const rto = newRung.root.nodes.find((n) => n.instructionType === "RTO");
+    expect(rto?.operands.map((o) => o.value)).toEqual(["Dwell", "5000"]);
+  });
+
   it("round-trips a multi-operand instruction (TON) with all its operands", () => {
     const project = demoProject();
     const routine = project.controllers[0]!.programs[0]!.routines[0]!;

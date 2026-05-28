@@ -67,6 +67,31 @@ export const OTL: InstructionDefinition = {
   render: { symbol: "--(L)--", style: "coil" },
 };
 
+/**
+ * ONS - One Shot. Operand: a BOOL storage bit.
+ * Passes for exactly one scan on a false→true transition of the rung condition.
+ * The storage bit records the rung condition seen on the previous scan, so the
+ * rising edge is detected deterministically across scanOnce calls and survives
+ * export/import (the state lives in the project's tag memory, not a hidden map).
+ */
+export const ONS: InstructionDefinition = {
+  type: "ONS",
+  displayName: "One Shot",
+  category: "bit",
+  description: "Passes for one scan on a false→true edge of the rung; stores the prior rung state in its bit.",
+  operands: [
+    { name: "storage", label: "Storage Bit", required: true, allowedTypes: ["BOOL"], direction: "write" },
+  ],
+  validate: (node) => (node.operands[0]?.value ? [] : ["Operand 'storage' is required."]),
+  execute: (node, ctx) => {
+    const storage = operandValue(node, 0);
+    const previous = ctx.readBool(storage);
+    ctx.writeBool(storage, ctx.rungIn);
+    return ctx.rungIn && !previous;
+  },
+  render: { symbol: "ONS", style: "box" },
+};
+
 /** OTU - Output Unlatch. Clears the BOOL tag when the rung is true; never sets it. */
 export const OTU: InstructionDefinition = {
   type: "OTU",
