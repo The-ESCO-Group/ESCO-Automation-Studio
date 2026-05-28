@@ -22,24 +22,28 @@ Status legend: ✅ done · 🔜 next · ⏳ later
   seam, no API key) + UX polish
 - ✅ Undo / redo action history (Ctrl+Z/Y) + copy / duplicate / paste rungs
 - ✅ Single-dimension array tags (import, simulate, watch, bounds validation)
-- ✅ Validator rules: double-coil, duplicate program tag, alias target, array bounds
+- ✅ Validator rules: double-coil, duplicate program tag, alias target, array
+  bounds, unknown JSR routine
 - ✅ Crash-safe error boundary + unsaved-changes indicator/guard
+- ✅ Instruction set: bitwise (AND/OR/XOR/NOT), math (MOD/SQR/NEG/ABS/CLR),
+  compare (LIM/MEQ)
+- ✅ JSR / SBR / RET — offline multi-routine execution with a call-depth guard
+- ✅ UDT / Add-On Instruction / I/O module import + read-only explorer viewers
 - ✅ In-repo E2E smoke harness (`pnpm e2e`)
 - ✅ Architecture & AI documentation
 
-## Next milestones (Logix Fidelity)
+## Next milestones
 
-1. **More instructions:** bitwise (AND/OR/XOR/NOT), math (MOD/SQR/NEG/ABS),
-   data (CLR/COP/FLL), compare (LIM/MEQ).
-2. **JSR / SBR / RET** — offline multi-routine execution with a call stack.
-3. **AOI / UDT / I/O tree viewers** — import and display (read-only first).
-4. **Nested / multi-level branch editing** (single-level is implemented;
+1. **More data/sequencer instructions:** COP/CPS/FLL/FAL, SQO/SQI, file ops.
+2. **AOI / UDT logic viewers** (definitions are imported; show their internal
+   logic and parameters, not just names).
+3. **Nested / multi-level branch editing** (single-level is implemented;
    imported nested branches are still flattened with a warning).
-5. **Real LLM connector** — implement an `external` `AssistantProvider` that
+4. **Real LLM connector** — implement an `external` `AssistantProvider` that
    calls a model; apply path and safety model unchanged; key via configuration.
+5. **Desktop packaging with Tauri** (native open/save, recent projects).
 6. **L5X export research** (not yet implemented; import-only today).
-7. **Desktop packaging with Tauri.**
-8. **Real project import stress testing** with large Studio 5000 exports.
+7. **Real project import stress testing** with large Studio 5000 exports.
 
 ## Constraints (unchanged)
 

@@ -15,15 +15,19 @@ files.
 - **Offline scan-cycle simulation** with a Watch panel (toggle inputs, Scan
   Once / Run / Reset). Array tags (`DINT[n]`) are watched element-by-element.
 - **Instruction set:** XIC, XIO, OTE, OTL, OTU, ONS, TON, TOF, RTO, CTU, CTD,
-  RES, MOV, ADD, SUB, MUL, DIV, EQU, NEQ, GRT, GEQ, LES, LEQ, NOP, AFI.
+  RES, MOV, ADD, SUB, MUL, DIV, MOD, SQR, NEG, ABS, CLR, AND, OR, XOR, NOT,
+  EQU, NEQ, GRT, GEQ, LES, LEQ, LIM, MEQ, JSR, SBR, RET, NOP, AFI.
+- **Multi-routine execution** — JSR runs a subroutine against shared tags, RET
+  returns early, with a call-depth guard against runaway recursion.
 - **Validation engine** (undefined tags, type mismatches, missing operands,
   unsupported instructions, array index bounds, double-coil, duplicate program
   tags, alias target resolution).
 - **Project persistence** — export / import `.plcproj.json`, with an
   unsaved-changes indicator and a crash-safe error boundary.
 - **Studio 5000 L5X import** (branches, member/array paths, descriptions, alias
-  and unmodeled-type warnings, located warnings, import summary). Import-only;
-  unsupported instructions are preserved read-only.
+  and unmodeled-type warnings, located warnings, import summary, plus read-only
+  UDT / Add-On Instruction / I/O module structure). Import-only; unsupported
+  instructions are preserved read-only.
 - **Tag table editor** — create / rename / describe / delete tags.
 - **Cross reference** — where each tag is read / written.
 - **Routine & project compare** — match routines by logic fingerprint (not just

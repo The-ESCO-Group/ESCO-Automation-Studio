@@ -16,11 +16,12 @@ following are intentional boundaries and known gaps.
 ## Functional gaps
 
 - **No L5X export yet** — import-only. Export research is on the roadmap.
-- **Instruction set is growing but partial.** Supported: XIC, XIO, OTE, OTL, OTU,
-  ONS, TON, TOF, RTO, CTU, CTD, RES, MOV, ADD, SUB, MUL, DIV, EQU, NEQ, GRT, GEQ,
-  LES, LEQ, NOP, AFI. Not yet: JSR/RET (offline routine calls), TOD/RTOR, file/
-  sequencer/PID and many others. Unsupported instructions are **preserved
-  read-only** and pass through the simulator (they do not execute).
+- **Instruction set is growing but partial.** Supported: bit (XIC/XIO/OTE/OTL/
+  OTU/ONS), timers/counters (TON/TOF/RTO/CTU/CTD/RES), move/math
+  (MOV/ADD/SUB/MUL/DIV/MOD/SQR/NEG/ABS/CLR), bitwise (AND/OR/XOR/NOT), compare
+  (EQU/NEQ/GRT/GEQ/LES/LEQ/LIM/MEQ), program control (JSR/SBR/RET/NOP/AFI). Not
+  yet: COP/CPS/FLL/FAL, SQO/SQI, PID, MSG and many others. Unsupported
+  instructions are **preserved read-only** and pass through the simulator.
 - **Single-level branch editing only.** You can build parallel/seal-in branches
   by hand (add branch, add/remove legs, add instructions per leg), but nested
   branches can't be created in the UI; imported nested branches are flattened
@@ -33,8 +34,10 @@ following are intentional boundaries and known gaps.
   AOIs, complex/nested branches, arrays) is partially handled; nested branches
   are flattened with a warning, and unmodeled members default to 0/false in
   simulation.
-- **Single-routine simulation focus.** Scanning targets the open/main routine;
-  multi-routine/task scheduling (JSR/SBR/RET) is not modelled yet.
+- **Program-scoped multi-routine, single task.** JSR/SBR/RET run subroutines
+  within the scanned routine's program; cross-program calls, task scheduling,
+  and SBR/RET parameter passing are not modelled. UDT/AOI/I-O are imported for
+  display only (AOI/UDT internal logic is not executed).
 - **Single-dimension arrays only.** `DINT[8]` is modelled; multi-dimension arrays
   import the first dimension; arrays of structures aren't expanded.
 - **No multi-user, no persistence server.** Projects live in the browser session

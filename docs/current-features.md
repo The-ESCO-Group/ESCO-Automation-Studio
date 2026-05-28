@@ -28,13 +28,17 @@ A detailed inventory of what ESCO Automation Studio supports today.
 |---|---|
 | Bit | XIC, XIO, OTE, OTL, OTU, ONS |
 | Timer / Counter | TON, TOF, RTO, CTU, CTD, RES |
-| Move / Math | MOV, ADD, SUB, MUL, DIV |
-| Compare | EQU, NEQ, GRT, GEQ, LES, LEQ |
-| Program | NOP, AFI |
+| Move / Math | MOV, ADD, SUB, MUL, DIV, MOD, SQR, NEG, ABS, CLR |
+| Bitwise | AND, OR, XOR, NOT |
+| Compare | EQU, NEQ, GRT, GEQ, LES, LEQ, LIM, MEQ |
+| Program | JSR, SBR, RET, NOP, AFI |
 
 ONS is a rising-edge one-shot (storage bit); RTO is a retentive timer cleared by
-RES; CTD counts down (mirror of CTU). Instruction metadata (operands, allowed
-types, read/write direction, render style) lives in the registry
+RES; CTD counts down (mirror of CTU); LIM handles ascending and circular ranges;
+MEQ compares under a mask. JSR runs a sibling routine against the same tags (RET
+returns early; SBR marks an entry), with a call-depth guard. Instruction
+metadata (operands, allowed types, read/write direction, render style) lives in
+the registry
 (`@esco/instructions`) and drives the editor, simulator, validator, and import.
 
 ## Simulation
@@ -44,6 +48,8 @@ types, read/write direction, render style) lives in the registry
 - Watch panel: BOOL toggles, DINT/REAL number inputs, TIMER/COUNTER member
   values (PRE/ACC/EN/TT/DN, CU), input/output role.
 - Scan Once / Run (interval) / Reset; timers advance by a per-scan delta.
+- Multi-routine execution: JSR runs a sibling routine (same program) against the
+  shared tag memory, RET returns early, with a 32-deep call guard.
 
 ## Validation
 
@@ -74,6 +80,8 @@ types, read/write direction, render style) lives in the registry
 - Export / import `.plcproj.json` (full project incl. ladder AST).
 - Studio 5000 `.L5X` import: controller, programs, routines, rungs (+comments),
   controller & program tags (+descriptions, aliases), supported instructions,
+  and read-only structure — user-defined types (with members), Add-On
+  Instruction definitions, and the I/O module tree (shown in the explorer) —
   with a counts + warnings import summary. Warnings include routine/rung
   location for unsupported instructions and flattened branches, plus alias and
   unmodeled-data-type notices.
