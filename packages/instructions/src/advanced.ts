@@ -65,6 +65,31 @@ export const MAM = modelOnly("MAM", "Motion Axis Move", "motion", "Motion Axis M
 export const MAJ = modelOnly("MAJ", "Motion Axis Jog", "motion", "Motion Axis Jog (model-only): preserved and displayed; no real motion control and not simulated.");
 export const MAS = modelOnly("MAS", "Motion Axis Stop", "motion", "Motion Axis Stop (model-only): preserved and displayed; no real motion control and not simulated.");
 
+const motion = (type: string, displayName: string): InstructionDefinition =>
+  modelOnly(type, displayName, "motion", `${displayName} (model-only): preserved and displayed; no real motion control and not simulated.`);
+
+export const MCD = motion("MCD", "Motion Change Dynamics");
+export const MCCD = motion("MCCD", "Motion Coordinated Change Dynamics");
+export const MCLM = motion("MCLM", "Motion Coordinated Linear Move");
+export const MCLP = motion("MCLP", "Motion Coordinated Linear Path");
+export const MCT = motion("MCT", "Motion Coordinated Transform");
+export const MAG = motion("MAG", "Motion Axis Gear");
+export const MAPC = motion("MAPC", "Motion Axis Position Cam");
+export const MCSV = motion("MCSV", "Motion Calculate Slave Values");
+export const MCSR = motion("MCSR", "Motion Coordinated Shutdown Reset");
+export const MDO = motion("MDO", "Motion Direct Drive On");
+export const MDAC = motion("MDAC", "Motion Drive Axis Control");
+export const MAH = motion("MAH", "Motion Axis Home");
+export const MHS = motion("MHS", "Motion Home Sequence");
+export const MRP = motion("MRP", "Motion Redefine Position");
+export const MRAT = motion("MRAT", "Motion Run Axis Tuning");
+export const MGS = motion("MGS", "Motion Group Stop");
+
+// --- Program control (interrupt / immediate-output: not scheduled or simulated offline) ---
+export const UID = modelOnly("UID", "User Interrupt Disable", "program-control", "User Interrupt Disable (model-only): interrupt scheduling is not simulated; pass-through.");
+export const UIE = modelOnly("UIE", "User Interrupt Enable", "program-control", "User Interrupt Enable (model-only): interrupt scheduling is not simulated; pass-through.");
+export const IOT = modelOnly("IOT", "Immediate Output", "program-control", "Immediate Output (model-only): no immediate I/O update offline and no controller communication; pass-through.");
+
 /** Every model-only advanced instruction, for bulk registration. */
 export const ADVANCED_MODEL_ONLY: InstructionDefinition[] = [
   SQO, SQI, SQC,
@@ -73,4 +98,6 @@ export const ADVANCED_MODEL_ONLY: InstructionDefinition[] = [
   MSG, GSV, SSV,
   ALMA, ALMD,
   MSO, MSF, MAM, MAJ, MAS,
+  MCD, MCCD, MCLM, MCLP, MCT, MAG, MAPC, MCSV, MCSR, MDO, MDAC, MAH, MHS, MRP, MRAT, MGS,
+  UID, UIE, IOT,
 ];
