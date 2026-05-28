@@ -820,8 +820,20 @@ body {
 
 .esco-ai__action {
   display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.esco-ai__action-head {
+  display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.esco-ai__action-desc {
+  color: var(--text-dim);
+  font-size: 11px;
+  padding-left: 2px;
 }
 
 .esco-ai__action-kind {

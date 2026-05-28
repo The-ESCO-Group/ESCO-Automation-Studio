@@ -68,7 +68,8 @@ export function AiAssistantPanel({ project, selectedRoutineId, onApply }: Props)
   return (
     <div className="esco-ai">
       <p className="esco-ai__notice">
-        AI suggestions are offline/local in this MVP and must be reviewed before applying.
+        Offline / local assistant. Suggestions must be reviewed before Apply. No PLC communication —
+        changes go only through the controlled project-action layer.
       </p>
 
       <div className="esco-ai__prompt">
@@ -127,8 +128,13 @@ export function AiAssistantPanel({ project, selectedRoutineId, onApply }: Props)
                 <ul className="esco-ai__actions">
                   {plan.actions.map((action) => (
                     <li key={action.id} className="esco-ai__action">
-                      <span className="esco-ai__action-kind">{action.kind}</span>
-                      <span className="esco-ai__action-label">{action.label}</span>
+                      <div className="esco-ai__action-head">
+                        <span className="esco-ai__action-kind">{action.kind}</span>
+                        <span className="esco-ai__action-label">{action.label}</span>
+                      </div>
+                      {action.description ? (
+                        <span className="esco-ai__action-desc">{action.description}</span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
