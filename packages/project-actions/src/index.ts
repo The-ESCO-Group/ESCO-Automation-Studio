@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./helpers";
 export * from "./tag-actions";
+export * from "./tag-csv";
 export * from "./ladder-actions";
 export * from "./validate";
 export * from "./scan";
