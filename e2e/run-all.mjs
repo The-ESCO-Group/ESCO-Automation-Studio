@@ -23,6 +23,7 @@ const ORDER = [
   "undoredo.mjs",
   "copypaste.mjs",
   "dirtystate.mjs",
+  "recovery.mjs",
   "tags.mjs",
   "props.mjs",
   "xref.mjs",

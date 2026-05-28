@@ -1481,6 +1481,24 @@ body {
   color: var(--text-dim);
 }
 
+/* ---- Autosave recovery banner ---- */
+.esco-recovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent);
+  font-size: 13px;
+}
+
+.esco-recovery__actions {
+  display: flex;
+  gap: 8px;
+}
+
 /* ---- Crash / error boundary fallback ---- */
 .esco-crash {
   display: flex;

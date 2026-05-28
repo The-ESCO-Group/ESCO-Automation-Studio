@@ -43,6 +43,7 @@ import { downloadTextFile, readFileAsText, slugify } from "./file-io";
 import { scanOnce, watchRows, zeroValues, type TagValues } from "./simulation";
 import { useToasts } from "./toasts";
 import { useHistoryState } from "./history";
+import { clearAutosave, loadAutosave, saveAutosave, type AutosaveEntry } from "./autosave";
 
 const SCAN_INTERVAL_MS = 250;
 type CenterView = "welcome" | "routine" | "tags" | "compare";
@@ -57,6 +58,8 @@ export function App() {
   // keeps references, undoing back to a saved state also returns to "clean".
   const [savedProject, setSavedProject] = useState(initialProject);
   const dirty = project !== savedProject;
+  const [lastExportedAt, setLastExportedAt] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState<AutosaveEntry | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
   const [values, setValues] = useState<TagValues>(() => zeroValues(project));
   const [running, setRunning] = useState(false);
@@ -223,6 +226,8 @@ export function App() {
     setSavedProject(loaded); // freshly loaded = no unsaved changes
     setValues(zeroValues(loaded));
     setRunning(false);
+    setRecovery(null);
+    clearAutosave(); // starting from a file supersedes any recovered autosave
     const main = findMainRoutine(loaded);
     if (main) {
       setOpenRoutineId(main.id);
@@ -235,12 +240,35 @@ export function App() {
     }
   };
 
+  // ---- Autosave recovery ----
+  const handleRestoreAutosave = () => {
+    if (!recovery) return;
+    history.reset(recovery.project);
+    setValues(zeroValues(recovery.project));
+    setSavedProject(initialProject); // recovered work is unsaved → stays dirty
+    setRunning(false);
+    setRecovery(null);
+    const main = findMainRoutine(recovery.project);
+    if (main) {
+      setOpenRoutineId(main.id);
+      setSelection({ kind: "routine", id: main.id });
+      setView("routine");
+    }
+    push("success", "Restored autosaved work.");
+  };
+  const handleDismissAutosave = () => {
+    setRecovery(null);
+    clearAutosave();
+  };
+
   const handleExport = () => {
     const result = exportProjectJson(project);
     if (result.data) {
       const filename = `${slugify(project.name)}${PLCPROJ_EXTENSION}`;
       downloadTextFile(filename, result.data.text);
       setSavedProject(project); // exporting is the save point — mark clean
+      setLastExportedAt(new Date().toISOString());
+      clearAutosave();
       push("success", `Exported "${project.name}" → ${filename}`);
     }
   };
@@ -361,6 +389,23 @@ export function App() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
+  // On first load, offer to recover autosaved work from a previous session.
+  useEffect(() => {
+    const entry = loadAutosave();
+    if (entry) setRecovery(entry);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Autosave (debounced) while there are unsaved changes; clear it when clean.
+  useEffect(() => {
+    if (!dirty) {
+      clearAutosave();
+      return;
+    }
+    const id = setTimeout(() => saveAutosave(project), 1000);
+    return () => clearTimeout(id);
+  }, [project, dirty]);
+
   const validationLabel = errorCount
     ? `${errorCount} error${errorCount > 1 ? "s" : ""}`
     : warnCount
@@ -387,9 +432,19 @@ export function App() {
           <span className="esco-titlebar__project" title="Project">{project.name}</span>
           <span
             className={`esco-titlebar__saved ${dirty ? "is-dirty" : "is-saved"}`}
-            title={dirty ? "Unsaved changes — export to save" : "All changes saved"}
+            title={
+              dirty
+                ? "Unsaved changes — autosaved locally; export to save to a file"
+                : lastExportedAt
+                  ? `Exported at ${new Date(lastExportedAt).toLocaleTimeString()}`
+                  : "No unsaved changes"
+            }
           >
-            {dirty ? "● Unsaved" : "✓ Saved"}
+            {dirty
+              ? "● Unsaved"
+              : lastExportedAt
+                ? `✓ Exported ${new Date(lastExportedAt).toLocaleTimeString()}`
+                : "✓ Saved"}
           </span>
           {openRoutine ? <span className="esco-titlebar__routine">▸ {openRoutine.name}</span> : null}
           <span className={`esco-titlebar__validation ${validationClass}`} title="Validation status">
@@ -473,6 +528,23 @@ export function App() {
       </header>
 
       <Toasts toasts={toasts} onDismiss={dismiss} />
+
+      {recovery ? (
+        <div className="esco-recovery" role="alert">
+          <span className="esco-recovery__msg">
+            Unsaved work from a previous session was found
+            {recovery.savedAt ? ` (autosaved ${new Date(recovery.savedAt).toLocaleString()})` : ""}.
+          </span>
+          <div className="esco-recovery__actions">
+            <button type="button" className="esco-btn esco-btn--primary" onClick={handleRestoreAutosave}>
+              Restore autosave
+            </button>
+            <button type="button" className="esco-btn" onClick={handleDismissAutosave}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="esco-body">
         <aside className="esco-left">
