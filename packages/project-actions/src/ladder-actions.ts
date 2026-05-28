@@ -9,7 +9,9 @@ import {
   appendRungWithRoot,
   createLadderRoutine,
   createNode,
+  duplicateRung as ladderDuplicateRung,
   findBranchInRoot,
+  insertRungFromRoot,
   removeBranchLeg as ladderRemoveBranchLeg,
   removeInstruction as ladderRemoveInstruction,
   removeRung as ladderRemoveRung,
@@ -28,6 +30,8 @@ import type {
   BranchInput,
   CreateRoutineInput,
   DeleteRungInput,
+  DuplicateRungInput,
+  PasteRungInput,
   ProjectActionResult,
   RemoveBranchLegInput,
   RemoveInstructionInput,
@@ -125,6 +129,42 @@ export function deleteRung(
     withRoutineLadder(project, input.routineId, (ladder) => ladderRemoveRung(ladder, input.rungId)),
     { rungId: input.rungId },
   );
+}
+
+/** Duplicate a rung in place (a fresh-id copy is inserted right after it). */
+export function duplicateRung(
+  project: PlcProject,
+  input: DuplicateRungInput,
+): ProjectActionResult<{ rungId: string }> {
+  const ladder = getLadder(findRoutine(project, input.routineId));
+  if (!ladder?.rungs.some((rung) => rung.id === input.rungId)) {
+    return fail(project, `Rung "${input.rungId}" not found.`);
+  }
+  const before = new Set(ladder.rungs.map((rung) => rung.id));
+  const next = withRoutineLadder(project, input.routineId, (current) =>
+    ladderDuplicateRung(current, input.rungId),
+  );
+  const newId =
+    getLadder(findRoutine(next, input.routineId))?.rungs.find((rung) => !before.has(rung.id))?.id ?? "";
+  return ok(next, { rungId: newId });
+}
+
+/** Append a new rung cloned from a branch root (paste). The root is deep-copied. */
+export function pasteRung(
+  project: PlcProject,
+  input: PasteRungInput,
+): ProjectActionResult<{ rungId: string }> {
+  const routine = findRoutine(project, input.routineId);
+  if (!routine) return fail(project, `Routine "${input.routineId}" not found.`);
+  if (!input.root) return fail(project, "Nothing to paste.");
+
+  const ladder = getLadder(routine) ?? createLadderRoutine();
+  const before = new Set(ladder.rungs.map((rung) => rung.id));
+  const nextLadder = insertRungFromRoot(ladder, input.root, input.comment);
+  const next = withRoutineLadder(project, input.routineId, () => nextLadder);
+  const newId =
+    getLadder(findRoutine(next, input.routineId))?.rungs.find((rung) => !before.has(rung.id))?.id ?? "";
+  return ok(next, { rungId: newId });
 }
 
 /** Append an instruction to a rung. Operands come from the registry definition. */

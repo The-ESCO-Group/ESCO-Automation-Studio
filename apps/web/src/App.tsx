@@ -9,11 +9,13 @@ import {
   createTag,
   deleteRung,
   deleteTag,
+  duplicateRung,
   exportProjectJson,
   findRoutine,
   getLadder,
   importL5XFile,
   importProjectFile,
+  pasteRung,
   removeBranchLeg,
   removeInstruction,
   renameTag,
@@ -23,6 +25,7 @@ import {
   type ProjectActionResult,
 } from "@esco/project-actions";
 import { PLCPROJ_EXTENSION } from "@esco/project-store";
+import type { LadderBranch } from "@esco/ladder";
 import type { ImportSummary } from "@esco/parser-l5x";
 import { applyPlan, type ApplyResult, type AssistantPlan } from "@esco/ai-assistant";
 import { createDefaultEngine } from "@esco/validator";
@@ -57,6 +60,7 @@ export function App() {
   const [dockTab, setDockTab] = useState<DockTab>("watch");
   const [lastImport, setLastImport] = useState<{ name: string; summary: ImportSummary } | null>(null);
   const [comparison, setComparison] = useState<{ name: string; project: PlcProject } | null>(null);
+  const [clipboardRung, setClipboardRung] = useState<{ root: LadderBranch; comment?: string } | null>(null);
   const { toasts, push, dismiss } = useToasts();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const l5xInputRef = useRef<HTMLInputElement>(null);
@@ -98,6 +102,29 @@ export function App() {
   };
   const handleDeleteRung = (rungId: string) =>
     applyAction((p) => deleteRung(p, { routineId: targetRoutineId(p), rungId }));
+  const handleCopyRung = (rungId: string) => {
+    const rung = openLadder?.rungs.find((r) => r.id === rungId);
+    if (rung) {
+      setClipboardRung({ root: rung.root, comment: rung.comment });
+      push("info", `Copied rung ${rung.number}.`);
+    }
+  };
+  const handleDuplicateRung = (rungId: string) =>
+    applyAction((p) => duplicateRung(p, { routineId: targetRoutineId(p), rungId }));
+  const handlePasteRung = () => {
+    if (!clipboardRung) return;
+    const rid = targetRoutineId(project);
+    if (!rid) return;
+    const result = pasteRung(project, {
+      routineId: rid,
+      root: clipboardRung.root,
+      comment: clipboardRung.comment,
+    });
+    if (result.ok) {
+      setProject(result.project);
+      if (result.data) setSelection({ kind: "rung", routineId: rid, rungId: result.data.rungId });
+    }
+  };
   const handleSelectRung = (rungId: string) =>
     setSelection({ kind: "rung", routineId: openRoutineId ?? "", rungId });
   const handleSelectNode = (rungId: string, nodeId: string) =>
@@ -451,6 +478,10 @@ export function App() {
               selectedNodeId={selectedNodeId}
               onAddRung={handleAddRung}
               onDeleteRung={handleDeleteRung}
+              onCopyRung={handleCopyRung}
+              onDuplicateRung={handleDuplicateRung}
+              onPasteRung={handlePasteRung}
+              canPaste={clipboardRung !== null}
               onAddInstruction={handleAddInstruction}
               onEditOperand={handleEditOperand}
               onRemoveInstruction={handleRemoveInstruction}

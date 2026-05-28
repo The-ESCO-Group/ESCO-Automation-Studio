@@ -1503,6 +1503,11 @@ body {
   margin-left: auto;
 }
 
+.esco-lad__rung-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
 .esco-editor__norungs {
   display: flex;
   flex-direction: column;

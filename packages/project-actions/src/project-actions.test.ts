@@ -20,9 +20,11 @@ import {
   defaultValues,
   deleteRung,
   deleteTag,
+  duplicateRung,
   exportProjectJson,
   importL5XFile,
   importProjectFile,
+  pasteRung,
   removeBranchLeg,
   removeInstruction,
   renameTag,
@@ -194,6 +196,50 @@ describe("project-actions: rungs and routines", () => {
       nodeId: built.ids.StartPB,
     });
     expect(removed.ok).toBe(true);
+  });
+
+  it("duplicates a rung with fresh ids right after the original", () => {
+    const built = buildMotorRung(baseProject());
+    const result = duplicateRung(built.project, { routineId: built.routineId, rungId: built.rungId });
+    expect(result.ok).toBe(true);
+    const ladder = rootOf(result.project, built.rungId); // original still there
+    expect(ladder).toBeDefined();
+
+    const rungs = result.project.controllers[0]!.programs[0]!.routines[0]!.ladder as LadderRoutine;
+    expect(rungs.rungs).toHaveLength(2);
+    const [first, second] = rungs.rungs;
+    expect(second!.id).not.toBe(first!.id); // fresh rung id
+    expect(second!.id).toBe(result.data!.rungId);
+    // Same logic, different node ids (deep clone).
+    const firstNodes = first!.root.nodes.map((n) => n.instructionType);
+    const secondNodes = second!.root.nodes.map((n) => n.instructionType);
+    expect(secondNodes).toEqual(firstNodes);
+    expect(second!.root.nodes[0]!.id).not.toBe(first!.root.nodes[0]!.id);
+    // Renumbered 0,1.
+    expect(rungs.rungs.map((r) => r.number)).toEqual([0, 1]);
+  });
+
+  it("copies a rung (root) and pastes it as a new rung with fresh ids", () => {
+    const built = buildMotorRung(baseProject());
+    const sourceRoot = rootOf(built.project, built.rungId);
+
+    const pasted = pasteRung(built.project, { routineId: built.routineId, root: sourceRoot, comment: "Pasted" });
+    expect(pasted.ok).toBe(true);
+    const ladder = pasted.project.controllers[0]!.programs[0]!.routines[0]!.ladder as LadderRoutine;
+    expect(ladder.rungs).toHaveLength(2);
+    const newRung = ladder.rungs.find((r) => r.id === pasted.data!.rungId)!;
+    expect(newRung.comment).toBe("Pasted");
+    expect(newRung.root.id).not.toBe(sourceRoot.id); // cloned, not the same branch object
+    expect(newRung.root.nodes.map((n) => n.instructionType)).toEqual(
+      sourceRoot.nodes.map((n) => n.instructionType),
+    );
+
+    // Pasting again does not collide ids (clone each time).
+    const twice = pasteRung(pasted.project, { routineId: built.routineId, root: sourceRoot });
+    expect(twice.ok).toBe(true);
+    const ladder2 = twice.project.controllers[0]!.programs[0]!.routines[0]!.ladder as LadderRoutine;
+    const ids = ladder2.rungs.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length); // all unique
   });
 
   it("creates a routine in a program", () => {

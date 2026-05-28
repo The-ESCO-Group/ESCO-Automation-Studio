@@ -18,6 +18,10 @@ interface Props {
   selectedNodeId?: string;
   onAddRung: () => void;
   onDeleteRung: (rungId: string) => void;
+  onCopyRung: (rungId: string) => void;
+  onDuplicateRung: (rungId: string) => void;
+  onPasteRung: () => void;
+  canPaste: boolean;
   onAddInstruction: (rungId: string, instructionType: string) => void;
   onEditOperand: (rungId: string, nodeId: string, index: number, value: string) => void;
   onRemoveInstruction: (rungId: string, nodeId: string) => void;
@@ -160,6 +164,10 @@ export function EditorArea({
   selectedNodeId,
   onAddRung,
   onDeleteRung,
+  onCopyRung,
+  onDuplicateRung,
+  onPasteRung,
+  canPaste,
   onAddInstruction,
   onEditOperand,
   onRemoveInstruction,
@@ -210,6 +218,15 @@ export function EditorArea({
           <button type="button" className="esco-btn esco-btn--primary" onClick={onAddRung}>
             + Add Rung
           </button>
+          <button
+            type="button"
+            className="esco-btn"
+            disabled={!canPaste}
+            title={canPaste ? "Paste the copied rung" : "Copy a rung first"}
+            onClick={onPasteRung}
+          >
+            Paste Rung
+          </button>
           <div className="esco-palette">
             {INSTRUCTION_GROUPS.map((group) => (
               <div className="esco-palette__group" key={group.label}>
@@ -259,6 +276,28 @@ export function EditorArea({
                     }
                   }}
                 />
+                <button
+                  type="button"
+                  className="esco-btn esco-lad__rung-btn"
+                  title="Copy this rung"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onCopyRung(rung.id);
+                  }}
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  className="esco-btn esco-lad__rung-btn"
+                  title="Duplicate this rung"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDuplicateRung(rung.id);
+                  }}
+                >
+                  Duplicate
+                </button>
                 <button
                   type="button"
                   className="esco-btn esco-btn--danger esco-lad__rung-delete"

@@ -1,4 +1,5 @@
 import type { PlcProject, RoutineLanguage } from "@esco/core";
+import type { LadderBranch } from "@esco/ladder";
 import type { ValidationFinding } from "@esco/validator";
 
 /**
@@ -53,6 +54,18 @@ export interface AddRungInput {
 export interface DeleteRungInput {
   routineId: string;
   rungId: string;
+}
+
+export interface DuplicateRungInput {
+  routineId: string;
+  rungId: string;
+}
+
+export interface PasteRungInput {
+  routineId: string;
+  /** A branch root to clone into a new rung (e.g. a copied rung's root). */
+  root: LadderBranch;
+  comment?: string;
 }
 
 export interface SetRungCommentInput {

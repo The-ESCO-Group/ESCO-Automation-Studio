@@ -20,9 +20,62 @@ function renumber(rungs: LadderRung[]): LadderRung[] {
   );
 }
 
+/** Deep-clone a node with a brand-new id (operands copied). */
+function cloneNode(node: LadderNode): LadderNode {
+  return {
+    id: createId("node"),
+    instructionType: node.instructionType,
+    operands: node.operands.map((operand) => ({ ...operand })),
+    ...(node.position ? { position: { ...node.position } } : {}),
+  };
+}
+
+/** Deep-clone a branch tree with brand-new ids throughout. */
+export function cloneBranchWithNewIds(branch: LadderBranch): LadderBranch {
+  const result: LadderBranch = { id: createId("branch"), nodes: branch.nodes.map(cloneNode) };
+  if (branch.parallelBranches) {
+    result.parallelBranches = branch.parallelBranches.map(cloneBranchWithNewIds);
+  }
+  if (branch.next) result.next = cloneBranchWithNewIds(branch.next);
+  return result;
+}
+
 /** Append a new empty rung. */
 export function addRung(routine: LadderRoutine): LadderRoutine {
   return appendRungWithRoot(routine, createBranch([]));
+}
+
+/** Duplicate a rung in place: a fresh-id copy is inserted right after it. */
+export function duplicateRung(routine: LadderRoutine, rungId: string): LadderRoutine {
+  const index = routine.rungs.findIndex((rung) => rung.id === rungId);
+  if (index < 0) return routine;
+  const source = routine.rungs[index]!;
+  const copy: LadderRung = {
+    id: createId("rung"),
+    routineId: routine.id,
+    number: index + 1,
+    comment: source.comment,
+    root: cloneBranchWithNewIds(source.root),
+  };
+  const rungs = [...routine.rungs];
+  rungs.splice(index + 1, 0, copy);
+  return { ...routine, rungs: renumber(rungs) };
+}
+
+/** Append a rung built from a (cloned) branch root — used for paste. */
+export function insertRungFromRoot(
+  routine: LadderRoutine,
+  root: LadderBranch,
+  comment?: string,
+): LadderRoutine {
+  const rung: LadderRung = {
+    id: createId("rung"),
+    routineId: routine.id,
+    number: routine.rungs.length,
+    comment,
+    root: cloneBranchWithNewIds(root),
+  };
+  return { ...routine, rungs: renumber([...routine.rungs, rung]) };
 }
 
 /** Append a rung with a pre-built branch root (e.g. parsed from rung text). */

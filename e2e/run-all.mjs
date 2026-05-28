@@ -21,6 +21,7 @@ const ORDER = [
   "newinstr.mjs",
   "branchedit.mjs",
   "undoredo.mjs",
+  "copypaste.mjs",
   "tags.mjs",
   "props.mjs",
   "xref.mjs",
