@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import type { PlcProject } from "@esco/core";
 import {
+  addBranchLeg,
   addInstruction,
+  addInstructionToBranch,
+  addParallelBranch,
   addRung,
   createTag,
   deleteRung,
@@ -11,6 +14,7 @@ import {
   getLadder,
   importL5XFile,
   importProjectFile,
+  removeBranchLeg,
   removeInstruction,
   renameTag,
   setRungComment,
@@ -101,6 +105,18 @@ export function App() {
     applyAction((p) => removeInstruction(p, { routineId: targetRoutineId(p), rungId, nodeId }));
   const handleCreateTag = (name: string, dataType: string) =>
     applyAction((p) => createTag(p, { name, dataType }));
+
+  // ---- Branch editing (single-level parallel/seal-in branches) ----
+  const handleAddParallelBranch = (rungId: string) =>
+    applyAction((p) => addParallelBranch(p, { routineId: targetRoutineId(p), rungId }));
+  const handleAddBranchLeg = (rungId: string) =>
+    applyAction((p) => addBranchLeg(p, { routineId: targetRoutineId(p), rungId }));
+  const handleRemoveBranchLeg = (rungId: string, branchId: string) =>
+    applyAction((p) => removeBranchLeg(p, { routineId: targetRoutineId(p), rungId, branchId }));
+  const handleAddToBranch = (rungId: string, branchId: string, type: string) =>
+    applyAction((p) =>
+      addInstructionToBranch(p, { routineId: targetRoutineId(p), rungId, branchId, instructionType: type }),
+    );
 
   // ---- Tag table editor (toast on failure; reset values when the tag set changes) ----
   const runTagAction = (result: ProjectActionResult, successMsg?: string, resyncValues = true) => {
@@ -338,6 +354,10 @@ export function App() {
               onSelectRung={handleSelectRung}
               onSelectNode={handleSelectNode}
               onSetRungComment={handleSetRungComment}
+              onAddParallelBranch={handleAddParallelBranch}
+              onAddBranchLeg={handleAddBranchLeg}
+              onRemoveBranchLeg={handleRemoveBranchLeg}
+              onAddToBranch={handleAddToBranch}
             />
           ) : (
             <WelcomeDashboard

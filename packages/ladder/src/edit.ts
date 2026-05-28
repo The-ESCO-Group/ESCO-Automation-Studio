@@ -131,6 +131,100 @@ export function setRungComment(
   return mapRung(routine, rungId, (rung) => ({ ...rung, comment: comment || undefined }));
 }
 
+/**
+ * Add a parallel branch group to a rung. The rung's existing main-line series
+ * (`root.nodes`) becomes the first leg; a new empty alternate leg is added
+ * beside it, and a downstream series continuation (`root.next`) is ensured so
+ * the normal palette appends instructions *after* the parallel merge rather than
+ * into a leg. Single-level parallels only — the MVP scope.
+ */
+export function addParallelBranch(routine: LadderRoutine, rungId: string): LadderRoutine {
+  return mapRung(routine, rungId, (rung) => {
+    const root = rung.root;
+    return {
+      ...rung,
+      root: {
+        ...root,
+        parallelBranches: [...(root.parallelBranches ?? []), createBranch([])],
+        next: root.next ?? createBranch([]),
+      },
+    };
+  });
+}
+
+/** Add another empty alternate leg to a rung that already has a parallel group. */
+export function addBranchLeg(routine: LadderRoutine, rungId: string): LadderRoutine {
+  return mapRung(routine, rungId, (rung) => {
+    const root = rung.root;
+    if (!root.parallelBranches || root.parallelBranches.length === 0) return rung;
+    return {
+      ...rung,
+      root: { ...root, parallelBranches: [...root.parallelBranches, createBranch([])] },
+    };
+  });
+}
+
+/** Remove an alternate leg from a rung's parallel group by branch id. */
+export function removeBranchLeg(
+  routine: LadderRoutine,
+  rungId: string,
+  branchId: string,
+): LadderRoutine {
+  return mapRung(routine, rungId, (rung) => {
+    const root = rung.root;
+    if (!root.parallelBranches) return rung;
+    const filtered = root.parallelBranches.filter((leg) => leg.id !== branchId);
+    if (filtered.length === root.parallelBranches.length) return rung; // id not found
+    const nextRoot: LadderBranch = { ...root };
+    if (filtered.length > 0) nextRoot.parallelBranches = filtered;
+    else delete nextRoot.parallelBranches;
+    return { ...rung, root: nextRoot };
+  });
+}
+
+/** Append `node` to the series of a specific branch (by id) within a rung's tree. */
+export function appendNodeToBranch(
+  routine: LadderRoutine,
+  rungId: string,
+  branchId: string,
+  node: LadderNode,
+): LadderRoutine {
+  return mapRung(routine, rungId, (rung) => ({
+    ...rung,
+    root: appendNodeToBranchTree(rung.root, branchId, node),
+  }));
+}
+
+function appendNodeToBranchTree(
+  branch: LadderBranch,
+  branchId: string,
+  node: LadderNode,
+): LadderBranch {
+  if (branch.id === branchId) {
+    return { ...branch, nodes: [...branch.nodes, node] };
+  }
+  const result: LadderBranch = { ...branch };
+  if (branch.parallelBranches) {
+    result.parallelBranches = branch.parallelBranches.map((leg) =>
+      appendNodeToBranchTree(leg, branchId, node),
+    );
+  }
+  if (branch.next) {
+    result.next = appendNodeToBranchTree(branch.next, branchId, node);
+  }
+  return result;
+}
+
+/** Find a branch by id anywhere in a rung's branch tree (read-only lookup). */
+export function findBranchInRoot(root: LadderBranch, branchId: string): LadderBranch | undefined {
+  if (root.id === branchId) return root;
+  for (const leg of root.parallelBranches ?? []) {
+    const found = findBranchInRoot(leg, branchId);
+    if (found) return found;
+  }
+  return root.next ? findBranchInRoot(root.next, branchId) : undefined;
+}
+
 /** Apply `fn` to every node across every rung of the routine (immutably). */
 export function mapRoutineNodes(
   routine: LadderRoutine,

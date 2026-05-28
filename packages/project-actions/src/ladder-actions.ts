@@ -1,11 +1,16 @@
 import { createRoutine as makeRoutine, type PlcProject } from "@esco/core";
 import { createDefaultRegistry } from "@esco/instructions";
 import {
+  addBranchLeg as ladderAddBranchLeg,
+  addParallelBranch as ladderAddParallelBranch,
   addRung as ladderAddRung,
   appendNode,
+  appendNodeToBranch as ladderAppendNodeToBranch,
   appendRungWithRoot,
   createLadderRoutine,
   createNode,
+  findBranchInRoot,
+  removeBranchLeg as ladderRemoveBranchLeg,
   removeInstruction as ladderRemoveInstruction,
   removeRung as ladderRemoveRung,
   rungNodes,
@@ -17,11 +22,14 @@ import { parseRungText } from "@esco/parser-l5x";
 import { fail, findRoutine, getLadder, ok, withProgramRoutines, withRoutineLadder } from "./helpers";
 import type {
   AddInstructionInput,
+  AddInstructionToBranchInput,
   AddRungFromTextInput,
   AddRungInput,
+  BranchInput,
   CreateRoutineInput,
   DeleteRungInput,
   ProjectActionResult,
+  RemoveBranchLegInput,
   RemoveInstructionInput,
   SetRungCommentInput,
   UpdateOperandInput,
@@ -195,5 +203,93 @@ export function updateInstructionOperand(
       ladderSetOperandValue(current, input.rungId, input.nodeId, input.value, input.index ?? 0),
     ),
     { nodeId: input.nodeId },
+  );
+}
+
+/**
+ * Add a parallel (OR) branch to a rung — e.g. to build a seal-in by hand. The
+ * existing main-line series becomes the first leg; a new empty alternate leg is
+ * added and a downstream continuation ensured. Single-level parallels (MVP).
+ */
+export function addParallelBranch(
+  project: PlcProject,
+  input: BranchInput,
+): ProjectActionResult<{ rungId: string }> {
+  if (!rungExists(project, input.routineId, input.rungId)) {
+    return fail(project, `Rung "${input.rungId}" not found.`);
+  }
+  return ok(
+    withRoutineLadder(project, input.routineId, (ladder) =>
+      ladderAddParallelBranch(ladder, input.rungId),
+    ),
+    { rungId: input.rungId },
+  );
+}
+
+/** Add another empty leg to a rung's existing parallel branch group. */
+export function addBranchLeg(
+  project: PlcProject,
+  input: BranchInput,
+): ProjectActionResult<{ rungId: string }> {
+  const ladder = getLadder(findRoutine(project, input.routineId));
+  const rung = ladder?.rungs.find((r) => r.id === input.rungId);
+  if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
+  if (!rung.root.parallelBranches || rung.root.parallelBranches.length === 0) {
+    return fail(project, "Add a parallel branch before adding a leg.");
+  }
+  return ok(
+    withRoutineLadder(project, input.routineId, (current) =>
+      ladderAddBranchLeg(current, input.rungId),
+    ),
+    { rungId: input.rungId },
+  );
+}
+
+/** Remove an empty alternate leg from a rung's parallel group. */
+export function removeBranchLeg(
+  project: PlcProject,
+  input: RemoveBranchLegInput,
+): ProjectActionResult<{ branchId: string }> {
+  const ladder = getLadder(findRoutine(project, input.routineId));
+  const rung = ladder?.rungs.find((r) => r.id === input.rungId);
+  if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
+  const leg = (rung.root.parallelBranches ?? []).find((b) => b.id === input.branchId);
+  if (!leg) return fail(project, "Branch leg not found (only alternate legs can be removed).");
+  if (leg.nodes.length > 0 || leg.parallelBranches?.length || leg.next) {
+    return fail(project, "Only an empty branch leg can be removed.");
+  }
+  return ok(
+    withRoutineLadder(project, input.routineId, (current) =>
+      ladderRemoveBranchLeg(current, input.rungId, input.branchId),
+    ),
+    { branchId: input.branchId },
+  );
+}
+
+/** Append an instruction to a specific branch leg (by branch id) of a rung. */
+export function addInstructionToBranch(
+  project: PlcProject,
+  input: AddInstructionToBranchInput,
+): ProjectActionResult<{ nodeId: string }> {
+  const ladder = getLadder(findRoutine(project, input.routineId));
+  const rung = ladder?.rungs.find((r) => r.id === input.rungId);
+  if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
+  if (!findBranchInRoot(rung.root, input.branchId)) {
+    return fail(project, `Branch "${input.branchId}" not found in the rung.`);
+  }
+  const type = input.instructionType.toUpperCase();
+  const definition = registry.get(type);
+  const operandDefs = definition ? definition.operands : [{ name: "tag" }];
+  const node = createNode(type, operandDefs.map((operand) => tagOperand(operand.name, "")));
+
+  const warnings = definition
+    ? undefined
+    : [`Instruction "${type}" is not registered; added as an unsupported box.`];
+  return ok(
+    withRoutineLadder(project, input.routineId, (current) =>
+      ladderAppendNodeToBranch(current, input.rungId, input.branchId, node),
+    ),
+    { nodeId: node.id },
+    warnings,
   );
 }

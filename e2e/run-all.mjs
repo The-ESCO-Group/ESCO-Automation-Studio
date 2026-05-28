@@ -19,6 +19,7 @@ const ORDER = [
   "driver.mjs",
   "instr.mjs",
   "newinstr.mjs",
+  "branchedit.mjs",
   "tags.mjs",
   "props.mjs",
   "xref.mjs",

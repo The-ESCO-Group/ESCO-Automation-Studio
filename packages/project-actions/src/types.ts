@@ -80,6 +80,25 @@ export interface RemoveInstructionInput {
   nodeId: string;
 }
 
+/** Target a rung for a branch-structure edit (add parallel branch / add leg). */
+export interface BranchInput {
+  routineId: string;
+  rungId: string;
+}
+
+export interface RemoveBranchLegInput {
+  routineId: string;
+  rungId: string;
+  branchId: string;
+}
+
+export interface AddInstructionToBranchInput {
+  routineId: string;
+  rungId: string;
+  branchId: string;
+  instructionType: string;
+}
+
 export interface UpdateOperandInput {
   routineId: string;
   rungId: string;

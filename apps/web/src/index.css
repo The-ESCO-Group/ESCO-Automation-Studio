@@ -1237,6 +1237,65 @@ body {
   box-shadow: 0 0 0 1px var(--accent) inset;
 }
 
+/* ---- Branch editor (selected rung) ---- */
+.esco-branch-edit {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+.esco-branch-edit__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.esco-branch-edit__title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.esco-branch-edit__hint {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.esco-branch-edit__legs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.esco-branch-leg {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.esco-branch-leg__name {
+  font-size: 11px;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  color: var(--accent);
+  min-width: 78px;
+}
+
+.esco-branch-leg__empty {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
 .esco-lad__rung-no {
   display: inline-flex;
   align-items: center;

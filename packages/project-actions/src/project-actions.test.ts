@@ -6,9 +6,12 @@ import {
   createRoutine,
   type PlcProject,
 } from "@esco/core";
-import { createLadderRoutine } from "@esco/ladder";
+import { createLadderRoutine, type LadderRoutine } from "@esco/ladder";
 import {
+  addBranchLeg,
   addInstruction,
+  addInstructionToBranch,
+  addParallelBranch,
   addRung,
   addRungFromText,
   collectTagReferences,
@@ -20,6 +23,7 @@ import {
   exportProjectJson,
   importL5XFile,
   importProjectFile,
+  removeBranchLeg,
   removeInstruction,
   renameTag,
   scanProject,
@@ -28,6 +32,12 @@ import {
   validateProject,
   type TagValues,
 } from "./index";
+
+/** The root branch of a rung, read straight from the demo project structure. */
+function rootOf(project: PlcProject, rungId: string) {
+  const ladder = project.controllers[0]!.programs[0]!.routines[0]!.ladder as LadderRoutine;
+  return ladder.rungs.find((r) => r.id === rungId)!.root;
+}
 
 interface Base {
   project: PlcProject;
@@ -214,6 +224,128 @@ describe("project-actions: rungs and routines", () => {
     // Stop breaks it.
     values = scanProject(p, { ...values, StopPB: true }).data!.values;
     expect(values.MotorRun).toBe(false);
+  });
+});
+
+describe("project-actions: branch editing", () => {
+  // Build [XIC(StartPB) , XIC(MotorRun)] XIO(StopPB) OTE(MotorRun) entirely
+  // through the controlled branch actions — the way the UI buttons drive it.
+  function buildSealInByBranch() {
+    const base = baseProject();
+    const { routineId } = base;
+    const rung = addRung(base.project, { routineId });
+    let p = rung.project;
+    const rungId = rung.data!.rungId;
+
+    // Parallel branch → leg 1 = main line (root), leg 2 = first alternate.
+    p = addParallelBranch(p, { routineId, rungId }).project;
+    const root = rootOf(p, rungId);
+    const leg1 = root.id;
+    const leg2 = root.parallelBranches![0]!.id;
+
+    const addToLeg = (branchId: string, type: string, tag: string) => {
+      const added = addInstructionToBranch(p, { routineId, rungId, branchId, instructionType: type });
+      p = added.project;
+      p = updateInstructionOperand(p, { routineId, rungId, nodeId: added.data!.nodeId, value: tag }).project;
+    };
+    addToLeg(leg1, "XIC", "StartPB"); // leg 1: start contact
+    addToLeg(leg2, "XIC", "MotorRun"); // leg 2: seal-in contact
+
+    // Downstream series after the parallel merge.
+    for (const [type, tag] of [["XIO", "StopPB"], ["OTE", "MotorRun"]] as const) {
+      const a = addInstruction(p, { routineId, rungId, instructionType: type });
+      p = a.project;
+      p = updateInstructionOperand(p, { routineId, rungId, nodeId: a.data!.nodeId, value: tag }).project;
+    }
+    for (const name of ["StartPB", "StopPB", "MotorRun"]) {
+      p = createTag(p, { name, dataType: "BOOL" }).project;
+    }
+    return { project: p, routineId, rungId, leg2 };
+  }
+
+  it("adds a parallel branch, then a second leg", () => {
+    const base = baseProject();
+    const { routineId } = base;
+    const rung = addRung(base.project, { routineId });
+    const rungId = rung.data!.rungId;
+
+    const withBranch = addParallelBranch(rung.project, { routineId, rungId });
+    expect(withBranch.ok).toBe(true);
+    expect(rootOf(withBranch.project, rungId).parallelBranches).toHaveLength(1);
+
+    const twoLegs = addBranchLeg(withBranch.project, { routineId, rungId });
+    expect(twoLegs.ok).toBe(true);
+    expect(rootOf(twoLegs.project, rungId).parallelBranches).toHaveLength(2);
+  });
+
+  it("rejects adding a leg before a parallel branch exists", () => {
+    const base = baseProject();
+    const rung = addRung(base.project, { routineId: base.routineId });
+    const res = addBranchLeg(rung.project, { routineId: base.routineId, rungId: rung.data!.rungId });
+    expect(res.ok).toBe(false);
+  });
+
+  it("removes an empty leg but refuses a populated one", () => {
+    const { project, routineId, rungId, leg2 } = buildSealInByBranch();
+    const blocked = removeBranchLeg(project, { routineId, rungId, branchId: leg2 });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.error).toMatch(/empty/i);
+
+    const added = addBranchLeg(project, { routineId, rungId });
+    const legs = rootOf(added.project, rungId).parallelBranches!;
+    const emptyLeg = legs[legs.length - 1]!.id;
+    const removed = removeBranchLeg(added.project, { routineId, rungId, branchId: emptyLeg });
+    expect(removed.ok).toBe(true);
+    expect(rootOf(removed.project, rungId).parallelBranches).toHaveLength(1);
+  });
+
+  it("simulates the hand-built seal-in (latches, then stop breaks it)", () => {
+    const { project } = buildSealInByBranch();
+    let values: TagValues = { ...defaultValues(project), StartPB: true };
+    values = scanProject(project, values).data!.values;
+    expect(values.MotorRun).toBe(true);
+
+    values = scanProject(project, { ...values, StartPB: false }).data!.values;
+    expect(values.MotorRun).toBe(true); // sealed in by the parallel branch
+
+    values = scanProject(project, { ...values, StopPB: true }).data!.values;
+    expect(values.MotorRun).toBe(false); // stop breaks the seal
+  });
+
+  it("export/import preserves the branch structure", () => {
+    const { project, rungId } = buildSealInByBranch();
+    const restored = importProjectFile(exportProjectJson(project).data!.text);
+    expect(restored.ok).toBe(true);
+    expect(restored.project).toEqual(project);
+    expect(rootOf(restored.project, rungId).parallelBranches).toHaveLength(1);
+  });
+
+  it("cross reference sees tags inside branch legs", () => {
+    const { project } = buildSealInByBranch();
+    const motor = collectTagReferences(project).filter((r) => r.tag === "MotorRun");
+    // The seal-in contact lives inside leg 2; the coil is on the main line.
+    expect(motor.some((r) => r.instructionType === "XIC" && r.direction === "read")).toBe(true);
+    expect(motor.some((r) => r.instructionType === "OTE" && r.direction === "write")).toBe(true);
+  });
+
+  it("validation catches an undefined tag inside a branch leg", () => {
+    const base = baseProject();
+    const { routineId } = base;
+    const rung = addRung(base.project, { routineId });
+    const rungId = rung.data!.rungId;
+    let p = addParallelBranch(rung.project, { routineId, rungId }).project;
+    const leg2 = rootOf(p, rungId).parallelBranches![0]!.id;
+    const added = addInstructionToBranch(p, { routineId, rungId, branchId: leg2, instructionType: "XIC" });
+    p = added.project;
+    const result = updateInstructionOperand(p, {
+      routineId,
+      rungId,
+      nodeId: added.data!.nodeId,
+      value: "GhostInBranch",
+    });
+    expect(
+      result.findings?.some((f) => f.ruleId === "undefined-tag" && f.message.includes("GhostInBranch")),
+    ).toBe(true);
   });
 });
 
