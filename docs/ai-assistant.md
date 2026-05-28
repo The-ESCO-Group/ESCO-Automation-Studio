@@ -51,19 +51,45 @@ interface AssistantResult { ok; message; plan?; error? }
 interface ApplyResult { ok; project; applied: string[]; findings; error? }
 ```
 
-## Future LLM integration points
+## Provider interface (LLM-ready, no API key)
 
-The architecture is designed so a real LLM can be dropped in without changing
-the safety model:
+The assistant runs behind a small provider seam so a real LLM can be added later
+without touching the UI or the safety model:
 
-- **`planner.ts`** is the swap point. Replace substring matching with an LLM
-  call that returns the same `AssistantResult` / `AssistantPlan` shape.
-- The LLM would receive **context** (`context.ts`: routines, tags, findings,
-  undefined tags) and must emit only known `ProposedProjectAction` kinds.
-- **`apply.ts` is unchanged** — it still maps actions to `@esco/project-actions`
-  and runs validation. The LLM can never bypass it.
-- An LLM connector should live behind the same `runAssistant` interface and
-  require its key via configuration; the MVP requires none.
+```ts
+type ProviderMode = "local" | "mock" | "external";
+
+interface AssistantProvider {
+  readonly name: string;
+  readonly mode: ProviderMode;
+  run(input: AssistantInput): Promise<AssistantResult>;
+}
+```
+
+- **`LocalRuleBasedProvider`** (`localProvider.ts`) — the shipping default. Wraps
+  `runAssistant` (the substring planner). Fully offline, deterministic.
+- **`MockProvider`** (`mockProvider.ts`) — a deterministic stand-in for tests and
+  demos. Returns a previewable plan; accepts a custom `responder` to simulate
+  other model outputs.
+- **`ExternalLlmProvider`** (`externalProvider.ts`) — a stub for a future real
+  model. It is **not** wired to any network or key; calling `run` rejects with a
+  clear "not configured" error so the app falls back to local.
+
+`createProvider(mode)` builds one; `getDefaultProvider()` returns the local
+provider (the UI uses this — see `DEFAULT_PROVIDER_MODE`).
+
+### Adding a real LLM later
+
+1. Implement `AssistantProvider` in a new `external` provider: in `run`, send the
+   prompt plus **context** (`context.ts`: routines, tags, findings, undefined
+   tags) to the model and translate the reply into an `AssistantResult` — a
+   message and, for changes, an `AssistantPlan` whose actions use only known
+   `ProposedProjectAction` kinds (`createTag`, `addRungFromText`, …).
+2. Read the key from configuration/env at call time. **No key is bundled**, and
+   nothing should call out unless explicitly configured.
+3. **`apply.ts` is unchanged** — it still maps every action to
+   `@esco/project-actions` and runs validation, so the LLM can never bypass the
+   safe mutation layer, and the user still clicks **Apply**.
 
 ## Safety constraints
 

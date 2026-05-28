@@ -11,8 +11,10 @@ import { addRungFromText } from "@esco/project-actions";
 import {
   applyPlan,
   counterPlan,
+  createProvider,
   explainRoutine,
   fixUndefinedPlan,
+  getDefaultProvider,
   motorStarterPlan,
   runAssistant,
   timerPlan,
@@ -118,5 +120,42 @@ describe("AI assistant: apply", () => {
     runAssistant({ prompt: "generate motor starter", project, selection: { routineId } });
     applyPlan(project, plan);
     expect(JSON.stringify(project)).toBe(snapshot);
+  });
+});
+
+describe("AI assistant: provider interface", () => {
+  it("defaults to the local rule-based provider", () => {
+    const provider = getDefaultProvider();
+    expect(provider.mode).toBe("local");
+  });
+
+  it("the local provider produces the same plans as the rule-based planner", async () => {
+    const { project, routineId } = baseProject();
+    const result = await createProvider("local").run({
+      prompt: "generate motor starter",
+      project,
+      selection: { routineId },
+    });
+    expect(result.ok).toBe(true);
+    expect(result.plan?.actions.some((a) => a.kind === "addRungFromText")).toBe(true);
+  });
+
+  it("the mock provider returns a previewable plan that still applies via project-actions", async () => {
+    const { project } = baseProject();
+    const result = await createProvider("mock").run({ prompt: "make something", project });
+    expect(result.ok).toBe(true);
+    expect(result.plan?.actions).toHaveLength(1);
+
+    // The mock only proposes; nothing changes until the plan is applied.
+    const applied = applyPlan(project, result.plan!);
+    expect(applied.ok).toBe(true);
+    expect(applied.project.controllers[0]!.controllerTags.some((t) => t.name === "MockTag")).toBe(true);
+  });
+
+  it("the external provider fails gracefully (not configured, no network/key)", async () => {
+    const { project } = baseProject();
+    await expect(createProvider("external").run({ prompt: "anything", project })).rejects.toThrow(
+      /not configured/i,
+    );
   });
 });

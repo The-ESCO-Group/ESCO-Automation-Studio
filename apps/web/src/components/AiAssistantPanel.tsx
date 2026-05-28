@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { PlcProject } from "@esco/core";
 import {
-  runAssistant,
+  getDefaultProvider,
   type ApplyResult,
   type AssistantPlan,
   type AssistantResult,
@@ -29,18 +29,28 @@ export function AiAssistantPanel({ project, selectedRoutineId, onApply }: Props)
   const [applied, setApplied] = useState<ApplyResult | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const ask = (text: string) => {
+  // Run through the provider seam; defaults to the offline rule-based provider.
+  const provider = useMemo(() => getDefaultProvider(), []);
+
+  const ask = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
     setApplied(null);
     setCopied(false);
-    setResult(
-      runAssistant({
+    try {
+      const res = await provider.run({
         prompt: trimmed,
         project,
         selection: selectedRoutineId ? { routineId: selectedRoutineId } : undefined,
-      }),
-    );
+      });
+      setResult(res);
+    } catch (error) {
+      setResult({
+        ok: false,
+        message: error instanceof Error ? error.message : "Assistant failed.",
+        error: "provider-error",
+      });
+    }
   };
 
   const handleApply = () => {
@@ -80,10 +90,10 @@ export function AiAssistantPanel({ project, selectedRoutineId, onApply }: Props)
           spellCheck={false}
           onChange={(event) => setPrompt(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter") ask(prompt);
+            if (event.key === "Enter") void ask(prompt);
           }}
         />
-        <button type="button" className="esco-btn esco-btn--primary" onClick={() => ask(prompt)}>
+        <button type="button" className="esco-btn esco-btn--primary" onClick={() => void ask(prompt)}>
           Send
         </button>
         <button type="button" className="esco-btn" onClick={handleClear}>
@@ -99,7 +109,7 @@ export function AiAssistantPanel({ project, selectedRoutineId, onApply }: Props)
             className="esco-btn esco-btn--quick"
             onClick={() => {
               setPrompt(action.prompt);
-              ask(action.prompt);
+              void ask(action.prompt);
             }}
           >
             {action.label}
