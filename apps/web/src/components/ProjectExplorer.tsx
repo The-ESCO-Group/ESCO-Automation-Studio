@@ -78,11 +78,17 @@ export function ProjectExplorer({ project, selection, onSelect, empty = false }:
       {tab === "controllers" ? (
         <ul className="esco-tree">
           <li>
-            <span className="esco-tree__root">
+            <button
+              type="button"
+              className={`esco-tree__root esco-tree__root--button${
+                isSelected("project", project.id) ? " is-selected" : ""
+              }`}
+              onClick={() => onSelect({ kind: "project", id: project.id })}
+            >
               <span className="esco-tree__icon" aria-hidden="true">▾</span>
               Project Root
               <span className="esco-tree__meta">{project.name}</span>
-            </span>
+            </button>
             <ul className="esco-tree esco-tree--nested">
               {project.controllers.map((controller) => (
                 <li key={controller.id}>

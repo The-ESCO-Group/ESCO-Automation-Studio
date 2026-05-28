@@ -16,6 +16,7 @@ const URL = "http://localhost:5173/";
 // Run order: welcome/navigation first, feature drivers next, file I/O last.
 const ORDER = [
   "welcome.mjs",
+  "ribbon.mjs",
   "driver.mjs",
   "instr.mjs",
   "newinstr.mjs",

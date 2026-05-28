@@ -139,6 +139,7 @@ export function App() {
       setOpenRoutineId(sel.id);
       setView("routine");
     } else if (
+      sel?.kind === "project" ||
       sel?.kind === "controller" ||
       sel?.kind === "task" ||
       sel?.kind === "program" ||
@@ -303,6 +304,19 @@ export function App() {
           .find((tag) => tag.id === selection.id)?.name
       : undefined;
   const handleOpenRoutine = (routineId: string) => handleSelect({ kind: "routine", id: routineId });
+  const handleProjectProperties = () => {
+    setSelection({ kind: "project", id: project.id });
+    setView("structure");
+    setCopilotTab("history");
+  };
+  const handleControllerProperties = () => {
+    const controller = project.controllers[0];
+    if (!controller) {
+      push("info", "Create or import a project first.");
+      return;
+    }
+    handleSelect({ kind: "controller", id: controller.id });
+  };
 
   const selectedRungId =
     selection?.kind === "rung" || selection?.kind === "instruction" ? selection.rungId : undefined;
@@ -669,6 +683,7 @@ export function App() {
           canRedo={history.canRedo}
           canPaste={clipboardRung !== null}
           canCopy={selectedRungId != null}
+          canEditLadder={!!openLadder}
           canClose={projectOpen}
           onHome={() => setView("welcome")}
           onClose={handleCloseProject}
@@ -681,6 +696,8 @@ export function App() {
           onImportL5X={handleImportL5XClick}
           onImportTagsCsv={() => requireProject(handleImportTagsCsvClick)}
           onNew={handleCreateRoutineProject}
+          onAddRung={() => requireProject(handleAddRung)}
+          onAddInstruction={(type) => selectedRungId && handleAddInstruction(selectedRungId, type)}
           onUndo={handleUndo}
           onRedo={handleRedo}
           onCopy={() => selectedRungId && handleCopyRung(selectedRungId)}
@@ -688,6 +705,9 @@ export function App() {
           onPaste={handlePasteRung}
           onFind={() => requireProject(() => setDockTab("search"))}
           onProperties={() => setCopilotTab("history")}
+          onProjectProperties={() => requireProject(handleProjectProperties)}
+          onControllerProperties={() => requireProject(handleControllerProperties)}
+          onOpenCopilot={() => setCopilotTab("chat")}
           onDockTab={setDockTab}
           onToast={(message) => push("info", message)}
           onVerify={handleVerify}

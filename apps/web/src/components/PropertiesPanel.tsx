@@ -69,6 +69,20 @@ function buildView(props: Props): View | null {
   const { project, selection, values, findings } = props;
   if (!selection) return null;
 
+  if (selection.kind === "project") {
+    return {
+      heading: "Project",
+      rows: [
+        { label: "Name", value: project.name },
+        { label: "Description", value: project.description ?? "—" },
+        { label: "Created", value: project.createdAt ? new Date(project.createdAt).toLocaleString() : "—" },
+        { label: "Updated", value: project.updatedAt ? new Date(project.updatedAt).toLocaleString() : "—" },
+        { label: "Controllers", value: String(project.controllers.length) },
+      ],
+      hint: "Project properties are read-only until a project-action exists for editing them.",
+    };
+  }
+
   if (selection.kind === "controller") {
     const controller = project.controllers.find((c) => c.id === selection.id);
     if (!controller) return null;

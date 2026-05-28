@@ -1,4 +1,5 @@
 export type Selection =
+  | { kind: "project"; id: string }
   | { kind: "controller"; id: string }
   | { kind: "task"; id: string }
   | { kind: "program"; id: string }

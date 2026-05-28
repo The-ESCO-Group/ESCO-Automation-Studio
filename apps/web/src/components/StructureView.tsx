@@ -50,6 +50,43 @@ function meta(value: unknown): string {
   return String(value);
 }
 
+function ProjectDetail({ project }: { project: PlcProject }) {
+  const controllerCount = project.controllers.length;
+  const programs = project.controllers.flatMap((controller) => controller.programs);
+  const routines = programs.flatMap((program) => program.routines);
+  const tags = project.controllers.flatMap((controller) => [
+    ...controller.controllerTags,
+    ...controller.programs.flatMap((program) => program.programTags),
+  ]);
+  return (
+    <div className="esco-detail">
+      <header className="esco-detail__head">
+        <h1 className="esco-detail__title">Project · {project.name}</h1>
+        <span className="esco-detail__readonly">Offline metadata</span>
+      </header>
+      {project.description ? <p className="esco-detail__desc">{project.description}</p> : null}
+      <section className="esco-detail__section">
+        <h2>Properties</h2>
+        <table className="esco-detail__table">
+          <tbody>
+            <tr><th>Name</th><td>{project.name}</td></tr>
+            <tr><th>Description</th><td>{meta(project.description)}</td></tr>
+            <tr><th>Created</th><td>{meta(project.createdAt ? new Date(project.createdAt).toLocaleString() : undefined)}</td></tr>
+            <tr><th>Updated</th><td>{meta(project.updatedAt ? new Date(project.updatedAt).toLocaleString() : undefined)}</td></tr>
+            <tr><th>Storage</th><td>Browser project export (.plcproj.json)</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section className="esco-detail__section esco-detail__cards">
+        <div><strong>{controllerCount}</strong><span>Controllers</span></div>
+        <div><strong>{programs.length}</strong><span>Programs</span></div>
+        <div><strong>{routines.length}</strong><span>Routines</span></div>
+        <div><strong>{tags.length}</strong><span>Tags</span></div>
+      </section>
+    </div>
+  );
+}
+
 function ControllerDetail({ controller }: { controller: Controller }) {
   return (
     <div className="esco-detail">
@@ -381,6 +418,9 @@ function IoDetail({ project, controllerId, moduleId }: { project: PlcProject; co
 
 /** Dispatches to the read-only detail viewer for the selected structure node. */
 export function StructureView({ project, selection, onOpenRoutine }: Props) {
+  if (selection?.kind === "project") {
+    return <ProjectDetail project={project} />;
+  }
   if (selection?.kind === "controller") {
     const controller = findController(project, selection.id);
     if (controller) return <ControllerDetail controller={controller} />;
@@ -406,7 +446,7 @@ export function StructureView({ project, selection, onOpenRoutine }: Props) {
   }
   return (
     <div className="esco-detail">
-      <p className="esco-empty">Select a controller, task, program, Add-On Instruction, UDT, or I/O module in the explorer.</p>
+      <p className="esco-empty">Select a project, controller, task, program, Add-On Instruction, UDT, or I/O module in the explorer.</p>
     </div>
   );
 }
