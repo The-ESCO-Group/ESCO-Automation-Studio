@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import type { PlcProject, Routine } from "@esco/core";
 import { baseTagName, createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
 import { routineNodes, type LadderRoutine } from "@esco/ladder";
-import type { Selection } from "../selection";
 import { tagExists } from "../project-edit";
 import { RungDiagram } from "./LadderView";
 
@@ -10,7 +9,7 @@ const registry = createDefaultRegistry();
 
 interface Props {
   project: PlcProject;
-  selection: Selection;
+  routine: Routine | undefined;
   ladder: LadderRoutine | undefined;
   onAddRung: () => void;
   onDeleteRung: (rungId: string) => void;
@@ -18,16 +17,6 @@ interface Props {
   onEditOperand: (rungId: string, nodeId: string, index: number, value: string) => void;
   onRemoveInstruction: (rungId: string, nodeId: string) => void;
   onCreateTag: (name: string, dataType: string) => void;
-}
-
-function findRoutine(project: PlcProject, id: string): Routine | undefined {
-  for (const controller of project.controllers) {
-    for (const program of controller.programs) {
-      const routine = program.routines.find((r) => r.id === id);
-      if (routine) return routine;
-    }
-  }
-  return undefined;
 }
 
 interface UndefinedTag {
@@ -62,7 +51,7 @@ const INSTRUCTION_BUTTONS = [
 
 export function EditorArea({
   project,
-  selection,
+  routine,
   ladder,
   onAddRung,
   onDeleteRung,
@@ -71,9 +60,6 @@ export function EditorArea({
   onRemoveInstruction,
   onCreateTag,
 }: Props) {
-  const routine =
-    selection?.kind === "routine" ? findRoutine(project, selection.id) : undefined;
-
   const undefinedTags = useMemo(
     () => (ladder ? findUndefinedTags(ladder, project) : []),
     [ladder, project],

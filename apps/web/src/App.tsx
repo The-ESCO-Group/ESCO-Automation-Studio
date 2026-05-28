@@ -6,6 +6,8 @@ import {
   createTag,
   deleteRung,
   exportProjectJson,
+  findRoutine,
+  getLadder,
   importL5XFile,
   importProjectFile,
   removeInstruction,
@@ -18,49 +20,68 @@ import { createDefaultEngine } from "@esco/validator";
 import { ProjectExplorer } from "./components/ProjectExplorer";
 import { EditorArea } from "./components/EditorArea";
 import { PropertiesPanel } from "./components/PropertiesPanel";
-import { BottomPanel } from "./components/BottomPanel";
+import { BottomPanel, type DockTab } from "./components/BottomPanel";
+import { WelcomeDashboard } from "./components/WelcomeDashboard";
+import { Toasts } from "./components/Toasts";
 import type { Selection } from "./selection";
-import { createInitialProject, findMainRoutine, getMainLadder } from "./project-edit";
+import { createInitialProject, findMainRoutine } from "./project-edit";
 import { downloadTextFile, readFileAsText, slugify } from "./file-io";
 import { scanOnce, watchRows, zeroValues, type TagValues } from "./simulation";
+import { useToasts } from "./toasts";
 
 const SCAN_INTERVAL_MS = 250;
+type CenterView = "welcome" | "routine" | "tags";
 
 export function App() {
   const [project, setProject] = useState(createInitialProject);
   const [selection, setSelection] = useState<Selection>(null);
   const [values, setValues] = useState<TagValues>(() => zeroValues(project));
   const [running, setRunning] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const [view, setView] = useState<CenterView>("welcome");
+  const [openRoutineId, setOpenRoutineId] = useState<string | undefined>(undefined);
+  const [dockTab, setDockTab] = useState<DockTab>("watch");
+  const { toasts, push, dismiss } = useToasts();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const l5xInputRef = useRef<HTMLInputElement>(null);
 
   const findings = useMemo(() => createDefaultEngine().run(project), [project]);
-  const rows = watchRows(project, values);
+  const rows = useMemo(() => watchRows(project, values), [project, values]);
+  const openRoutine = openRoutineId ? findRoutine(project, openRoutineId) : undefined;
+  const openLadder = getLadder(openRoutine);
 
-  // All edits go through the controlled action layer; on success we adopt the
-  // returned project, otherwise the current state is left unchanged.
-  const routineId = (p: PlcProject) => findMainRoutine(p)?.id ?? "";
+  const errorCount = findings.filter((f) => f.severity === "error").length;
+  const warnCount = findings.filter((f) => f.severity === "warning").length;
+
+  // ---- Selection / navigation ----
+  const handleSelect = (sel: Selection) => {
+    setSelection(sel);
+    if (sel?.kind === "routine") {
+      setOpenRoutineId(sel.id);
+      setView("routine");
+    }
+  };
+
+  // ---- Ladder edits via the controlled action layer (target the open routine) ----
+  const targetRoutineId = (p: PlcProject) => openRoutineId ?? findMainRoutine(p)?.id ?? "";
   const applyAction = (run: (p: PlcProject) => ProjectActionResult) =>
     setProject((current) => {
       const result = run(current);
       return result.ok ? result.project : current;
     });
 
-  const handleAddRung = () => applyAction((p) => addRung(p, { routineId: routineId(p) }));
+  const handleAddRung = () => applyAction((p) => addRung(p, { routineId: targetRoutineId(p) }));
   const handleDeleteRung = (rungId: string) =>
-    applyAction((p) => deleteRung(p, { routineId: routineId(p), rungId }));
+    applyAction((p) => deleteRung(p, { routineId: targetRoutineId(p), rungId }));
   const handleAddInstruction = (rungId: string, type: string) =>
-    applyAction((p) => addInstruction(p, { routineId: routineId(p), rungId, instructionType: type }));
+    applyAction((p) => addInstruction(p, { routineId: targetRoutineId(p), rungId, instructionType: type }));
   const handleEditOperand = (rungId: string, nodeId: string, index: number, value: string) =>
-    applyAction((p) => updateInstructionOperand(p, { routineId: routineId(p), rungId, nodeId, index, value }));
+    applyAction((p) => updateInstructionOperand(p, { routineId: targetRoutineId(p), rungId, nodeId, index, value }));
   const handleRemoveInstruction = (rungId: string, nodeId: string) =>
-    applyAction((p) => removeInstruction(p, { routineId: routineId(p), rungId, nodeId }));
+    applyAction((p) => removeInstruction(p, { routineId: targetRoutineId(p), rungId, nodeId }));
   const handleCreateTag = (name: string, dataType: string) =>
     applyAction((p) => createTag(p, { name, dataType }));
 
-  // Simulation.
+  // ---- Simulation ----
   const handleToggleTag = (name: string) =>
     setValues((current) => ({ ...current, [name]: current[name] !== true }));
   const handleSetNumber = (name: string, value: number) =>
@@ -68,7 +89,7 @@ export function App() {
   const handleScanOnce = () => setValues((current) => scanOnce(project, current));
   const handleReset = () => setValues(zeroValues(project));
 
-  // AI assistant: apply a previewed plan through the action layer, adopt the result.
+  // ---- AI assistant: apply a previewed plan through the action layer ----
   const handleApplyPlan = (plan: AssistantPlan): ApplyResult => {
     const result = applyPlan(project, plan);
     if (result.ok) {
@@ -77,47 +98,56 @@ export function App() {
     }
     return result;
   };
-  const selectedRoutineId = selection?.kind === "routine" ? selection.id : undefined;
   const selectedTagName =
     selection?.kind === "tag"
       ? project.controllers
           .flatMap((c) => [...c.controllerTags, ...c.programs.flatMap((p) => p.programTags)])
           .find((tag) => tag.id === selection.id)?.name
       : undefined;
-  const handleOpenRoutine = (routineId: string) => setSelection({ kind: "routine", id: routineId });
+  const handleOpenRoutine = (routineId: string) => handleSelect({ kind: "routine", id: routineId });
 
-  // Persistence and import (the AST is the source of truth).
+  // ---- File workflows ----
+  const loadProject = (loaded: PlcProject) => {
+    setProject(loaded);
+    setValues(zeroValues(loaded));
+    setRunning(false);
+    const main = findMainRoutine(loaded);
+    if (main) {
+      setOpenRoutineId(main.id);
+      setSelection({ kind: "routine", id: main.id });
+      setView("routine");
+    } else {
+      setOpenRoutineId(undefined);
+      setSelection(null);
+      setView("welcome");
+    }
+  };
+
   const handleExport = () => {
     const result = exportProjectJson(project);
     if (result.data) {
-      downloadTextFile(`${slugify(project.name)}${PLCPROJ_EXTENSION}`, result.data.text);
+      const filename = `${slugify(project.name)}${PLCPROJ_EXTENSION}`;
+      downloadTextFile(filename, result.data.text);
+      push("success", `Exported "${project.name}" → ${filename}`);
     }
   };
   const handleImportClick = () => fileInputRef.current?.click();
   const handleImportL5XClick = () => l5xInputRef.current?.click();
 
-  const loadProject = (loaded: PlcProject) => {
-    setProject(loaded);
-    setValues(zeroValues(loaded)); // reset watch values from the loaded tags
-    setRunning(false);
-    setSelection(null);
-  };
-
   const handleFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    event.target.value = ""; // allow re-importing the same file
+    event.target.value = "";
     if (!file) return;
     try {
       const result = importProjectFile(await readFileAsText(file));
       if (result.ok) {
         loadProject(result.project);
-        setImportError(null);
-        setImportNotice(null);
+        push("success", `Opened project "${result.project.name}".`);
       } else {
-        setImportError(result.error ?? "Failed to import project.");
+        push("error", result.error ?? "Failed to import project.");
       }
     } catch (error) {
-      setImportError(error instanceof Error ? error.message : "Failed to read the file.");
+      push("error", error instanceof Error ? error.message : "Failed to read the file.");
     }
   };
 
@@ -128,20 +158,21 @@ export function App() {
     try {
       const result = importL5XFile(await readFileAsText(file));
       if (!result.ok || !result.data) {
-        setImportError(result.error ?? "Failed to import L5X file.");
+        push("error", result.error ?? "Failed to import L5X file.");
         return;
       }
       loadProject(result.project);
-      setImportError(null);
       const s = result.data.summary;
       const counts = `${s.programs} program(s), ${s.routines} routine(s), ${s.rungs} rung(s), ${s.tags} tag(s)`;
       const unsupported = s.unsupportedInstructions.length
         ? ` Unsupported: ${s.unsupportedInstructions.join(", ")}.`
         : "";
-      const warned = s.warnings.length ? ` ${s.warnings.length} warning(s).` : "";
-      setImportNotice(`Imported "${result.project.name}": ${counts}.${unsupported}${warned}`);
+      push(
+        s.warnings.length ? "warning" : "success",
+        `Imported "${result.project.name}": ${counts}.${unsupported}${s.warnings.length ? ` ${s.warnings.length} warning(s).` : ""}`,
+      );
     } catch (error) {
-      setImportError(error instanceof Error ? error.message : "Failed to read the file.");
+      push("error", error instanceof Error ? error.message : "Failed to read the file.");
     }
   };
 
@@ -157,22 +188,48 @@ export function App() {
     return () => clearInterval(id);
   }, [running]);
 
+  const validationLabel = errorCount
+    ? `${errorCount} error${errorCount > 1 ? "s" : ""}`
+    : warnCount
+      ? `${warnCount} warning${warnCount > 1 ? "s" : ""}`
+      : "Valid";
+  const validationClass = errorCount ? "is-error" : warnCount ? "is-warn" : "is-ok";
+
   return (
     <div className="esco-app">
       <header className="esco-titlebar">
         <div className="esco-titlebar__brand">
-          <span className="esco-titlebar__logo">ESCO</span>
+          <button
+            type="button"
+            className="esco-titlebar__home"
+            title="Dashboard"
+            onClick={() => setView("welcome")}
+          >
+            ESCO
+          </button>
           <span className="esco-titlebar__name">Automation Studio</span>
         </div>
-        <div className="esco-titlebar__project">{project.name}</div>
+
+        <div className="esco-titlebar__context">
+          <span className="esco-titlebar__project" title="Project">{project.name}</span>
+          {openRoutine ? <span className="esco-titlebar__routine">▸ {openRoutine.name}</span> : null}
+          <span className={`esco-titlebar__validation ${validationClass}`} title="Validation status">
+            {validationLabel}
+          </span>
+        </div>
+
         <div className="esco-titlebar__actions">
+          <button type="button" className="esco-btn" onClick={() => setView("welcome")}>
+            Dashboard
+          </button>
+          <span className="esco-titlebar__divider" />
           <button type="button" className="esco-btn" onClick={handleExport}>
             Export Project
           </button>
           <button type="button" className="esco-btn" onClick={handleImportClick}>
             Import Project
           </button>
-          <button type="button" className="esco-btn" onClick={handleImportL5XClick}>
+          <button type="button" className="esco-btn esco-btn--l5x" onClick={handleImportL5XClick}>
             Import L5X
           </button>
           <input
@@ -190,56 +247,45 @@ export function App() {
             onChange={handleL5XSelected}
           />
         </div>
-        <div className="esco-titlebar__status">Offline · No controller connected</div>
+
+        <span className="esco-badge esco-badge--offline" title="No PLC/controller communication">
+          ● Offline
+        </span>
       </header>
 
-      {importError ? (
-        <div className="esco-toast esco-toast--error" role="alert">
-          <span>Import failed: {importError}</span>
-          <button
-            type="button"
-            className="esco-toast__close"
-            onClick={() => setImportError(null)}
-          >
-            ×
-          </button>
-        </div>
-      ) : null}
-
-      {importNotice ? (
-        <div className="esco-toast esco-toast--info" role="status">
-          <span>{importNotice}</span>
-          <button
-            type="button"
-            className="esco-toast__close"
-            onClick={() => setImportNotice(null)}
-          >
-            ×
-          </button>
-        </div>
-      ) : null}
+      <Toasts toasts={toasts} onDismiss={dismiss} />
 
       <div className="esco-body">
         <aside className="esco-left">
-          <ProjectExplorer
-            project={project}
-            selection={selection}
-            onSelect={setSelection}
-          />
+          <ProjectExplorer project={project} selection={selection} onSelect={handleSelect} />
         </aside>
 
         <main className="esco-center">
-          <EditorArea
-            project={project}
-            selection={selection}
-            ladder={getMainLadder(project)}
-            onAddRung={handleAddRung}
-            onDeleteRung={handleDeleteRung}
-            onAddInstruction={handleAddInstruction}
-            onEditOperand={handleEditOperand}
-            onRemoveInstruction={handleRemoveInstruction}
-            onCreateTag={handleCreateTag}
-          />
+          {view === "routine" && openRoutine ? (
+            <EditorArea
+              project={project}
+              routine={openRoutine}
+              ladder={openLadder}
+              onAddRung={handleAddRung}
+              onDeleteRung={handleDeleteRung}
+              onAddInstruction={handleAddInstruction}
+              onEditOperand={handleEditOperand}
+              onRemoveInstruction={handleRemoveInstruction}
+              onCreateTag={handleCreateTag}
+            />
+          ) : (
+            <WelcomeDashboard
+              onOpenDemo={() => {
+                const id = findMainRoutine(project)?.id;
+                if (id) handleSelect({ kind: "routine", id });
+              }}
+              onImportL5X={handleImportL5XClick}
+              onExport={handleExport}
+              onOpenAi={() => setDockTab("ai")}
+              onOpenCrossRef={() => setDockTab("xref")}
+              onOpenWatch={() => setDockTab("watch")}
+            />
+          )}
         </main>
 
         <aside className="esco-right">
@@ -249,6 +295,8 @@ export function App() {
 
       <footer className="esco-bottom">
         <BottomPanel
+          tab={dockTab}
+          onTabChange={setDockTab}
           findings={findings}
           tags={rows}
           running={running}
@@ -258,7 +306,7 @@ export function App() {
           onReset={handleReset}
           onToggleRun={() => setRunning((value) => !value)}
           project={project}
-          selectedRoutineId={selectedRoutineId}
+          selectedRoutineId={openRoutineId}
           selectedTagName={selectedTagName}
           onApplyPlan={handleApplyPlan}
           onOpenRoutine={handleOpenRoutine}

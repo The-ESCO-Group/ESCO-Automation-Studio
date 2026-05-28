@@ -1,12 +1,16 @@
-import { useState } from "react";
 import type { PlcProject } from "@esco/core";
 import type { AssistantPlan, ApplyResult } from "@esco/ai-assistant";
+import { collectTagReferences } from "@esco/project-actions";
 import type { ValidationFinding } from "@esco/validator";
 import type { WatchRow } from "../simulation";
 import { AiAssistantPanel } from "./AiAssistantPanel";
 import { CrossRefPanel } from "./CrossRefPanel";
 
+export type DockTab = "errors" | "watch" | "ai" | "xref";
+
 interface Props {
+  tab: DockTab;
+  onTabChange: (tab: DockTab) => void;
   findings: ValidationFinding[];
   tags: WatchRow[];
   running: boolean;
@@ -21,8 +25,6 @@ interface Props {
   onApplyPlan: (plan: AssistantPlan) => ApplyResult;
   onOpenRoutine: (routineId: string) => void;
 }
-
-type Tab = "errors" | "watch" | "ai" | "xref";
 
 /** The Value-column content for one watched tag, by kind. */
 function WatchValue({
@@ -83,6 +85,8 @@ function WatchValue({
 }
 
 export function BottomPanel({
+  tab,
+  onTabChange,
   findings,
   tags,
   running,
@@ -97,7 +101,8 @@ export function BottomPanel({
   onApplyPlan,
   onOpenRoutine,
 }: Props) {
-  const [tab, setTab] = useState<Tab>("watch");
+  const setTab = onTabChange;
+  const xrefCount = selectedTagName ? collectTagReferences(project, selectedTagName).length : 0;
 
   return (
     <div className="esco-dock">
@@ -128,7 +133,7 @@ export function BottomPanel({
           className={`esco-dock__tab${tab === "xref" ? " is-active" : ""}`}
           onClick={() => setTab("xref")}
         >
-          Cross Ref
+          Cross Ref{selectedTagName ? ` (${xrefCount})` : ""}
         </button>
       </div>
 
