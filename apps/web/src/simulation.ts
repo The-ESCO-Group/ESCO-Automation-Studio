@@ -1,26 +1,18 @@
+import { isStructuredType, memberDefs, type PlcProject } from "@esco/core";
 import {
-  isStructuredType,
-  memberDefs,
-  type PlcProject,
-  type StructMember,
-} from "@esco/core";
-import { createDefaultRegistry } from "@esco/instructions";
-import { collectOutputTags, createRuntime } from "@esco/simulator";
-import { getMainLadder, getTags } from "./project-edit";
+  defaultValues,
+  outputTags,
+  scanProject,
+  type TagValues,
+} from "@esco/project-actions";
+import { getTags } from "./project-edit";
 
-// One shared registry for all simulation in the app.
-const registry = createDefaultRegistry();
-
-/** Default per-scan time step (ms) for the timer model. */
-export const SCAN_STEP_MS = 250;
-
-export type PlcValue = boolean | number;
-export type TagValues = Record<string, PlcValue>;
+export type { TagValues };
 
 export interface WatchMember {
   name: string;
   type: "BOOL" | "DINT";
-  value: PlcValue;
+  value: boolean | number;
 }
 
 export interface WatchRow {
@@ -28,50 +20,24 @@ export interface WatchRow {
   dataType: string;
   role: "input" | "output";
   kind: "bool" | "number" | "struct";
-  value?: PlcValue;
+  value?: boolean | number;
   members?: WatchMember[];
 }
 
-function memberPath(tag: string, member: StructMember): string {
-  return `${tag}.${member.name}`;
-}
-
-function zeroFor(type: "BOOL" | "DINT" | string): PlcValue {
-  return type === "BOOL" ? false : 0;
-}
-
-/** Every value path the project tracks: atomic tag names + structured members. */
-function allPaths(project: PlcProject): { path: string; type: string }[] {
-  const paths: { path: string; type: string }[] = [];
-  for (const tag of getTags(project)) {
-    if (isStructuredType(tag.dataType)) {
-      for (const member of memberDefs(tag.dataType)) {
-        paths.push({ path: memberPath(tag.name, member), type: member.type });
-      }
-    } else {
-      paths.push({ path: tag.name, type: tag.dataType });
-    }
-  }
-  return paths;
-}
-
-/** Power-up values: every tracked path at its zero (false / 0). */
+/** Power-up values for the project (delegates to the action layer). */
 export function zeroValues(project: PlcProject): TagValues {
-  const values: TagValues = {};
-  for (const { path, type } of allPaths(project)) {
-    values[path] = zeroFor(type);
-  }
-  return values;
+  return defaultValues(project);
 }
 
-function outputsOf(project: PlcProject): Set<string> {
-  const ladder = getMainLadder(project);
-  return ladder ? collectOutputTags(ladder, registry) : new Set<string>();
+/** Run one scan via the action layer, returning the next tag values. */
+export function scanOnce(project: PlcProject, values: TagValues, deltaMs?: number): TagValues {
+  const result = scanProject(project, values, deltaMs != null ? { deltaMs } : {});
+  return result.data?.values ?? values;
 }
 
 /** Rows for the Watch panel: every tag with its role and current value(s). */
 export function watchRows(project: PlcProject, values: TagValues): WatchRow[] {
-  const outputs = outputsOf(project);
+  const outputs = outputTags(project);
   return getTags(project).map((tag) => {
     const role: WatchRow["role"] = outputs.has(tag.name) ? "output" : "input";
     if (isStructuredType(tag.dataType)) {
@@ -83,7 +49,7 @@ export function watchRows(project: PlcProject, values: TagValues): WatchRow[] {
         members: memberDefs(tag.dataType).map((member) => ({
           name: member.name,
           type: member.type,
-          value: values[memberPath(tag.name, member)] ?? zeroFor(member.type),
+          value: values[`${tag.name}.${member.name}`] ?? (member.type === "BOOL" ? false : 0),
         })),
       };
     }
@@ -92,30 +58,4 @@ export function watchRows(project: PlcProject, values: TagValues): WatchRow[] {
     }
     return { name: tag.name, dataType: tag.dataType, role, kind: "number", value: Number(values[tag.name] ?? 0) };
   });
-}
-
-/**
- * Run one scan of the currently edited main routine: build a runtime for the
- * current ladder, seed it with the live values, scan once (advancing the timer
- * model by `deltaMs`), and return the resulting values for every tracked path.
- */
-export function scanOnce(
-  project: PlcProject,
-  values: TagValues,
-  deltaMs = SCAN_STEP_MS,
-): TagValues {
-  const ladder = getMainLadder(project);
-  const runtime = createRuntime({ routine: ladder, tags: [], registry });
-
-  for (const [path, value] of Object.entries(values)) {
-    runtime.writeTag(path, value);
-  }
-  runtime.scanOnce(deltaMs);
-
-  const next: TagValues = {};
-  for (const { path, type } of allPaths(project)) {
-    const value = runtime.readTag(path);
-    next[path] = type === "BOOL" ? value === true : Number(value ?? 0);
-  }
-  return next;
 }

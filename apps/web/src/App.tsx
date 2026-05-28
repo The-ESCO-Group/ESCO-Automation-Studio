@@ -1,37 +1,29 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import type { PlcProject } from "@esco/core";
 import {
+  addInstruction,
   addRung,
-  appendNode,
-  createNode,
+  createTag,
+  deleteRung,
+  exportProjectJson,
+  importL5XFile,
+  importProjectFile,
   removeInstruction,
-  removeRung,
-  setOperandValue,
-  tagOperand,
-} from "@esco/ladder";
-import { createDefaultRegistry } from "@esco/instructions";
-import {
-  deserializeProject,
-  serializeProject,
-  PLCPROJ_EXTENSION,
-} from "@esco/project-store";
-import { importL5X } from "@esco/parser-l5x";
+  updateInstructionOperand,
+  type ProjectActionResult,
+} from "@esco/project-actions";
+import { PLCPROJ_EXTENSION } from "@esco/project-store";
 import { createDefaultEngine } from "@esco/validator";
 import { ProjectExplorer } from "./components/ProjectExplorer";
 import { EditorArea } from "./components/EditorArea";
 import { PropertiesPanel } from "./components/PropertiesPanel";
 import { BottomPanel } from "./components/BottomPanel";
 import type { Selection } from "./selection";
-import {
-  createInitialProject,
-  getMainLadder,
-  withMainLadder,
-  withNewTag,
-} from "./project-edit";
+import { createInitialProject, findMainRoutine, getMainLadder } from "./project-edit";
 import { downloadTextFile, readFileAsText, slugify } from "./file-io";
 import { scanOnce, watchRows, zeroValues, type TagValues } from "./simulation";
 
 const SCAN_INTERVAL_MS = 250;
-const registry = createDefaultRegistry();
 
 export function App() {
   const [project, setProject] = useState(createInitialProject);
@@ -46,25 +38,26 @@ export function App() {
   const findings = useMemo(() => createDefaultEngine().run(project), [project]);
   const rows = watchRows(project, values);
 
-  // Ladder edits (immutable; each returns a new project).
-  const editLadder = (updater: Parameters<typeof withMainLadder>[1]) =>
-    setProject((current) => withMainLadder(current, updater));
+  // All edits go through the controlled action layer; on success we adopt the
+  // returned project, otherwise the current state is left unchanged.
+  const routineId = (p: PlcProject) => findMainRoutine(p)?.id ?? "";
+  const applyAction = (run: (p: PlcProject) => ProjectActionResult) =>
+    setProject((current) => {
+      const result = run(current);
+      return result.ok ? result.project : current;
+    });
 
-  const handleAddRung = () => editLadder(addRung);
+  const handleAddRung = () => applyAction((p) => addRung(p, { routineId: routineId(p) }));
   const handleDeleteRung = (rungId: string) =>
-    editLadder((ladder) => removeRung(ladder, rungId));
-  const handleAddInstruction = (rungId: string, type: string) => {
-    // Build the node with one (empty) operand per the instruction's definition.
-    const operandDefs = registry.get(type)?.operands ?? [{ name: "tag" }];
-    const node = createNode(type, operandDefs.map((operand) => tagOperand(operand.name, "")));
-    editLadder((ladder) => appendNode(ladder, rungId, node));
-  };
+    applyAction((p) => deleteRung(p, { routineId: routineId(p), rungId }));
+  const handleAddInstruction = (rungId: string, type: string) =>
+    applyAction((p) => addInstruction(p, { routineId: routineId(p), rungId, instructionType: type }));
   const handleEditOperand = (rungId: string, nodeId: string, index: number, value: string) =>
-    editLadder((ladder) => setOperandValue(ladder, rungId, nodeId, value, index));
+    applyAction((p) => updateInstructionOperand(p, { routineId: routineId(p), rungId, nodeId, index, value }));
   const handleRemoveInstruction = (rungId: string, nodeId: string) =>
-    editLadder((ladder) => removeInstruction(ladder, rungId, nodeId));
+    applyAction((p) => removeInstruction(p, { routineId: routineId(p), rungId, nodeId }));
   const handleCreateTag = (name: string, dataType: string) =>
-    setProject((current) => withNewTag(current, name, dataType));
+    applyAction((p) => createTag(p, { name, dataType }));
 
   // Simulation.
   const handleToggleTag = (name: string) =>
@@ -74,14 +67,17 @@ export function App() {
   const handleScanOnce = () => setValues((current) => scanOnce(project, current));
   const handleReset = () => setValues(zeroValues(project));
 
-  // Persistence: export to / import from .plcproj.json (the AST is the source of truth).
+  // Persistence and import (the AST is the source of truth).
   const handleExport = () => {
-    downloadTextFile(`${slugify(project.name)}${PLCPROJ_EXTENSION}`, serializeProject(project));
+    const result = exportProjectJson(project);
+    if (result.data) {
+      downloadTextFile(`${slugify(project.name)}${PLCPROJ_EXTENSION}`, result.data.text);
+    }
   };
   const handleImportClick = () => fileInputRef.current?.click();
   const handleImportL5XClick = () => l5xInputRef.current?.click();
 
-  const loadProject = (loaded: typeof project) => {
+  const loadProject = (loaded: PlcProject) => {
     setProject(loaded);
     setValues(zeroValues(loaded)); // reset watch values from the loaded tags
     setRunning(false);
@@ -93,11 +89,16 @@ export function App() {
     event.target.value = ""; // allow re-importing the same file
     if (!file) return;
     try {
-      loadProject(deserializeProject(await readFileAsText(file)));
-      setImportError(null);
-      setImportNotice(null);
+      const result = importProjectFile(await readFileAsText(file));
+      if (result.ok) {
+        loadProject(result.project);
+        setImportError(null);
+        setImportNotice(null);
+      } else {
+        setImportError(result.error ?? "Failed to import project.");
+      }
     } catch (error) {
-      setImportError(error instanceof Error ? error.message : "Failed to import project.");
+      setImportError(error instanceof Error ? error.message : "Failed to read the file.");
     }
   };
 
@@ -106,17 +107,22 @@ export function App() {
     event.target.value = "";
     if (!file) return;
     try {
-      const { project: imported, summary } = importL5X(await readFileAsText(file));
-      loadProject(imported);
+      const result = importL5XFile(await readFileAsText(file));
+      if (!result.ok || !result.data) {
+        setImportError(result.error ?? "Failed to import L5X file.");
+        return;
+      }
+      loadProject(result.project);
       setImportError(null);
-      const counts = `${summary.programs} program(s), ${summary.routines} routine(s), ${summary.rungs} rung(s), ${summary.tags} tag(s)`;
-      const unsupported = summary.unsupportedInstructions.length
-        ? ` Unsupported: ${summary.unsupportedInstructions.join(", ")}.`
+      const s = result.data.summary;
+      const counts = `${s.programs} program(s), ${s.routines} routine(s), ${s.rungs} rung(s), ${s.tags} tag(s)`;
+      const unsupported = s.unsupportedInstructions.length
+        ? ` Unsupported: ${s.unsupportedInstructions.join(", ")}.`
         : "";
-      const warned = summary.warnings.length ? ` ${summary.warnings.length} warning(s).` : "";
-      setImportNotice(`Imported "${imported.name}": ${counts}.${unsupported}${warned}`);
+      const warned = s.warnings.length ? ` ${s.warnings.length} warning(s).` : "";
+      setImportNotice(`Imported "${result.project.name}": ${counts}.${unsupported}${warned}`);
     } catch (error) {
-      setImportError(error instanceof Error ? error.message : "Failed to import L5X file.");
+      setImportError(error instanceof Error ? error.message : "Failed to read the file.");
     }
   };
 

@@ -112,6 +112,17 @@ export function removeInstruction(
   }));
 }
 
+/** Apply `fn` to every node across every rung of the routine (immutably). */
+export function mapRoutineNodes(
+  routine: LadderRoutine,
+  fn: (node: LadderNode) => LadderNode,
+): LadderRoutine {
+  return {
+    ...routine,
+    rungs: routine.rungs.map((rung) => ({ ...rung, root: mapBranch(rung.root, fn) })),
+  };
+}
+
 function withOperandValueAt(
   node: LadderNode,
   index: number,
