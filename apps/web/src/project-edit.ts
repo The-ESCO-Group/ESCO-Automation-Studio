@@ -1,12 +1,15 @@
 import {
-  createDemoProject,
+  createContinuousTask,
+  createController,
+  createProgram,
+  createProject,
+  createRoutine,
   createTag,
   type PlcProject,
   type Routine,
   type Tag,
 } from "@esco/core";
 import { createLadderRoutine, type LadderRoutine } from "@esco/ladder";
-import { buildDemoLadderRoutine } from "@esco/simulator";
 
 /**
  * Web-side helpers for reading and immutably editing the project. The editable
@@ -14,13 +17,28 @@ import { buildDemoLadderRoutine } from "@esco/simulator";
  * loosely typed); these helpers cast it to a `LadderRoutine` at the edges.
  */
 
-/** The seed project: the core demo with the seal-in ladder attached to MainRoutine. */
+/** Initial workspace state: no controllers, no routines, no preloaded logic. */
 export function createInitialProject(): PlcProject {
-  const project = createDemoProject();
-  const routine = findMainRoutine(project);
-  if (routine) {
-    routine.ladder = buildDemoLadderRoutine();
-  }
+  return createProject("Untitled Project", "Blank ESCO Automation Studio workspace.");
+}
+
+/** Create a real blank ladder workspace without sample tags or sample rungs. */
+export function createBlankRoutineProject(): PlcProject {
+  const project = createProject("Untitled Project", "Blank ESCO Automation Studio project.");
+  const controller = createController(project.id, "Controller_1");
+  controller.processorType = "Offline Simulation";
+
+  const program = createProgram(controller.id, "MainProgram");
+  const routine = createRoutine(program.id, "MainRoutine", "ladder");
+  routine.ladder = createLadderRoutine();
+  program.mainRoutineId = routine.id;
+  program.routines.push(routine);
+
+  const task = createContinuousTask(controller.id, "MainTask", [program.id]);
+  controller.tasks.push(task);
+  controller.programs.push(program);
+  project.controllers.push(controller);
+
   return project;
 }
 

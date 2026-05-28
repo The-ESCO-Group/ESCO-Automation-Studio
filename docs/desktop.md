@@ -44,7 +44,10 @@ explicit open/export.
 - **No `.ACD` handling.**
 - **Explicit file open/save only.** Use **Save As** — never overwrite an
   imported `.L5X` or the user's original file by default.
-- Bundle offline; no network calls; no API keys.
+- Store the user's Copilot API key in OS-backed secure storage, not in project
+  files and not in plain app config.
+- Network access is limited to the configured AI provider when the engineer sends
+  a Copilot prompt.
 
 ## Build (once scaffolded)
 

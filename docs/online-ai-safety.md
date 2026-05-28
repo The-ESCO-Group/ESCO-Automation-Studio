@@ -1,44 +1,37 @@
 # Online AI Safety
 
-ESCO Automation Studio ships an **offline, local, rule-based** assistant by
-default. It also offers an **optional, opt-in online agent** (Claude
-`claude-opus-4-7`) for engineers who want a live model to help build and edit
-logic. This document describes exactly what the online mode does and the
-guarantees around it.
+ESCO Automation Studio uses a live Copilot agent (Claude `claude-opus-4-7`) for
+engineers who want a model to help explain, diagnose, and propose ladder edits.
+The UI keeps credential setup outside the chat panel and keeps all project
+changes review-only until the engineer clicks Apply.
 
-## Defaults and opt-in
+## Workstation setup
 
-- The **local/offline assistant is the default** and works with **no key** and
-  **no network**.
-- The **online agent is off by default.** Nothing is sent anywhere until a user
-  explicitly selects "Live Online" in the AI Copilot, chooses a transport, and
-  submits a prompt.
-- The Copilot shows a clear notice in online mode:
-  *"Online mode sends your selected prompt and project context to the configured
-  AI provider."*
+- The Copilot panel no longer asks for transport, online/offline mode, or API key
+  details inline.
+- Settings opens the workstation setup dialog where the user saves a profile and
+  Opus 4.7 API key once.
+- The current web build stores that setup in local app storage. The Windows EXE
+  shell should move the same profile contract to OS-backed secure storage
+  (Windows Credential Manager or the Tauri stronghold/plugin equivalent).
+- Nothing is sent anywhere until the user submits a prompt to Copilot.
 
 ## What is sent, and to where
 
-When (and only when) online mode is used, the user's prompt plus a **bounded**
-project context (a compact summary, the selected routine, validation findings,
-and whatever the model fetches via read tools) are sent to the configured
-provider's Messages API. Context size is guarded: large projects are summarized
-rather than shipped whole.
+When Copilot is used, the user's prompt plus a **bounded** project context (a
+compact summary, the selected routine, validation findings, and whatever the
+model fetches via read tools) are sent to the configured provider's Messages API.
+Context size is guarded: large projects are summarized rather than shipped
+whole.
 
 ## API key handling
 
 - **No API key is ever bundled or committed.** `.gitignore` excludes `.env*`.
-- **Two transports:**
-  - **`browser-key` — developer/local testing only.** The user pastes their own
-    key; it is held in `sessionStorage` for the browser session only and is
-    **never written to disk** by the app. The browser calls the provider directly
-    (`anthropic-dangerous-direct-browser-access`).
-  - **`proxy` — recommended for production/internal use.** The browser posts to a
-    same-origin route (`/api/ai`); a server/dev middleware injects
-    `ANTHROPIC_API_KEY` from the **server environment** and forwards the request.
-    The browser never sees the key. A dev/preview implementation ships in
-    `apps/web/vite.config.ts`; replicate it as a real server route when deploying.
+- The chat panel never displays or requests the key.
 - The key is never logged or shown back in the UI.
+- For the current web build, the saved workstation profile is local to the
+  browser profile. For the Windows desktop build, use OS credential storage
+  instead of browser local storage.
 
 ## What the online agent can and cannot do
 

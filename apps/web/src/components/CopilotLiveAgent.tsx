@@ -5,7 +5,6 @@ import {
   type AgentTranscriptEntry,
   type ApplyResult,
   type AssistantPlan,
-  type AgentProviderMode,
 } from "@esco/ai-assistant";
 import { createModelCaller } from "../ai-online";
 import "./CopilotLiveAgent.css";
@@ -15,25 +14,10 @@ interface Props {
   selectedRoutineId?: string;
   onApplyPlan: (plan: AssistantPlan) => ApplyResult;
   modelLabel: string;
+  apiKey: string;
+  onOpenSetup: () => void;
+  empty?: boolean;
 }
-
-const TRANSPORT_KEY = "esco.ai.transport";
-const APIKEY_KEY = "esco.anthropic.key";
-
-const readSession = (key: string, fallback: string): string => {
-  try {
-    return sessionStorage.getItem(key) ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
-const writeSession = (key: string, value: string) => {
-  try {
-    sessionStorage.setItem(key, value);
-  } catch {
-    /* sessionStorage unavailable — keep in memory only */
-  }
-};
 
 const QUICK_ACTIONS: { label: string; prompt: string }[] = [
   { label: "Explain selected rung", prompt: "Explain the selected rung in plain language." },
@@ -43,26 +27,22 @@ const QUICK_ACTIONS: { label: string; prompt: string }[] = [
   { label: "Add seal-in starter", prompt: "Propose a seal-in motor starter (Start/Stop/Run) in the selected routine, creating any missing tags first." },
 ];
 
-export function CopilotLiveAgent({ project, selectedRoutineId, onApplyPlan, modelLabel }: Props) {
-  const [transport, setTransportState] = useState<AgentProviderMode>(() =>
-    readSession(TRANSPORT_KEY, "browser-key") === "proxy" ? "proxy" : "browser-key",
-  );
-  const [apiKey, setApiKeyState] = useState<string>(() => readSession(APIKEY_KEY, ""));
+export function CopilotLiveAgent({
+  project,
+  selectedRoutineId,
+  onApplyPlan,
+  modelLabel,
+  apiKey,
+  onOpenSetup,
+  empty = false,
+}: Props) {
   const [prompt, setPrompt] = useState("");
+  const [lastPrompt, setLastPrompt] = useState("");
   const [running, setRunning] = useState(false);
   const [transcript, setTranscript] = useState<AgentTranscriptEntry[]>([]);
   const [plan, setPlan] = useState<AssistantPlan | null>(null);
   const [applied, setApplied] = useState<ApplyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const setTransport = (next: AgentProviderMode) => {
-    setTransportState(next);
-    writeSession(TRANSPORT_KEY, next);
-  };
-  const setApiKey = (next: string) => {
-    setApiKeyState(next);
-    writeSession(APIKEY_KEY, next);
-  };
 
   const run = async (text: string) => {
     const trimmed = text.trim();
@@ -70,13 +50,15 @@ export function CopilotLiveAgent({ project, selectedRoutineId, onApplyPlan, mode
     setError(null);
     setApplied(null);
     setPlan(null);
+    setPrompt("");
+    setLastPrompt(trimmed);
     setTranscript([]);
 
     let caller;
     try {
-      caller = createModelCaller({ mode: transport, apiKey });
+      caller = createModelCaller({ mode: "browser-key", apiKey });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not start the assistant.");
+      setError(e instanceof Error ? e.message : "Open Settings to finish AI setup.");
       return;
     }
 
@@ -98,6 +80,7 @@ export function CopilotLiveAgent({ project, selectedRoutineId, onApplyPlan, mode
   };
   const handleClear = () => {
     setPrompt("");
+    setLastPrompt("");
     setTranscript([]);
     setPlan(null);
     setApplied(null);
@@ -106,62 +89,81 @@ export function CopilotLiveAgent({ project, selectedRoutineId, onApplyPlan, mode
 
   const hasActions = (plan?.actions.length ?? 0) > 0;
   const errorFindings = applied?.findings.filter((f) => f.severity === "error") ?? [];
-  const keyStatus = transport === "proxy"
-    ? "Using server proxy (key stays on the server)."
-    : apiKey.trim()
-      ? "Key stored for this browser session only."
-      : "No key entered.";
+  const configured = apiKey.trim().length > 0;
 
   return (
     <div className="esco-ai esco-copilot-live">
-      <p className="esco-ai__notice esco-ai__notice--online">
-        Online mode sends your selected prompt and project context to the configured AI provider
-        ({modelLabel}). It edits the project only by proposing actions you review and Apply — through
-        the controlled project-action layer. No PLC, .ACD, or file access.
-      </p>
+      <div className="esco-ai__scroll" aria-label="Live AI Copilot conversation" aria-live="polite">
+        <div className="esco-ai__thread">
+          {!lastPrompt && transcript.length === 0 && !running && !error ? (
+            <div className="esco-ai__bubble-row esco-ai__bubble-row--assistant">
+              <span className="esco-ai__avatar" aria-hidden="true">
+                AI
+              </span>
+              <article className="esco-ai__bubble esco-ai__bubble--assistant">
+                <div className="esco-ai__bubble-meta">AI Copilot</div>
+                <pre className="esco-ai__bubble-text">
+                  {configured
+                    ? "Ask me to explain logic, diagnose validation findings, or propose reviewed ladder actions."
+                    : "AI setup is not finished on this workstation. Add your API key once in Settings, then Copilot will remember it."}
+                </pre>
+                {!configured ? (
+                  <button type="button" className="esco-btn esco-btn--primary esco-ai__setup" onClick={onOpenSetup}>
+                    Set up AI
+                  </button>
+                ) : null}
+              </article>
+            </div>
+          ) : null}
 
-      <div className="esco-copilot-live__config">
-        <label className="esco-copilot-live__row">
-          Transport:
-          <select
-            className="esco-tags__select"
-            value={transport}
-            onChange={(e) => setTransport(e.target.value === "proxy" ? "proxy" : "browser-key")}
-          >
-            <option value="browser-key">Browser key (developer/local testing only)</option>
-            <option value="proxy">Server proxy (production — env key)</option>
-          </select>
-        </label>
-        {transport === "browser-key" ? (
-          <input
-            className="esco-ai__input"
-            type="password"
-            value={apiKey}
-            placeholder="Anthropic API key (sk-ant-…) — session-only, never written to disk"
-            spellCheck={false}
-            autoComplete="off"
-            onChange={(e) => setApiKey(e.target.value)}
-          />
-        ) : null}
-        <div className="esco-copilot-live__keystatus">{keyStatus}</div>
-      </div>
+          {lastPrompt ? (
+            <div className="esco-ai__bubble-row esco-ai__bubble-row--user">
+              <article className="esco-ai__bubble esco-ai__bubble--user">
+                <div className="esco-ai__bubble-meta">You</div>
+                <pre className="esco-ai__bubble-text">{lastPrompt}</pre>
+              </article>
+            </div>
+          ) : null}
 
-      <div className="esco-ai__scroll">
-        {transcript.length === 0 && !running && !error ? (
-          <p className="esco-ai__empty">
-            Ask the live agent to explain logic, diagnose validation, or propose ladder edits. It
-            inspects the project, then proposes a plan you review and Apply.
-          </p>
-        ) : (
-          <div className="esco-ai__response">
-            <ul className="esco-copilot-live__transcript">
-              {transcript.map((entry, i) => (
-                <li key={i} className={`esco-copilot-live__turn esco-copilot-live__turn--${entry.role}`}>
-                  {entry.role === "tool" ? <code>{entry.text}</code> : <pre className="esco-ai__message">{entry.text}</pre>}
-                </li>
-              ))}
-            </ul>
-            {running ? <div className="esco-ai__working" role="status">Working…</div> : null}
+          {transcript.map((entry, i) => (
+            <div
+              key={i}
+              className={`esco-ai__bubble-row esco-ai__bubble-row--assistant esco-copilot-live__turn esco-copilot-live__turn--${entry.role}`}
+            >
+              <span className="esco-ai__avatar" aria-hidden="true">
+                {entry.role === "tool" ? "T" : "AI"}
+              </span>
+              <article
+                className={`esco-ai__bubble esco-ai__bubble--assistant${
+                  entry.role === "tool" ? " esco-ai__bubble--tool" : ""
+                }${entry.role === "error" ? " esco-ai__bubble--error" : ""}`}
+              >
+                <div className="esco-ai__bubble-meta">
+                  {entry.role === "tool" ? "Project tool" : "AI Copilot"}
+                </div>
+                {entry.role === "tool" ? (
+                  <code className="esco-copilot-live__tool-text">{entry.text}</code>
+                ) : (
+                  <pre className="esco-ai__bubble-text esco-ai__message">{entry.text}</pre>
+                )}
+              </article>
+            </div>
+          ))}
+
+          {running ? (
+            <div className="esco-ai__bubble-row esco-ai__bubble-row--assistant">
+              <span className="esco-ai__avatar" aria-hidden="true">
+                AI
+              </span>
+              <article className="esco-ai__bubble esco-ai__bubble--assistant">
+                <div className="esco-ai__bubble-meta">AI Copilot</div>
+                <div className="esco-ai__typing" role="status">
+                  Working...
+                </div>
+              </article>
+            </div>
+          ) : null}
+        </div>
 
             {plan && hasActions ? (
               <div className="esco-ai__plan">
@@ -214,8 +216,6 @@ export function CopilotLiveAgent({ project, selectedRoutineId, onApplyPlan, mode
             {error ? (
               <div className="esco-ai__applied esco-ai__applied--error" role="status">{error}</div>
             ) : null}
-          </div>
-        )}
       </div>
 
       <div className="esco-ai__quick">
@@ -227,7 +227,8 @@ export function CopilotLiveAgent({ project, selectedRoutineId, onApplyPlan, mode
             disabled={running}
             onClick={() => {
               setPrompt(action.prompt);
-              void run(action.prompt);
+              if (configured) void run(action.prompt);
+              else onOpenSetup();
             }}
           >
             {action.label}
@@ -236,18 +237,22 @@ export function CopilotLiveAgent({ project, selectedRoutineId, onApplyPlan, mode
       </div>
 
       <div className="esco-ai__prompt">
-        <input
-          className="esco-ai__input"
+        <textarea
+          className="esco-ai__input esco-ai__input--composer"
           value={prompt}
-          placeholder="Ask the live agent to explain or change the logic…"
+          placeholder={configured ? "Ask Copilot about this project..." : "Set up AI to start chatting..."}
           spellCheck={false}
+          rows={2}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") void run(prompt);
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void run(prompt);
+            }
           }}
         />
         <button type="button" className="esco-btn esco-btn--primary" disabled={running} onClick={() => void run(prompt)}>
-          {running ? "Working…" : "Send"}
+          {running ? "..." : "Send"}
         </button>
         <button type="button" className="esco-btn" onClick={handleClear}>
           Clear
@@ -256,7 +261,7 @@ export function CopilotLiveAgent({ project, selectedRoutineId, onApplyPlan, mode
 
       <div className="esco-ai__footer">
         <span>Model: {modelLabel}</span>
-        <span>{transport === "proxy" ? "Proxy mode" : "Browser-key mode"}</span>
+        <span>{empty ? "No project" : "Reviewed actions only"}</span>
       </div>
     </div>
   );

@@ -101,21 +101,18 @@ provider (the UI uses this — see `DEFAULT_PROVIDER_MODE`).
 - **No `.ACD` editing.** The tool only reads/writes its own `.plcproj.json` and
   imports `.L5X` text.
 
-## Live online agent (opt-in)
+## Live online agent
 
 There is an optional **online** agent powered by Claude (`claude-opus-4-7`),
-selectable in the AI Copilot panel. It is **off by default**. See
+shown as the AI Copilot panel. See
 [`online-ai-safety.md`](online-ai-safety.md) for the full safety posture.
 
 - **Model/provider config lives in one place:** `agentConfig.ts`
   (`AGENT_MODEL_ID`, `AGENT_MODEL_LABEL`). Update the model id there only, copied
   exactly from the provider's official docs.
-- **Two transports** (`apps/web/src/ai-online.ts`):
-  - `browser-key` — *developer/local testing only.* The browser calls the
-    provider with a user-pasted key (session-only, never written to disk).
-  - `proxy` — *production pattern.* The browser posts to `/api/ai`; a server/dev
-    middleware (`apps/web/vite.config.ts`) injects `ANTHROPIC_API_KEY` from the
-    environment, so the browser never sees the key.
+- **Credential setup is outside chat:** Settings opens a workstation setup dialog
+  where the user saves their profile and API key once. The Copilot panel itself
+  has no key, transport, or local/offline mode controls.
 - **Agentic, but propose-only.** The loop (`agentLoop.ts`) lets the model call a
   **whitelisted** tool set (`agentTools.ts`): read tools run live; write tools are
   recorded as a previewable **plan**. The real project is never mutated during the

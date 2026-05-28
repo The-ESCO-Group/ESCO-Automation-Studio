@@ -9,15 +9,15 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "pnpm --filter @esco/web dev",
-    "dev:web": "pnpm --filter @esco/web dev",
-    "dev:api": "pnpm --filter @esco/api dev",
-    "build": "pnpm --filter @esco/web build",
+    "dev": "corepack pnpm --filter @esco/web dev",
+    "dev:web": "corepack pnpm --filter @esco/web dev",
+    "dev:api": "corepack pnpm --filter @esco/api dev",
+    "build": "corepack pnpm --filter @esco/web build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "node e2e/run-all.mjs",
-    "clean": "pnpm -r exec node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+    "clean": "corepack pnpm -r exec node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "devDependencies": {
     "playwright-core": "^1.60.0",

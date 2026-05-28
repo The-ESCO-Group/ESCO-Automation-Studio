@@ -17,6 +17,8 @@ const BRANCH_INSTRUCTIONS = ["XIC", "XIO", "OTE"];
 interface Props {
   project: PlcProject;
   routine: Routine | undefined;
+  routines?: Routine[];
+  activeRoutineId?: string;
   ladder: LadderRoutine | undefined;
   selectedRungId?: string;
   selectedNodeId?: string;
@@ -37,6 +39,7 @@ interface Props {
   onAddBranchLeg: (rungId: string) => void;
   onRemoveBranchLeg: (rungId: string, branchId: string) => void;
   onAddToBranch: (rungId: string, branchId: string, instructionType: string) => void;
+  onOpenRoutine?: (routineId: string) => void;
 }
 
 /**
@@ -182,6 +185,8 @@ function findUndefinedTags(ladder: LadderRoutine, project: PlcProject): Undefine
 export function EditorArea({
   project,
   routine,
+  routines = routine ? [routine] : [],
+  activeRoutineId,
   ladder,
   selectedRungId,
   selectedNodeId,
@@ -202,6 +207,7 @@ export function EditorArea({
   onAddBranchLeg,
   onRemoveBranchLeg,
   onAddToBranch,
+  onOpenRoutine,
 }: Props) {
   const [showAllRungs, setShowAllRungs] = useState(false);
   const undefinedTags = useMemo(
@@ -234,7 +240,19 @@ export function EditorArea({
   return (
     <div className="esco-editor">
       <div className="esco-editor__tabs">
-        <span className="esco-editor__tab is-active">{routine.name}</span>
+        {routines.map((candidate) => (
+          <button
+            key={candidate.id}
+            type="button"
+            className={`esco-editor__tab${(activeRoutineId ?? routine.id) === candidate.id ? " is-active" : ""}`}
+            onClick={() => onOpenRoutine?.(candidate.id)}
+          >
+            {candidate.name}
+          </button>
+        ))}
+        <button type="button" className="esco-editor__tab esco-editor__tab--disabled" disabled title="Open another routine">
+          +
+        </button>
       </div>
 
       <div className="esco-editor__surface">

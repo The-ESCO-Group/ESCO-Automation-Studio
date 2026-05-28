@@ -3,11 +3,11 @@ import { createDefaultEngine } from "@esco/validator";
 import { appendRungWithRoot, createBranch, createNode } from "@esco/ladder";
 import type { LadderRoutine } from "@esco/ladder";
 import { buildModelSummary } from "./model-summary";
-import { createInitialProject } from "./project-edit";
+import { createBlankRoutineProject, createInitialProject } from "./project-edit";
 
 describe("buildModelSummary", () => {
-  it("aggregates counts for the seed demo project", () => {
-    const project = createInitialProject();
+  it("aggregates counts for a blank routine project", () => {
+    const project = createBlankRoutineProject();
     const summary = buildModelSummary(project, createDefaultEngine().run(project));
 
     expect(summary.projectName).toBe(project.name);
@@ -15,11 +15,11 @@ describe("buildModelSummary", () => {
     expect(summary.counts.controllers).toBe(1);
     expect(summary.counts.programs).toBeGreaterThanOrEqual(1);
     expect(summary.counts.routines).toBeGreaterThanOrEqual(1);
-    expect(summary.counts.rungs).toBeGreaterThanOrEqual(1);
+    expect(summary.counts.rungs).toBe(0);
     expect(summary.counts.tags).toBe(summary.counts.controllerTags + summary.counts.programTags);
   });
 
-  it("reports no unsupported instructions for the supported demo logic", () => {
+  it("reports no unsupported instructions for an empty workspace", () => {
     const project = createInitialProject();
     const summary = buildModelSummary(project);
     expect(summary.unsupportedTotal).toBe(0);
@@ -27,7 +27,7 @@ describe("buildModelSummary", () => {
   });
 
   it("counts unsupported instruction types found in ladders", () => {
-    const project = createInitialProject();
+    const project = createBlankRoutineProject();
     // Inject two occurrences of an unknown instruction type into the main routine ladder.
     const controller = project.controllers[0]!;
     const program = controller.programs[0]!;

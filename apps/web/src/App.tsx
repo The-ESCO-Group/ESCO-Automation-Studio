@@ -31,23 +31,30 @@ import { applyPlan, type ApplyResult, type AssistantPlan } from "@esco/ai-assist
 import { createDefaultEngine } from "@esco/validator";
 import { ProjectExplorer } from "./components/ProjectExplorer";
 import { EditorArea } from "./components/EditorArea";
-import { InspectorPanel, type InspectorTab } from "./components/InspectorPanel";
 import { BottomPanel, type DockTab } from "./components/BottomPanel";
 import { WelcomeDashboard } from "./components/WelcomeDashboard";
 import { TagsView } from "./components/TagsView";
 import { CompareView } from "./components/CompareView";
 import { StructureView } from "./components/StructureView";
 import { Toasts } from "./components/Toasts";
+import { AppShell } from "./components/AppShell";
+import { TopAppBar } from "./components/TopAppBar";
+import { RibbonToolbar } from "./components/RibbonToolbar";
+import { RightCopilotPanel, type CopilotTab } from "./components/RightCopilotPanel";
+import { StatusBar } from "./components/StatusBar";
+import { FirstRunSetup } from "./components/FirstRunSetup";
 import type { Selection } from "./selection";
-import { createInitialProject, findMainRoutine } from "./project-edit";
+import { createBlankRoutineProject, createInitialProject, findMainRoutine } from "./project-edit";
 import { downloadTextFile, readFileAsText, slugify } from "./file-io";
 import { scanOnce, traceOnce, watchRows, zeroValues, type Forces, type TagValues, type TraceEntry } from "./simulation";
 import { useToasts } from "./toasts";
 import { useHistoryState } from "./history";
 import { clearAutosave, loadAutosave, saveAutosave, type AutosaveEntry } from "./autosave";
 import { recordActivity, type ActivityEntry, type ActivityKind } from "./activity";
+import { loadAiProfile, profileInitials, saveAiProfile, type AiProfile } from "./ai-profile";
 
 const SCAN_INTERVAL_MS = 250;
+const AI_MODEL_NAME = "Opus 4.7";
 type CenterView = "welcome" | "routine" | "tags" | "compare" | "structure";
 
 export function App() {
@@ -67,11 +74,14 @@ export function App() {
   const [forces, setForces] = useState<Forces>({});
   const [trace, setTrace] = useState<TraceEntry[]>([]);
   const [running, setRunning] = useState(false);
+  const [projectOpen, setProjectOpen] = useState(false);
   const [view, setView] = useState<CenterView>("welcome");
   const [openRoutineId, setOpenRoutineId] = useState<string | undefined>(undefined);
   const [dockTab, setDockTab] = useState<DockTab>("watch");
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("properties");
+  const [copilotTab, setCopilotTab] = useState<CopilotTab>("chat");
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [aiProfile, setAiProfile] = useState<AiProfile | null>(() => loadAiProfile());
+  const [setupOpen, setSetupOpen] = useState(false);
   const logActivity = (kind: ActivityKind, message: string) =>
     setActivity((log) => recordActivity(log, kind, message));
   const [lastImport, setLastImport] = useState<{ name: string; summary: ImportSummary } | null>(null);
@@ -86,6 +96,17 @@ export function App() {
   const rows = useMemo(() => watchRows(project, values), [project, values]);
   const openRoutine = openRoutineId ? findRoutine(project, openRoutineId) : undefined;
   const openLadder = getLadder(openRoutine);
+  const activeContext = useMemo(() => {
+    for (const controller of project.controllers) {
+      for (const program of controller.programs) {
+        const routine = program.routines.find((candidate) => candidate.id === openRoutineId);
+        if (routine) return { controller, program, routine, routines: program.routines };
+      }
+    }
+    const controller = project.controllers[0];
+    const program = controller?.programs[0];
+    return { controller, program, routine: undefined, routines: program?.routines ?? [] };
+  }, [project, openRoutineId]);
 
   const errorCount = findings.filter((f) => f.severity === "error").length;
   const warnCount = findings.filter((f) => f.severity === "warning").length;
@@ -98,6 +119,8 @@ export function App() {
       setView("routine");
     } else if (sel?.kind === "aoi" || sel?.kind === "udt" || sel?.kind === "io") {
       setView("structure");
+    } else if (sel?.kind === "tag" || sel?.kind === "controller" || sel?.kind === "program") {
+      setCopilotTab("history");
     }
   };
 
@@ -143,10 +166,14 @@ export function App() {
       if (result.data) setSelection({ kind: "rung", routineId: rid, rungId: result.data.rungId });
     }
   };
-  const handleSelectRung = (rungId: string) =>
+  const handleSelectRung = (rungId: string) => {
     setSelection({ kind: "rung", routineId: openRoutineId ?? "", rungId });
-  const handleSelectNode = (rungId: string, nodeId: string) =>
+    setCopilotTab("history");
+  };
+  const handleSelectNode = (rungId: string, nodeId: string) => {
     setSelection({ kind: "instruction", routineId: openRoutineId ?? "", rungId, nodeId });
+    setCopilotTab("history");
+  };
   const handleSetRungComment = (rungId: string, comment: string) =>
     applyAction((p) => setRungComment(p, { routineId: targetRoutineId(p), rungId, comment }));
   const handleAddInstruction = (rungId: string, type: string) =>
@@ -252,6 +279,7 @@ export function App() {
   const loadProject = (loaded: PlcProject) => {
     history.reset(loaded); // opening/importing a project is a fresh undo baseline
     setSavedProject(loaded); // freshly loaded = no unsaved changes
+    setProjectOpen(true);
     setValues(zeroValues(loaded));
     setRunning(false);
     setRecovery(null);
@@ -268,10 +296,30 @@ export function App() {
     }
   };
 
+  const handleCreateRoutineProject = () => {
+    const blank = createBlankRoutineProject();
+    history.reset(blank);
+    setSavedProject(initialProject);
+    setProjectOpen(true);
+    setValues(zeroValues(blank));
+    setForces({});
+    setTrace([]);
+    setRunning(false);
+    setRecovery(null);
+    const main = findMainRoutine(blank);
+    if (main) {
+      setOpenRoutineId(main.id);
+      setSelection({ kind: "routine", id: main.id });
+      setView("routine");
+    }
+    push("success", "Created a blank routine.");
+  };
+
   // ---- Autosave recovery ----
   const handleRestoreAutosave = () => {
     if (!recovery) return;
     history.reset(recovery.project);
+    setProjectOpen(true);
     setValues(zeroValues(recovery.project));
     setSavedProject(initialProject); // recovered work is unsaved → stays dirty
     setRunning(false);
@@ -376,12 +424,12 @@ export function App() {
     }
   };
 
-  // Selecting an inspectable node surfaces its details in the inspector. AOI/UDT/IO
-  // open their own center detail view, so they don't steal the inspector tab.
+  // Selecting inspectable items surfaces local details in the copilot History tab.
+  // AOI/UDT/IO open their own center detail view, so they don't steal the side panel.
   useEffect(() => {
     if (!selection) return;
     if (selection.kind === "aoi" || selection.kind === "udt" || selection.kind === "io") return;
-    setInspectorTab("properties");
+    if (selection.kind !== "routine") setCopilotTab("history");
   }, [selection]);
 
   // Continuous run uses the latest project + forces via refs.
@@ -457,95 +505,81 @@ export function App() {
     ? `${errorCount} error${errorCount > 1 ? "s" : ""}`
     : warnCount
       ? `${warnCount} warning${warnCount > 1 ? "s" : ""}`
-      : "Valid";
+      : "Verification Passed";
   const validationClass = errorCount ? "is-error" : warnCount ? "is-warn" : "is-ok";
+  const requireProject = (next: () => void) => {
+    if (!projectOpen) {
+      push("info", "Create or import a project first.");
+      return;
+    }
+    next();
+  };
+  const handleVerify = () => {
+    setDockTab("diagnostics");
+    if (errorCount) {
+      push("error", `Verification found ${errorCount} error${errorCount > 1 ? "s" : ""}.`);
+    } else if (warnCount) {
+      push("warning", `Verification found ${warnCount} warning${warnCount > 1 ? "s" : ""}.`);
+    } else {
+      push("success", "Verification passed in Offline Simulation.");
+    }
+  };
+  const handleSaveAiProfile = (draft: Partial<AiProfile>) => {
+    const saved = saveAiProfile(draft);
+    if (!saved) {
+      push("error", "Enter a name and API key to finish AI setup.");
+      return;
+    }
+    setAiProfile(saved);
+    setSetupOpen(false);
+    push("success", "AI setup saved for this workstation.");
+  };
 
   return (
-    <div className="esco-app">
-      <header className="esco-titlebar">
-        <div className="esco-titlebar__brand">
-          <button
-            type="button"
-            className="esco-titlebar__home"
-            title="Dashboard"
-            onClick={() => setView("welcome")}
-          >
-            ESCO
-          </button>
-          <span className="esco-titlebar__name">Automation Studio</span>
-        </div>
-
-        <div className="esco-titlebar__context">
-          <span className="esco-titlebar__project" title="Project">{project.name}</span>
-          <span
-            className={`esco-titlebar__saved ${dirty ? "is-dirty" : "is-saved"}`}
-            title={
-              dirty
-                ? "Unsaved changes — autosaved locally; export to save to a file"
-                : lastExportedAt
-                  ? `Exported at ${new Date(lastExportedAt).toLocaleTimeString()}`
-                  : "No unsaved changes"
-            }
-          >
-            {dirty
-              ? "● Unsaved"
-              : lastExportedAt
-                ? `✓ Exported ${new Date(lastExportedAt).toLocaleTimeString()}`
-                : "✓ Saved"}
-          </span>
-          {openRoutine ? <span className="esco-titlebar__routine">▸ {openRoutine.name}</span> : null}
-          <span className={`esco-titlebar__validation ${validationClass}`} title="Validation status">
-            {validationLabel}
-          </span>
-        </div>
-
-        <div className="esco-titlebar__actions">
-          <button
-            type="button"
-            className="esco-btn"
-            title="Undo (Ctrl+Z)"
-            disabled={!history.canUndo}
-            onClick={handleUndo}
-          >
-            ↶ Undo
-          </button>
-          <button
-            type="button"
-            className="esco-btn"
-            title="Redo (Ctrl+Y)"
-            disabled={!history.canRedo}
-            onClick={handleRedo}
-          >
-            ↷ Redo
-          </button>
-          <span className="esco-titlebar__divider" />
-          <button type="button" className="esco-btn" onClick={() => setView("welcome")}>
-            Dashboard
-          </button>
-          <button
-            type="button"
-            className={`esco-btn${view === "tags" ? " esco-btn--primary" : ""}`}
-            onClick={() => setView("tags")}
-          >
-            Tags
-          </button>
-          <button
-            type="button"
-            className={`esco-btn${view === "compare" ? " esco-btn--primary" : ""}`}
-            onClick={() => setView("compare")}
-          >
-            Compare
-          </button>
-          <span className="esco-titlebar__divider" />
-          <button type="button" className="esco-btn" onClick={handleExport}>
-            Export Project
-          </button>
-          <button type="button" className="esco-btn" onClick={handleImportClick}>
-            Import Project
-          </button>
-          <button type="button" className="esco-btn esco-btn--l5x" onClick={handleImportL5XClick}>
-            Import L5X
-          </button>
+    <AppShell
+      topBar={
+        <TopAppBar
+          projectName={projectOpen ? project.name : "No project open"}
+          projectOpen={projectOpen}
+          dirty={dirty}
+          lastExportedAt={lastExportedAt}
+          openRoutineName={openRoutine?.name}
+          validationLabel={validationLabel}
+          validationClass={validationClass}
+          userLabel={aiProfile?.displayName ?? "User"}
+          userInitials={profileInitials(aiProfile)}
+          onHome={() => setView("welcome")}
+          onOpenSettings={() => setSetupOpen(true)}
+        />
+      }
+      ribbon={
+        <RibbonToolbar
+          canUndo={history.canUndo}
+          canRedo={history.canRedo}
+          canPaste={clipboardRung !== null}
+          onHome={() => setView("welcome")}
+          onTags={() => requireProject(() => setView("tags"))}
+          onCompare={() => requireProject(() => setView("compare"))}
+          onExport={handleExport}
+          onImportProject={handleImportClick}
+          onImportL5X={handleImportL5XClick}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onPaste={handlePasteRung}
+          onDockTab={setDockTab}
+          onToast={(message) => push("info", message)}
+          onVerify={handleVerify}
+        />
+      }
+      toasts={
+        <>
+          <Toasts toasts={toasts} onDismiss={dismiss} />
+          <FirstRunSetup
+            open={setupOpen}
+            profile={aiProfile}
+            onClose={() => setSetupOpen(false)}
+            onSave={handleSaveAiProfile}
+          />
           <input
             ref={fileInputRef}
             type="file"
@@ -567,121 +601,160 @@ export function App() {
             style={{ display: "none" }}
             onChange={handleComparisonSelected}
           />
-        </div>
-
-        <span className="esco-badge esco-badge--offline" title="No PLC/controller communication">
-          ● Offline
-        </span>
-      </header>
-
-      <Toasts toasts={toasts} onDismiss={dismiss} />
-
-      {recovery ? (
-        <div className="esco-recovery" role="alert">
-          <span className="esco-recovery__msg">
-            Unsaved work from a previous session was found
-            {recovery.savedAt ? ` (autosaved ${new Date(recovery.savedAt).toLocaleString()})` : ""}.
-          </span>
-          <div className="esco-recovery__actions">
-            <button type="button" className="esco-btn esco-btn--primary" onClick={handleRestoreAutosave}>
-              Restore autosave
-            </button>
-            <button type="button" className="esco-btn" onClick={handleDismissAutosave}>
-              Dismiss
-            </button>
+        </>
+      }
+      activityItems={[
+        {
+          id: "welcome",
+          label: "Welcome",
+          icon: "⌂",
+          active: view === "welcome",
+          onClick: () => setView("welcome"),
+        },
+        {
+          id: "project",
+          label: "Project Explorer",
+          icon: "⌘",
+          active: view === "routine" || view === "structure",
+          onClick: () => {
+            const id = openRoutineId ?? findMainRoutine(project)?.id;
+            if (id) handleSelect({ kind: "routine", id });
+            else requireProject(() => setView("welcome"));
+          },
+        },
+        {
+          id: "tags",
+          label: "Tags",
+          icon: "#",
+          active: view === "tags",
+          onClick: () => requireProject(() => setView("tags")),
+        },
+        {
+          id: "compare",
+          label: "Compare",
+          icon: "◇",
+          active: view === "compare",
+          onClick: () => requireProject(() => setView("compare")),
+        },
+        {
+          id: "watch",
+          label: "Watch",
+          icon: "◉",
+          active: false,
+          onClick: () => setDockTab("watch"),
+        },
+        {
+          id: "copilot",
+          label: "AI Copilot",
+          icon: "✦",
+          active: false,
+          onClick: () => setCopilotTab("chat"),
+        },
+      ]}
+      recovery={
+        recovery ? (
+          <div className="esco-recovery" role="alert">
+            <span className="esco-recovery__msg">
+              Unsaved work from a previous session was found
+              {recovery.savedAt ? ` (autosaved ${new Date(recovery.savedAt).toLocaleString()})` : ""}.
+            </span>
+            <div className="esco-recovery__actions">
+              <button type="button" className="esco-btn esco-btn--primary" onClick={handleRestoreAutosave}>
+                Restore autosave
+              </button>
+              <button type="button" className="esco-btn" onClick={handleDismissAutosave}>
+                Dismiss
+              </button>
+            </div>
           </div>
-        </div>
-      ) : null}
-
-      <div className="esco-body">
-        <aside className="esco-left">
-          <ProjectExplorer project={project} selection={selection} onSelect={handleSelect} />
-        </aside>
-
-        <main className="esco-center">
-          {view === "tags" ? (
-            <TagsView
-              project={project}
-              values={values}
-              onAddTag={handleAddTag}
-              onRenameTag={handleRenameTag}
-              onDeleteTag={handleDeleteTag}
-              onEditDescription={handleEditDescription}
-            />
-          ) : view === "compare" ? (
-            <CompareView
-              project={project}
-              comparison={comparison}
-              onChooseFile={handleCompareFileClick}
-            />
-          ) : view === "structure" ? (
-            <StructureView project={project} selection={selection} onOpenRoutine={handleOpenRoutine} />
-          ) : view === "routine" && openRoutine ? (
-            <EditorArea
-              project={project}
-              routine={openRoutine}
-              ladder={openLadder}
-              selectedRungId={selectedRungId}
-              selectedNodeId={selectedNodeId}
-              onAddRung={handleAddRung}
-              onDeleteRung={handleDeleteRung}
-              onCopyRung={handleCopyRung}
-              onDuplicateRung={handleDuplicateRung}
-              onPasteRung={handlePasteRung}
-              canPaste={clipboardRung !== null}
-              onAddInstruction={handleAddInstruction}
-              onEditOperand={handleEditOperand}
-              onRemoveInstruction={handleRemoveInstruction}
-              onCreateTag={handleCreateTag}
-              onSelectRung={handleSelectRung}
-              onSelectNode={handleSelectNode}
-              onSetRungComment={handleSetRungComment}
-              onAddParallelBranch={handleAddParallelBranch}
-              onAddBranchLeg={handleAddBranchLeg}
-              onRemoveBranchLeg={handleRemoveBranchLeg}
-              onAddToBranch={handleAddToBranch}
-            />
-          ) : (
-            <WelcomeDashboard
-              onOpenDemo={() => {
-                const id = findMainRoutine(project)?.id;
-                if (id) handleSelect({ kind: "routine", id });
-              }}
-              onImportL5X={handleImportL5XClick}
-              onExport={handleExport}
-              onOpenAi={() => setInspectorTab("ai")}
-              onOpenCrossRef={() => setDockTab("xref")}
-              onOpenWatch={() => setDockTab("watch")}
-              onOpenTags={() => setView("tags")}
-              onOpenCompare={() => setView("compare")}
-              lastImport={lastImport}
-            />
-          )}
-        </main>
-
-        <aside className="esco-right">
-          <InspectorPanel
-            tab={inspectorTab}
-            onTabChange={setInspectorTab}
+        ) : null
+      }
+      left={<ProjectExplorer project={project} selection={selection} onSelect={handleSelect} empty={!projectOpen} />}
+      center={
+        view === "tags" ? (
+          <TagsView
             project={project}
-            selection={selection}
             values={values}
-            findings={findings}
-            selectedRoutineId={openRoutineId}
-            openRoutineName={openRoutine?.name}
-            onApplyPlan={handleApplyPlan}
-            undoDepth={history.undoDepth}
-            redoDepth={history.redoDepth}
-            dirty={dirty}
-            activity={activity}
+            onAddTag={handleAddTag}
+            onRenameTag={handleRenameTag}
+            onDeleteTag={handleDeleteTag}
+            onEditDescription={handleEditDescription}
           />
-        </aside>
-      </div>
-
-      <footer className="esco-bottom">
+        ) : view === "compare" ? (
+          <CompareView
+            project={project}
+            comparison={comparison}
+            onChooseFile={handleCompareFileClick}
+          />
+        ) : view === "structure" ? (
+          <StructureView project={project} selection={selection} onOpenRoutine={handleOpenRoutine} />
+        ) : view === "routine" && openRoutine ? (
+          <EditorArea
+            project={project}
+            routine={openRoutine}
+            routines={activeContext.routines}
+            activeRoutineId={openRoutineId}
+            ladder={openLadder}
+            selectedRungId={selectedRungId}
+            selectedNodeId={selectedNodeId}
+            onAddRung={handleAddRung}
+            onDeleteRung={handleDeleteRung}
+            onCopyRung={handleCopyRung}
+            onDuplicateRung={handleDuplicateRung}
+            onPasteRung={handlePasteRung}
+            canPaste={clipboardRung !== null}
+            onAddInstruction={handleAddInstruction}
+            onEditOperand={handleEditOperand}
+            onRemoveInstruction={handleRemoveInstruction}
+            onCreateTag={handleCreateTag}
+            onSelectRung={handleSelectRung}
+            onSelectNode={handleSelectNode}
+            onSetRungComment={handleSetRungComment}
+            onAddParallelBranch={handleAddParallelBranch}
+            onAddBranchLeg={handleAddBranchLeg}
+            onRemoveBranchLeg={handleRemoveBranchLeg}
+            onAddToBranch={handleAddToBranch}
+            onOpenRoutine={handleOpenRoutine}
+          />
+        ) : (
+          <WelcomeDashboard
+            onCreateRoutine={handleCreateRoutineProject}
+            onImportL5X={handleImportL5XClick}
+            onExport={handleExport}
+            onOpenAi={() => setCopilotTab("chat")}
+          onOpenCrossRef={() => setDockTab("references")}
+          onOpenWatch={() => setDockTab("watch")}
+            onOpenTags={() => requireProject(() => setView("tags"))}
+            onOpenCompare={() => requireProject(() => setView("compare"))}
+            lastImport={lastImport}
+          />
+        )
+      }
+      right={
+        <RightCopilotPanel
+          tab={copilotTab}
+          onTabChange={setCopilotTab}
+          empty={!projectOpen}
+          modelName={AI_MODEL_NAME}
+          project={project}
+          selection={selection}
+          values={values}
+          findings={findings}
+          selectedRoutineId={openRoutineId}
+          apiKey={aiProfile?.apiKey}
+          onOpenSetup={() => setSetupOpen(true)}
+          onApplyPlan={handleApplyPlan}
+          undoDepth={history.undoDepth}
+          redoDepth={history.redoDepth}
+          dirty={dirty}
+          activity={activity}
+        />
+      }
+      bottomDock={
         <BottomPanel
           tab={dockTab}
           onTabChange={setDockTab}
+          empty={!projectOpen}
           findings={findings}
           tags={rows}
           running={running}
@@ -698,7 +771,17 @@ export function App() {
           selectedTagName={selectedTagName}
           onOpenRoutine={handleOpenRoutine}
         />
-      </footer>
-    </div>
+      }
+      statusBar={
+        <StatusBar
+          projectOpen={projectOpen}
+          controllerName={activeContext.controller?.name}
+          programName={activeContext.program?.name}
+          routineName={openRoutine?.name}
+          verificationLabel={validationLabel}
+          verificationClass={validationClass}
+        />
+      }
+    />
   );
 }

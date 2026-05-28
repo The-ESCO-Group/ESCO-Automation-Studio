@@ -70,7 +70,7 @@ async function parseError(response: Response): Promise<string> {
  */
 export function createModelCaller(options: ModelCallerOptions): ModelCaller {
   if (options.mode === "browser-key" && !options.apiKey?.trim()) {
-    throw new Error("Enter your Anthropic API key to use browser-key mode.");
+    throw new Error("Open Settings to add your Opus 4.7 API key.");
   }
 
   return async (request: ModelRequest): Promise<ModelReply> => {

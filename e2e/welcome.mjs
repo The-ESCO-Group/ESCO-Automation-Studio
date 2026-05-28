@@ -9,20 +9,17 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
   check("app loads to Welcome dashboard", (await page.locator(".esco-welcome").count()) === 1);
-  check("offline notice shown", /Offline simulation only/.test(await page.locator(".esco-welcome__notice").innerText()));
+  check("titlebar shows no project open", /No project open/.test(await page.locator(".esco-titlebar__context").innerText()));
   check("titlebar offline badge", (await page.locator(".esco-badge--offline").count()) === 1);
-  check("validation status badge", (await page.locator(".esco-titlebar__validation").count()) === 1);
-  check("dashboard has action cards", (await page.locator(".esco-card").count()) >= 6);
+  check("empty explorer shows no controllers", /No controllers added/.test(await page.locator(".esco-left").innerText()));
+  check("welcome canvas shows no routine open", /No routine open/.test(await page.locator(".esco-welcome").innerText()));
 
-  // Open Demo Routine card -> routine editor.
-  await page.locator('.esco-card:has-text("Open Demo Routine")').click();
-  await page.locator(".esco-lad__rung").first().waitFor({ timeout: 5000 });
-  check("Open Demo Routine shows the ladder editor", (await page.locator(".esco-lad__rung").count()) >= 1);
+  // Create New Routine -> blank routine editor.
+  await page.locator('button:has-text("Create New Routine")').click();
+  await page.locator('button:has-text("Add Rung")').waitFor({ timeout: 5000 });
+  check("Create New Routine opens a blank ladder editor", (await page.locator(".esco-lad__rung").count()) === 0);
+  check("created project has no tags", (await page.locator(".esco-tree__node--tag").count()) === 0);
   check("titlebar shows current routine", /MainRoutine/.test(await page.locator(".esco-titlebar__context").innerText()));
-
-  // Dashboard button returns home.
-  await page.locator('.esco-titlebar__actions button:has-text("Dashboard")').click();
-  check("Dashboard button returns to welcome", (await page.locator(".esco-welcome").count()) === 1);
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

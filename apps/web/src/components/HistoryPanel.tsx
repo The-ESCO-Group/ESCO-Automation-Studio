@@ -26,7 +26,7 @@ export function HistoryPanel({ undoDepth, redoDepth, dirty, activity }: Props) {
   return (
     <div className="esco-history">
       <div className="esco-history__heading">Edit state</div>
-      <dl className="esco-props">
+      <dl className="esco-history__state">
         <div className="esco-props__row">
           <dt>Undo steps</dt>
           <dd>{undoDepth}</dd>

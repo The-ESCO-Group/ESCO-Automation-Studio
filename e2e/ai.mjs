@@ -19,17 +19,17 @@ try {
   await page.goto(URL, { waitUntil: "networkidle" });
   await page.locator('button:has-text("MainRoutine")').first().click();
 
-  // Open the AI Assistant tab in the right inspector rail.
-  await page.locator('.esco-inspector__tab[title="AI Assistant (offline)"]').click();
-  check("AI Assistant tab opens", (await page.locator(".esco-ai").count()) === 1);
+  // Open the AI Copilot chat tab in the right panel.
+  await page.locator('.esco-copilot__tab:has-text("Chat")').click();
+  check("AI Copilot chat opens", (await page.locator(".esco-ai").count()) === 1);
 
   // Explain routine.
-  await page.locator('button:has-text("Explain routine")').click();
+  await page.locator('button:has-text("Explain this routine")').click();
   const explainText = await page.locator(".esco-ai__message").innerText();
   check("explain routine responds", /Routine "MainRoutine"/.test(explainText), explainText.split("\n")[0]);
 
   // Generate motor starter -> preview appears.
-  await page.locator('button:has-text("Generate motor starter")').click();
+  await page.locator('button:has-text("Add safe starter logic")').click();
   await page.locator(".esco-ai__plan").waitFor({ timeout: 5000 });
   const actionCount = await page.locator(".esco-ai__action").count();
   check("motor starter preview shows actions", actionCount >= 1, `actions=${actionCount}`);

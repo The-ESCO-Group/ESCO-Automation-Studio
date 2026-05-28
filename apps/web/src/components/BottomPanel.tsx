@@ -4,11 +4,20 @@ import type { ValidationFinding } from "@esco/validator";
 import type { Forces, TraceEntry, WatchRow } from "../simulation";
 import { CrossRefPanel } from "./CrossRefPanel";
 
-export type DockTab = "errors" | "watch" | "trace" | "forces" | "xref";
+export type DockTab =
+  | "diagnostics"
+  | "search"
+  | "references"
+  | "build"
+  | "watch"
+  | "trend"
+  | "trace"
+  | "forces";
 
 interface Props {
   tab: DockTab;
   onTabChange: (tab: DockTab) => void;
+  empty?: boolean;
   findings: ValidationFinding[];
   tags: WatchRow[];
   running: boolean;
@@ -99,6 +108,7 @@ function WatchValue({
 export function BottomPanel({
   tab,
   onTabChange,
+  empty = false,
   findings,
   tags,
   running,
@@ -119,16 +129,116 @@ export function BottomPanel({
   const xrefCount = selectedTagName ? collectTagReferences(project, selectedTagName).length : 0;
   const forceCount = Object.keys(forces).length;
   const forcedRows = tags.filter((row) => row.name in forces);
+  const errorCount = findings.filter((finding) => finding.severity === "error").length;
+  const warningCount = findings.filter((finding) => finding.severity === "warning").length;
+  const messageCount = findings.filter((finding) => finding.severity === "info").length;
+  const tagDescriptions = new Map(
+    project.controllers
+      .flatMap((controller) => [
+        ...controller.controllerTags,
+        ...controller.programs.flatMap((program) => program.programTags),
+      ])
+      .map((tag) => [tag.name, tag.description ?? ""]),
+  );
+
+  if (empty) {
+    return (
+      <div className="esco-empty-dock">
+        <section className="esco-empty-dock__pane esco-empty-dock__pane--diagnostics">
+          <div className="esco-dock__tabs">
+            {["Diagnostics", "Search Results", "References", "Build", "Watch", "Trend"].map((label, index) => (
+              <button
+                key={label}
+                type="button"
+                className={`esco-dock__tab${index === 0 ? " is-active" : ""}`}
+                disabled={index !== 0}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="esco-empty-diagnostics">
+            <table className="esco-diagnostics__table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Source</th>
+                  <th>Message</th>
+                  <th>Location</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+            </table>
+            <div className="esco-empty-diagnostics__message">
+              <span className="esco-empty-diagnostics__check">✓</span>
+              <strong>No diagnostics</strong>
+              <span>Build and runtime messages will appear here.</span>
+            </div>
+          </div>
+        </section>
+        <section className="esco-empty-dock__pane esco-empty-dock__pane--watch">
+          <div className="esco-dock__tabs">
+            <button type="button" className="esco-dock__tab is-active" disabled>Watch</button>
+            <button type="button" className="esco-dock__tab" disabled>Add Watch</button>
+            <button type="button" className="esco-dock__tab esco-dock__tab--icon" disabled>+</button>
+          </div>
+          <div className="esco-empty-watch">
+            <table className="esco-watch">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Value</th>
+                  <th>Type</th>
+                  <th>Force</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <tr key={index}>
+                    {Array.from({ length: 5 }).map((__, cell) => (
+                      <td key={cell}><span className="esco-skeleton" /></td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="esco-dock">
       <div className="esco-dock__tabs">
         <button
           type="button"
-          className={`esco-dock__tab${tab === "errors" ? " is-active" : ""}`}
-          onClick={() => setTab("errors")}
+          className={`esco-dock__tab${tab === "diagnostics" ? " is-active" : ""}`}
+          onClick={() => setTab("diagnostics")}
         >
-          Errors ({findings.length})
+          Diagnostics<span className="esco-sr-only"> Errors</span>
+        </button>
+        <button
+          type="button"
+          className={`esco-dock__tab${tab === "search" ? " is-active" : ""}`}
+          onClick={() => setTab("search")}
+        >
+          Search Results
+        </button>
+        <button
+          type="button"
+          className={`esco-dock__tab${tab === "references" ? " is-active" : ""}`}
+          onClick={() => setTab("references")}
+        >
+          References<span className="esco-sr-only"> Cross Ref</span>{selectedTagName ? ` (${xrefCount})` : ""}
+        </button>
+        <button
+          type="button"
+          className={`esco-dock__tab${tab === "build" ? " is-active" : ""}`}
+          onClick={() => setTab("build")}
+        >
+          Build
         </button>
         <button
           type="button"
@@ -136,6 +246,13 @@ export function BottomPanel({
           onClick={() => setTab("watch")}
         >
           Watch ({tags.length}){forceCount ? ` · ${forceCount} forced` : ""}
+        </button>
+        <button
+          type="button"
+          className={`esco-dock__tab${tab === "trend" ? " is-active" : ""}`}
+          onClick={() => setTab("trend")}
+        >
+          Trend
         </button>
         <button
           type="button"
@@ -151,35 +268,58 @@ export function BottomPanel({
         >
           Forces ({forceCount})
         </button>
-        <button
-          type="button"
-          className={`esco-dock__tab${tab === "xref" ? " is-active" : ""}`}
-          onClick={() => setTab("xref")}
-        >
-          Cross Ref{selectedTagName ? ` (${xrefCount})` : ""}
-        </button>
       </div>
 
       <div className="esco-dock__body">
-        {tab === "errors" ? (
-          findings.length === 0 ? (
-            <p className="esco-empty">No validation findings.</p>
-          ) : (
-            <ul className="esco-findings">
-              {findings.map((finding, index) => (
-                <li
-                  key={`${finding.ruleId}-${index}`}
-                  className={`esco-finding esco-finding--${finding.severity}`}
-                >
-                  <span className="esco-finding__severity">{finding.severity}</span>
-                  <span className="esco-finding__message">{finding.message}</span>
-                  {finding.target ? (
-                    <span className="esco-finding__target">{finding.target}</span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )
+        {tab === "diagnostics" ? (
+          <div className="esco-diagnostics">
+            <div className="esco-diagnostics__summary">
+              <span className="is-error">{errorCount} Errors</span>
+              <span className="is-warn">{warningCount} Warnings</span>
+              <span className="is-info">{messageCount || (findings.length === 0 ? 1 : 0)} Messages</span>
+            </div>
+            <table className="esco-diagnostics__table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Source</th>
+                  <th>Message</th>
+                  <th>Location</th>
+                </tr>
+              </thead>
+              <tbody>
+                {findings.length === 0 ? (
+                  <tr>
+                    <td>Info</td>
+                    <td>Validator</td>
+                    <td>No validation findings.</td>
+                    <td>-</td>
+                  </tr>
+                ) : (
+                  findings.map((finding, index) => (
+                    <tr key={`${finding.ruleId}-${index}`} className={`esco-finding--${finding.severity}`}>
+                      <td>{finding.severity}</td>
+                      <td>{finding.ruleId}</td>
+                      <td>{finding.message}</td>
+                      <td>{finding.target ?? "-"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : tab === "search" ? (
+          <p className="esco-empty">Search results will appear here after using Find.</p>
+        ) : tab === "references" ? (
+          <CrossRefPanel
+            project={project}
+            selectedTagName={selectedTagName}
+            onOpenRoutine={onOpenRoutine}
+          />
+        ) : tab === "build" ? (
+          <div className="esco-build">
+            <p className="esco-empty">Offline build view. Use Verify to inspect validation status.</p>
+          </div>
         ) : tab === "watch" ? (
           <div className="esco-sim">
             <div className="esco-simbar">
@@ -210,10 +350,11 @@ export function BottomPanel({
                 <thead>
                   <tr>
                     <th>Tag</th>
+                    <th>Value</th>
                     <th>Type</th>
                     <th>Role</th>
-                    <th>Value</th>
                     <th>Force</th>
+                    <th>Description</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -222,8 +363,6 @@ export function BottomPanel({
                     return (
                       <tr key={row.name} className={forced ? "is-forced" : undefined}>
                         <td>{row.name}</td>
-                        <td>{row.dataType}</td>
-                        <td>{row.role}</td>
                         <td>
                           <WatchValue
                             row={row}
@@ -232,6 +371,8 @@ export function BottomPanel({
                             onSetNumber={onSetNumber}
                           />
                         </td>
+                        <td>{row.dataType}</td>
+                        <td>{row.role}</td>
                         <td>
                           {row.kind === "struct" ? (
                             <span className="esco-watch__value">—</span>
@@ -246,12 +387,17 @@ export function BottomPanel({
                             </button>
                           )}
                         </td>
+                        <td>{tagDescriptions.get(row.name) || "—"}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             )}
+          </div>
+        ) : tab === "trend" ? (
+          <div className="esco-trend">
+            <p className="esco-empty">Trend data is not captured yet. Watch values remain available in Offline Simulation.</p>
           </div>
         ) : tab === "trace" ? (
           <div className="esco-trace">
@@ -339,11 +485,7 @@ export function BottomPanel({
             )}
           </div>
         ) : (
-          <CrossRefPanel
-            project={project}
-            selectedTagName={selectedTagName}
-            onOpenRoutine={onOpenRoutine}
-          />
+          <p className="esco-empty">Select a dock tab.</p>
         )}
       </div>
     </div>
