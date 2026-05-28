@@ -40,7 +40,7 @@ import { Toasts } from "./components/Toasts";
 import type { Selection } from "./selection";
 import { createInitialProject, findMainRoutine } from "./project-edit";
 import { downloadTextFile, readFileAsText, slugify } from "./file-io";
-import { scanOnce, watchRows, zeroValues, type TagValues } from "./simulation";
+import { scanOnce, traceOnce, watchRows, zeroValues, type Forces, type TagValues, type TraceEntry } from "./simulation";
 import { useToasts } from "./toasts";
 import { useHistoryState } from "./history";
 import { clearAutosave, loadAutosave, saveAutosave, type AutosaveEntry } from "./autosave";
@@ -62,6 +62,8 @@ export function App() {
   const [recovery, setRecovery] = useState<AutosaveEntry | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
   const [values, setValues] = useState<TagValues>(() => zeroValues(project));
+  const [forces, setForces] = useState<Forces>({});
+  const [trace, setTrace] = useState<TraceEntry[]>([]);
   const [running, setRunning] = useState(false);
   const [view, setView] = useState<CenterView>("welcome");
   const [openRoutineId, setOpenRoutineId] = useState<string | undefined>(undefined);
@@ -196,8 +198,25 @@ export function App() {
     setValues((current) => ({ ...current, [name]: current[name] !== true }));
   const handleSetNumber = (name: string, value: number) =>
     setValues((current) => ({ ...current, [name]: value }));
-  const handleScanOnce = () => setValues((current) => scanOnce(project, current));
-  const handleReset = () => setValues(zeroValues(project));
+  const handleScanOnce = () => {
+    const result = traceOnce(project, values, forces);
+    setValues(result.values);
+    setTrace(result.trace);
+  };
+  const handleReset = () => {
+    setValues(zeroValues(project));
+    setTrace([]);
+  };
+
+  // ---- Force table (offline simulation override) ----
+  const handleToggleForce = (name: string) =>
+    setForces((current) => {
+      const next = { ...current };
+      if (name in next) delete next[name];
+      else next[name] = values[name] ?? false; // pin the current value
+      return next;
+    });
+  const handleClearForces = () => setForces({});
 
   // ---- AI assistant: apply a previewed plan through the action layer ----
   const handleApplyPlan = (plan: AssistantPlan): ApplyResult => {
@@ -339,13 +358,15 @@ export function App() {
     }
   };
 
-  // Continuous run uses the latest project via a ref.
+  // Continuous run uses the latest project + forces via refs.
   const projectRef = useRef(project);
   projectRef.current = project;
+  const forcesRef = useRef(forces);
+  forcesRef.current = forces;
   useEffect(() => {
     if (!running) return;
     const id = setInterval(
-      () => setValues((current) => scanOnce(projectRef.current, current)),
+      () => setValues((current) => scanOnce(projectRef.current, current, forcesRef.current)),
       SCAN_INTERVAL_MS,
     );
     return () => clearInterval(id);
@@ -627,6 +648,10 @@ export function App() {
           onScanOnce={handleScanOnce}
           onReset={handleReset}
           onToggleRun={() => setRunning((value) => !value)}
+          forces={forces}
+          onToggleForce={handleToggleForce}
+          onClearForces={handleClearForces}
+          trace={trace}
           project={project}
           selectedRoutineId={openRoutineId}
           selectedTagName={selectedTagName}

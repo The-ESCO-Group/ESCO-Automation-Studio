@@ -25,6 +25,7 @@ const ORDER = [
   "copypaste.mjs",
   "dirtystate.mjs",
   "recovery.mjs",
+  "forcetrace.mjs",
   "tags.mjs",
   "props.mjs",
   "xref.mjs",

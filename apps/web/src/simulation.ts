@@ -3,11 +3,16 @@ import {
   defaultValues,
   outputTags,
   scanProject,
+  traceScan,
   type TagValues,
 } from "@esco/project-actions";
+import type { TraceEntry } from "@esco/simulator";
 import { getTags } from "./project-edit";
 
-export type { TagValues };
+export type { TagValues, TraceEntry };
+
+/** Forced tag values that override logic during a scan. */
+export type Forces = Record<string, boolean | number>;
 
 export interface WatchMember {
   name: string;
@@ -30,9 +35,24 @@ export function zeroValues(project: PlcProject): TagValues {
 }
 
 /** Run one scan via the action layer, returning the next tag values. */
-export function scanOnce(project: PlcProject, values: TagValues, deltaMs?: number): TagValues {
-  const result = scanProject(project, values, deltaMs != null ? { deltaMs } : {});
+export function scanOnce(
+  project: PlcProject,
+  values: TagValues,
+  forces: Forces = {},
+  deltaMs?: number,
+): TagValues {
+  const result = scanProject(project, values, { forces, ...(deltaMs != null ? { deltaMs } : {}) });
   return result.data?.values ?? values;
+}
+
+/** Run one scan and also capture a per-instruction execution trace. */
+export function traceOnce(
+  project: PlcProject,
+  values: TagValues,
+  forces: Forces = {},
+  deltaMs?: number,
+): { values: TagValues; trace: TraceEntry[] } {
+  return traceScan(project, values, { forces, ...(deltaMs != null ? { deltaMs } : {}) });
 }
 
 /** One Watch row for an atomic path (tag name or array element). */

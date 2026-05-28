@@ -31,6 +31,7 @@ import {
   renameTag,
   scanProject,
   setTagDescription,
+  traceScan,
   updateInstructionOperand,
   validateProject,
   type TagValues,
@@ -109,6 +110,29 @@ describe("project-actions: build a rung and scan it", () => {
 
     // Stop pressed -> MotorRun drops.
     values = scanProject(project, { ...values, StopPB: true }).data!.values;
+    expect(values.MotorRun).toBe(false);
+  });
+});
+
+describe("project-actions: trace and forces", () => {
+  it("captures a per-instruction execution trace", () => {
+    const { project } = buildMotorRung(baseProject());
+    const { trace } = traceScan(project, { ...defaultValues(project), StartPB: true });
+    expect(trace.length).toBeGreaterThan(0);
+    const ote = trace.find((entry) => entry.instruction === "OTE");
+    expect(ote).toBeDefined();
+    expect(ote!.conditionIn).toBe(true);
+    expect(ote!.writes.some((w) => w.path === "MotorRun" && w.value === true)).toBe(true);
+  });
+
+  it("a forced tag overrides logic during a scan (force wins)", () => {
+    const { project } = buildMotorRung(baseProject());
+    // StartPB true would energize MotorRun, but a force pins it false.
+    const values = scanProject(
+      project,
+      { ...defaultValues(project), StartPB: true },
+      { forces: { MotorRun: false } },
+    ).data!.values;
     expect(values.MotorRun).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 import { arrayElementNames, isStructuredType, memberDefs, type PlcProject } from "@esco/core";
 import { baseTagName } from "@esco/instructions";
 import type { LadderRoutine } from "@esco/ladder";
-import { collectOutputTags, createRuntime } from "@esco/simulator";
+import { collectOutputTags, createRuntime, type TraceEntry } from "@esco/simulator";
 import { defaultRoutineId, findRoutine, getAllTags, getLadder, validate } from "./helpers";
 import type { ProjectActionResult, ScanOptions } from "./types";
 
@@ -77,26 +77,44 @@ export function outputTags(project: PlcProject, routineId?: string): Set<string>
  * seeding the runtime with `values` and returning the next values. Does not
  * mutate the project.
  */
-export function scanProject(
-  project: PlcProject,
-  values: TagValues,
-  options: ScanOptions = {},
-): ProjectActionResult<{ values: TagValues }> {
+function buildScanRuntime(project: PlcProject, values: TagValues, options: ScanOptions) {
   const routineId = options.routineId ?? defaultRoutineId(project);
   const ladder = getLadder(findRoutine(project, routineId ?? ""));
   const routines = siblingRoutines(project, routineId ?? "");
   const runtime = createRuntime({ routine: ladder, routines, aliases: aliasMap(project), tags: [] });
+  for (const [path, value] of Object.entries(values)) runtime.writeTag(path, value);
+  // Forced values override logic: forceTag re-applies them before and after scan.
+  for (const [path, value] of Object.entries(options.forces ?? {})) runtime.forceTag(path, value);
+  return runtime;
+}
 
-  for (const [path, value] of Object.entries(values)) {
-    runtime.writeTag(path, value);
-  }
-  runtime.scanOnce(options.deltaMs ?? SCAN_STEP_MS);
-
+function readBack(project: PlcProject, runtime: ReturnType<typeof buildScanRuntime>): TagValues {
   const next: TagValues = {};
   for (const { path, type } of allPaths(project)) {
     const value = runtime.readTag(path);
     next[path] = type === "BOOL" ? value === true : Number(value ?? 0);
   }
+  return next;
+}
 
-  return { ok: true, project, data: { values: next }, findings: validate(project) };
+export function scanProject(
+  project: PlcProject,
+  values: TagValues,
+  options: ScanOptions = {},
+): ProjectActionResult<{ values: TagValues }> {
+  const runtime = buildScanRuntime(project, values, options);
+  runtime.scanOnce(options.deltaMs ?? SCAN_STEP_MS);
+  return { ok: true, project, data: { values: readBack(project, runtime) }, findings: validate(project) };
+}
+
+/** Run one scan and capture a per-instruction execution trace (for the debugger). */
+export function traceScan(
+  project: PlcProject,
+  values: TagValues,
+  options: ScanOptions = {},
+): { values: TagValues; trace: TraceEntry[] } {
+  const runtime = buildScanRuntime(project, values, options);
+  const trace: TraceEntry[] = [];
+  runtime.scanOnce(options.deltaMs ?? SCAN_STEP_MS, trace);
+  return { values: readBack(project, runtime), trace };
 }

@@ -2,11 +2,11 @@ import type { PlcProject } from "@esco/core";
 import type { AssistantPlan, ApplyResult } from "@esco/ai-assistant";
 import { collectTagReferences } from "@esco/project-actions";
 import type { ValidationFinding } from "@esco/validator";
-import type { WatchRow } from "../simulation";
+import type { Forces, TraceEntry, WatchRow } from "../simulation";
 import { AiAssistantPanel } from "./AiAssistantPanel";
 import { CrossRefPanel } from "./CrossRefPanel";
 
-export type DockTab = "errors" | "watch" | "ai" | "xref";
+export type DockTab = "errors" | "watch" | "trace" | "ai" | "xref";
 
 interface Props {
   tab: DockTab;
@@ -19,6 +19,10 @@ interface Props {
   onScanOnce: () => void;
   onReset: () => void;
   onToggleRun: () => void;
+  forces: Forces;
+  onToggleForce: (name: string) => void;
+  onClearForces: () => void;
+  trace: TraceEntry[];
   project: PlcProject;
   selectedRoutineId?: string;
   selectedTagName?: string;
@@ -29,13 +33,16 @@ interface Props {
 /** The Value-column content for one watched tag, by kind. */
 function WatchValue({
   row,
+  forced,
   onToggleTag,
   onSetNumber,
 }: {
   row: WatchRow;
+  forced: boolean;
   onToggleTag: (name: string) => void;
   onSetNumber: (name: string, value: number) => void;
 }) {
+  const forcedMark = forced ? <span className="esco-watch__forced" title="Forced value">⏚</span> : null;
   if (row.kind === "struct") {
     return (
       <span className="esco-watch__members">
@@ -55,15 +62,23 @@ function WatchValue({
   if (row.kind === "number") {
     if (row.role === "input") {
       return (
-        <input
-          className="esco-watch__number"
-          type="number"
-          value={Number(row.value ?? 0)}
-          onChange={(event) => onSetNumber(row.name, Number(event.target.value) || 0)}
-        />
+        <span className="esco-watch__bool">
+          <input
+            className="esco-watch__number"
+            type="number"
+            value={Number(row.value ?? 0)}
+            onChange={(event) => onSetNumber(row.name, Number(event.target.value) || 0)}
+          />
+          {forcedMark}
+        </span>
       );
     }
-    return <span className="esco-watch__value">{String(row.value ?? 0)}</span>;
+    return (
+      <span className="esco-watch__bool">
+        <span className="esco-watch__value">{String(row.value ?? 0)}</span>
+        {forcedMark}
+      </span>
+    );
   }
 
   // BOOL
@@ -71,6 +86,7 @@ function WatchValue({
   return (
     <span className="esco-watch__bool">
       <span className={`esco-watch__value${on ? " is-on" : ""}`}>{on ? "true" : "false"}</span>
+      {forcedMark}
       {row.role === "input" ? (
         <button
           type="button"
@@ -95,6 +111,10 @@ export function BottomPanel({
   onScanOnce,
   onReset,
   onToggleRun,
+  forces,
+  onToggleForce,
+  onClearForces,
+  trace,
   project,
   selectedRoutineId,
   selectedTagName,
@@ -103,6 +123,7 @@ export function BottomPanel({
 }: Props) {
   const setTab = onTabChange;
   const xrefCount = selectedTagName ? collectTagReferences(project, selectedTagName).length : 0;
+  const forceCount = Object.keys(forces).length;
 
   return (
     <div className="esco-dock">
@@ -119,7 +140,14 @@ export function BottomPanel({
           className={`esco-dock__tab${tab === "watch" ? " is-active" : ""}`}
           onClick={() => setTab("watch")}
         >
-          Watch ({tags.length})
+          Watch ({tags.length}){forceCount ? ` · ${forceCount} forced` : ""}
+        </button>
+        <button
+          type="button"
+          className={`esco-dock__tab${tab === "trace" ? " is-active" : ""}`}
+          onClick={() => setTab("trace")}
+        >
+          Trace ({trace.length})
         </button>
         <button
           type="button"
@@ -169,7 +197,15 @@ export function BottomPanel({
               <button type="button" className="esco-btn" onClick={onReset}>
                 Reset Values
               </button>
+              {forceCount > 0 ? (
+                <button type="button" className="esco-btn esco-btn--danger" onClick={onClearForces}>
+                  Clear Forces ({forceCount})
+                </button>
+              ) : null}
               <span className="esco-simbar__status">{running ? "Running" : "Stopped"}</span>
+              {forceCount > 0 ? (
+                <span className="esco-simbar__note">Forces are offline-only simulation overrides.</span>
+              ) : null}
             </div>
 
             {tags.length === 0 ? (
@@ -182,16 +218,75 @@ export function BottomPanel({
                     <th>Type</th>
                     <th>Role</th>
                     <th>Value</th>
+                    <th>Force</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tags.map((row) => (
-                    <tr key={row.name}>
-                      <td>{row.name}</td>
-                      <td>{row.dataType}</td>
-                      <td>{row.role}</td>
+                  {tags.map((row) => {
+                    const forced = row.name in forces;
+                    return (
+                      <tr key={row.name} className={forced ? "is-forced" : undefined}>
+                        <td>{row.name}</td>
+                        <td>{row.dataType}</td>
+                        <td>{row.role}</td>
+                        <td>
+                          <WatchValue
+                            row={row}
+                            forced={forced}
+                            onToggleTag={onToggleTag}
+                            onSetNumber={onSetNumber}
+                          />
+                        </td>
+                        <td>
+                          {row.kind === "struct" ? (
+                            <span className="esco-watch__value">—</span>
+                          ) : (
+                            <button
+                              type="button"
+                              className={`esco-btn esco-btn--toggle${forced ? " is-on" : ""}`}
+                              title={forced ? "Remove force" : "Force this value (simulation only)"}
+                              onClick={() => onToggleForce(row.name)}
+                            >
+                              {forced ? "Forced" : "Force"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ) : tab === "trace" ? (
+          <div className="esco-trace">
+            <p className="esco-trace__note">
+              Last scan trace — per-instruction power flow (offline approximate simulation).
+            </p>
+            {trace.length === 0 ? (
+              <p className="esco-empty">No trace yet. Press “Scan Once” to capture a scan.</p>
+            ) : (
+              <table className="esco-tracetable">
+                <thead>
+                  <tr>
+                    <th>Rung</th>
+                    <th>Instruction</th>
+                    <th>In</th>
+                    <th>Out</th>
+                    <th>Writes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trace.map((entry, index) => (
+                    <tr key={index} className={entry.conditionOut ? "is-true" : "is-false"}>
+                      <td>{entry.rung}</td>
                       <td>
-                        <WatchValue row={row} onToggleTag={onToggleTag} onSetNumber={onSetNumber} />
+                        {entry.instruction}({entry.operands.join(", ")})
+                      </td>
+                      <td>{entry.conditionIn ? "T" : "F"}</td>
+                      <td>{entry.conditionOut ? "T" : "F"}</td>
+                      <td>
+                        {entry.writes.map((w) => `${w.path}=${String(w.value)}`).join(", ") || "—"}
                       </td>
                     </tr>
                   ))}

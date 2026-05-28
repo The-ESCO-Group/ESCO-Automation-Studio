@@ -1,6 +1,6 @@
 import type { InstructionRegistry } from "@esco/instructions";
 import type { LadderRoutine } from "@esco/ladder";
-import { RungExecutor, type ExecControl } from "./rung-executor";
+import { RungExecutor, type ExecControl, type TraceEntry } from "./rung-executor";
 import type { TagMemory } from "./tag-memory";
 
 /** Maximum JSR call depth — guards against infinite/recursive routine calls. */
@@ -16,6 +16,7 @@ export class RoutineExecutor {
   private readonly rungExecutor: RungExecutor;
   private routines = new Map<string, LadderRoutine>();
   private depth = 0;
+  private trace?: TraceEntry[];
 
   constructor(registry: InstructionRegistry) {
     this.rungExecutor = new RungExecutor(registry);
@@ -26,9 +27,15 @@ export class RoutineExecutor {
     this.routines = routines;
   }
 
-  execute(routine: LadderRoutine, memory: TagMemory, deltaMs = 0): void {
+  /** Execute the routine; pass a `trace` array to record per-instruction evaluation. */
+  execute(routine: LadderRoutine, memory: TagMemory, deltaMs = 0, trace?: TraceEntry[]): void {
     this.depth = 0;
-    this.runRoutine(routine, memory, deltaMs);
+    this.trace = trace;
+    try {
+      this.runRoutine(routine, memory, deltaMs);
+    } finally {
+      this.trace = undefined;
+    }
   }
 
   /** Run a named sibling routine (JSR), respecting the call-depth limit. */
@@ -47,9 +54,12 @@ export class RoutineExecutor {
     const control: ExecControl = {
       callRoutine: (name) => this.callRoutine(name, memory, deltaMs),
       returned: false,
+      rungNumber: 0,
+      trace: this.trace,
     };
     const rungs = [...routine.rungs].sort((a, b) => a.number - b.number);
     for (const rung of rungs) {
+      control.rungNumber = rung.number;
       this.rungExecutor.execute(rung, memory, deltaMs, control);
       if (control.returned) break; // RET ends this routine's scan
     }

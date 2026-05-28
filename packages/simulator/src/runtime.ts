@@ -1,6 +1,7 @@
 import { createDefaultRegistry, type InstructionRegistry } from "@esco/instructions";
 import type { LadderRoutine } from "@esco/ladder";
 import { RoutineExecutor } from "./routine-executor";
+import type { TraceEntry } from "./rung-executor";
 import { TagMemory, type PlcValue } from "./tag-memory";
 
 /** How a tag is driven in the simulation: a toggled input or a logic-written output. */
@@ -74,12 +75,16 @@ export class PlcRuntime {
    * Execute exactly one scan: apply forces, run logic, commit outputs.
    * `deltaMs` is the time elapsed since the previous scan (drives timers).
    */
-  scanOnce(deltaMs = 0): void {
+  scanOnce(deltaMs = 0, trace?: TraceEntry[]): void {
     for (const [path, value] of this.forces) {
       this.memory.write(path, value);
     }
     if (this.routine) {
-      this.executor.execute(this.routine, this.memory, deltaMs);
+      this.executor.execute(this.routine, this.memory, deltaMs, trace);
+    }
+    // Forces win: re-apply after logic so a forced tag holds its value.
+    for (const [path, value] of this.forces) {
+      this.memory.write(path, value);
     }
     this.memory.commitScan();
   }

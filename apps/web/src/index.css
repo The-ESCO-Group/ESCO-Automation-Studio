@@ -1504,6 +1504,47 @@ body {
   font-style: italic;
 }
 
+/* ---- Forces + trace (simulator debugging) ---- */
+.esco-simbar__note {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.esco-watch tr.is-forced {
+  background: var(--accent-soft);
+}
+
+.esco-watch__forced {
+  margin-left: 6px;
+  color: var(--warn, #e0b050);
+}
+
+.esco-trace {
+  font-size: 12px;
+}
+
+.esco-trace__note {
+  color: var(--text-dim);
+  margin: 0 0 8px;
+}
+
+.esco-tracetable {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+
+.esco-tracetable th,
+.esco-tracetable td {
+  text-align: left;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.esco-tracetable tr.is-true td:nth-child(4) { color: var(--ok, #5fd07a); }
+.esco-tracetable tr.is-false td:nth-child(4) { color: var(--text-dim); }
+
 /* ---- Crash / error boundary fallback ---- */
 .esco-crash {
   display: flex;

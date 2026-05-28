@@ -6,14 +6,27 @@ import {
 import type { LadderBranch, LadderNode, LadderRung } from "@esco/ladder";
 import type { TagMemory } from "./tag-memory";
 
+/** One row of an execution trace: an instruction's evaluation during a scan. */
+export interface TraceEntry {
+  rung: number;
+  instruction: string;
+  operands: string[];
+  conditionIn: boolean;
+  conditionOut: boolean;
+  writes: { path: string; value: boolean | number | string }[];
+}
+
 /**
  * Per-routine-scan control passed to instructions that affect flow:
  *  - `callRoutine` runs a sibling routine (JSR) against the same memory;
- *  - `returned` is set by RET to stop the rest of the current routine.
+ *  - `returned` is set by RET to stop the rest of the current routine;
+ *  - `rungNumber`/`trace` capture an optional execution trace.
  */
 export interface ExecControl {
   callRoutine: (name: string) => void;
   returned: boolean;
+  rungNumber: number;
+  trace?: TraceEntry[];
 }
 
 /**
@@ -80,19 +93,38 @@ export class RungExecutor {
     control?: ExecControl,
   ): boolean {
     const definition = this.registry.get(node.instructionType);
+    const operands = node.operands.map((operand) => operand.value);
     if (!definition) {
       // Unsupported (e.g. imported) instruction: act as a pass-through wire so a
       // partially-supported routine still scans without crashing.
+      control?.trace?.push({
+        rung: control.rungNumber,
+        instruction: node.instructionType,
+        operands,
+        conditionIn: rungIn,
+        conditionOut: rungIn,
+        writes: [],
+      });
       return rungIn;
     }
+
+    // When tracing, capture the writes this instruction performs.
+    const writes: { path: string; value: boolean | number | string }[] = [];
+    const tracing = !!control?.trace;
 
     const ctx: InstructionRuntimeContext = {
       rungIn,
       deltaMs,
       readBool: (path) => memory.readBool(path),
-      writeBool: (path, value) => memory.writeBool(path, value),
+      writeBool: (path, value) => {
+        memory.writeBool(path, value);
+        if (tracing) writes.push({ path, value });
+      },
       readNumber: (path) => memory.readNumber(path),
-      writeNumber: (path, value) => memory.write(path, value),
+      writeNumber: (path, value) => {
+        memory.write(path, value);
+        if (tracing) writes.push({ path, value });
+      },
       numeric: (operand) =>
         isNumericLiteral(operand) ? Number(operand.trim()) : memory.readNumber(operand.trim()),
       callRoutine: control ? (name) => control.callRoutine(name) : undefined,
@@ -103,6 +135,17 @@ export class RungExecutor {
         : undefined,
     };
 
-    return definition.execute(node, ctx);
+    const conditionOut = definition.execute(node, ctx);
+    if (control?.trace) {
+      control.trace.push({
+        rung: control.rungNumber,
+        instruction: node.instructionType,
+        operands,
+        conditionIn: rungIn,
+        conditionOut,
+        writes,
+      });
+    }
+    return conditionOut;
   }
 }

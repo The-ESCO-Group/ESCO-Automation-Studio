@@ -125,4 +125,6 @@ export interface UpdateOperandInput {
 export interface ScanOptions {
   routineId?: string;
   deltaMs?: number;
+  /** Forced tag values: applied before and after logic, so a force wins the scan. */
+  forces?: Record<string, boolean | number>;
 }
