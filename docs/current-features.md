@@ -14,6 +14,10 @@ A detailed inventory of what ESCO Automation Studio supports today.
   build a seal-in by hand. Single-level parallels (the MVP scope).
 - Inline operand editing with undefined-tag highlighting and one-click
   "create the missing tag" (data type inferred from the operand).
+- Copy / Duplicate / Paste rungs (deep-cloned with fresh ids).
+- Undo / redo for every project edit, with Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z
+  (text fields keep native undo); undoing back to the last saved state clears
+  the unsaved-changes flag.
 - Rung and instruction selection with a focus highlight.
 - Branch rendering (parallel paths stacked); unsupported instructions render as
   dashed, read-only boxes.
@@ -45,8 +49,9 @@ types, read/write direction, render style) lives in the registry
 
 - Rule-based (`@esco/validator`): undefined tags (base-tag aware for member /
   array paths), operand type mismatches, missing required operands, unsupported
-  instructions (info). Never mutates the project. Surfaced in the Errors tab and
-  the title-bar validation badge.
+  instructions (info), array index out-of-range, double-coil (a BOOL driven by
+  2+ OTE), duplicate controller / program tags, and alias-target resolution.
+  Never mutates the project. Surfaced in the Errors tab and the title-bar badge.
 
 ## Tags
 
@@ -54,6 +59,9 @@ types, read/write direction, render style) lives in the registry
   current value, role badge, and reference count.
 - Create (BOOL/DINT/REAL/TIMER/COUNTER), inline rename (remaps references),
   edit description, delete (blocked when referenced) — all via `project-actions`.
+- Single-dimension array tags (`DINT[8]`): imported from L5X `Dimensions`,
+  expanded into element value-paths for simulation, shown per-element in the
+  Watch panel, and bounds-checked by validation.
 
 ## Cross reference
 
@@ -100,3 +108,5 @@ types, read/write direction, render style) lives in the registry
 - Properties panel: context-aware detail for controller / program / tag /
   routine / rung / instruction.
 - Typed toast system (success / info / warning / error).
+- Unsaved-changes indicator (with a close/reload guard) and a crash-safe error
+  boundary that keeps a render error from blanking the app.

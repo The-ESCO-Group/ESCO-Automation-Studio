@@ -34,7 +34,9 @@ following are intentional boundaries and known gaps.
   are flattened with a warning, and unmodeled members default to 0/false in
   simulation.
 - **Single-routine simulation focus.** Scanning targets the open/main routine;
-  multi-routine/task scheduling is not modelled.
+  multi-routine/task scheduling (JSR/SBR/RET) is not modelled yet.
+- **Single-dimension arrays only.** `DINT[8]` is modelled; multi-dimension arrays
+  import the first dimension; arrays of structures aren't expanded.
 - **No multi-user, no persistence server.** Projects live in the browser session
   until exported.
 
@@ -43,3 +45,4 @@ following are intentional boundaries and known gaps.
 - DINT/REAL are treated as numbers without strict integer truncation or range
   checks.
 - TIMER/COUNTER timing uses a per-scan millisecond delta, not a real-time clock.
+- Undo history is capped at 100 steps; copy/paste operates on whole rungs.

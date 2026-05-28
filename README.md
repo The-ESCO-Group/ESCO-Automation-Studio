@@ -10,13 +10,17 @@ files.
 - **Editable ladder logic** stored as a semantic AST (not text).
 - **Branch editing** — build single-level parallel / seal-in branches by hand
   (add a parallel branch, add/remove legs, add instructions per leg).
+- **Undo / redo** for every project edit (Ctrl+Z / Ctrl+Y), with copy /
+  duplicate / paste of rungs.
 - **Offline scan-cycle simulation** with a Watch panel (toggle inputs, Scan
-  Once / Run / Reset).
+  Once / Run / Reset). Array tags (`DINT[n]`) are watched element-by-element.
 - **Instruction set:** XIC, XIO, OTE, OTL, OTU, ONS, TON, TOF, RTO, CTU, CTD,
   RES, MOV, ADD, SUB, MUL, DIV, EQU, NEQ, GRT, GEQ, LES, LEQ, NOP, AFI.
 - **Validation engine** (undefined tags, type mismatches, missing operands,
-  unsupported instructions).
-- **Project persistence** — export / import `.plcproj.json`.
+  unsupported instructions, array index bounds, double-coil, duplicate program
+  tags, alias target resolution).
+- **Project persistence** — export / import `.plcproj.json`, with an
+  unsaved-changes indicator and a crash-safe error boundary.
 - **Studio 5000 L5X import** (branches, member/array paths, descriptions, alias
   and unmodeled-type warnings, located warnings, import summary). Import-only;
   unsupported instructions are preserved read-only.
