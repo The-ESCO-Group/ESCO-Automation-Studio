@@ -727,3 +727,123 @@ body {
   border-color: var(--ok);
   color: var(--ok);
 }
+
+/* ---- AI Assistant panel ---- */
+.esco-ai {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.esco-ai__notice {
+  margin: 0;
+  padding: 4px 8px;
+  border-left: 2px solid var(--warning);
+  color: var(--text-dim);
+  background: var(--bg-elevated);
+}
+
+.esco-ai__prompt {
+  display: flex;
+  gap: 6px;
+}
+
+.esco-ai__input {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font: inherit;
+}
+
+.esco-ai__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.esco-ai__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.esco-btn--quick {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.esco-ai__message {
+  margin: 0;
+  padding: 8px;
+  white-space: pre-wrap;
+  font-family: inherit;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+}
+
+.esco-ai__plan {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg-panel);
+}
+
+.esco-ai__plan-title {
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.esco-ai__actions {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.esco-ai__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.esco-ai__action-kind {
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.esco-ai__warnings {
+  margin: 0 0 6px;
+  padding-left: 16px;
+  color: var(--warning);
+}
+
+.esco-ai__applied {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+}
+
+.esco-ai__applied--error {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.esco-ai__empty {
+  color: var(--text-dim);
+  padding: 8px 0;
+}

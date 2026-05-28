@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@esco/ai-assistant": "workspace:*",
     "@esco/core": "workspace:*",
     "@esco/instructions": "workspace:*",
     "@esco/ladder": "workspace:*",

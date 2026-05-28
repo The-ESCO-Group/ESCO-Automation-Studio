@@ -1,6 +1,9 @@
 import { useState } from "react";
+import type { PlcProject } from "@esco/core";
+import type { AssistantPlan, ApplyResult } from "@esco/ai-assistant";
 import type { ValidationFinding } from "@esco/validator";
 import type { WatchRow } from "../simulation";
+import { AiAssistantPanel } from "./AiAssistantPanel";
 
 interface Props {
   findings: ValidationFinding[];
@@ -11,9 +14,12 @@ interface Props {
   onScanOnce: () => void;
   onReset: () => void;
   onToggleRun: () => void;
+  project: PlcProject;
+  selectedRoutineId?: string;
+  onApplyPlan: (plan: AssistantPlan) => ApplyResult;
 }
 
-type Tab = "errors" | "watch";
+type Tab = "errors" | "watch" | "ai";
 
 /** The Value-column content for one watched tag, by kind. */
 function WatchValue({
@@ -82,6 +88,9 @@ export function BottomPanel({
   onScanOnce,
   onReset,
   onToggleRun,
+  project,
+  selectedRoutineId,
+  onApplyPlan,
 }: Props) {
   const [tab, setTab] = useState<Tab>("watch");
 
@@ -101,6 +110,13 @@ export function BottomPanel({
           onClick={() => setTab("watch")}
         >
           Watch ({tags.length})
+        </button>
+        <button
+          type="button"
+          className={`esco-dock__tab${tab === "ai" ? " is-active" : ""}`}
+          onClick={() => setTab("ai")}
+        >
+          AI Assistant
         </button>
       </div>
 
@@ -124,7 +140,7 @@ export function BottomPanel({
               ))}
             </ul>
           )
-        ) : (
+        ) : tab === "watch" ? (
           <div className="esco-sim">
             <div className="esco-simbar">
               <button type="button" className="esco-btn esco-btn--primary" onClick={onScanOnce}>
@@ -166,6 +182,12 @@ export function BottomPanel({
               </table>
             )}
           </div>
+        ) : (
+          <AiAssistantPanel
+            project={project}
+            selectedRoutineId={selectedRoutineId}
+            onApply={onApplyPlan}
+          />
         )}
       </div>
     </div>

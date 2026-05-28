@@ -56,6 +56,13 @@ export interface AddInstructionInput {
   instructionType: string;
 }
 
+export interface AddRungFromTextInput {
+  routineId: string;
+  /** Logix neutral rung text, e.g. "XIC(StartPB)XIO(StopPB)OTE(MotorRun)". */
+  text: string;
+  comment?: string;
+}
+
 export interface RemoveInstructionInput {
   routineId: string;
   rungId: string;

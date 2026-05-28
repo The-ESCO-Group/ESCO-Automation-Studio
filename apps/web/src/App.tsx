@@ -13,6 +13,7 @@ import {
   type ProjectActionResult,
 } from "@esco/project-actions";
 import { PLCPROJ_EXTENSION } from "@esco/project-store";
+import { applyPlan, type ApplyResult, type AssistantPlan } from "@esco/ai-assistant";
 import { createDefaultEngine } from "@esco/validator";
 import { ProjectExplorer } from "./components/ProjectExplorer";
 import { EditorArea } from "./components/EditorArea";
@@ -66,6 +67,17 @@ export function App() {
     setValues((current) => ({ ...current, [name]: value }));
   const handleScanOnce = () => setValues((current) => scanOnce(project, current));
   const handleReset = () => setValues(zeroValues(project));
+
+  // AI assistant: apply a previewed plan through the action layer, adopt the result.
+  const handleApplyPlan = (plan: AssistantPlan): ApplyResult => {
+    const result = applyPlan(project, plan);
+    if (result.ok) {
+      setProject(result.project);
+      setValues(zeroValues(result.project));
+    }
+    return result;
+  };
+  const selectedRoutineId = selection?.kind === "routine" ? selection.id : undefined;
 
   // Persistence and import (the AST is the source of truth).
   const handleExport = () => {
@@ -238,6 +250,9 @@ export function App() {
           onScanOnce={handleScanOnce}
           onReset={handleReset}
           onToggleRun={() => setRunning((value) => !value)}
+          project={project}
+          selectedRoutineId={selectedRoutineId}
+          onApplyPlan={handleApplyPlan}
         />
       </footer>
     </div>

@@ -3,6 +3,7 @@ import { createDefaultRegistry } from "@esco/instructions";
 import {
   addRung as ladderAddRung,
   appendNode,
+  appendRungWithRoot,
   createLadderRoutine,
   createNode,
   removeInstruction as ladderRemoveInstruction,
@@ -11,9 +12,11 @@ import {
   setOperandValue as ladderSetOperandValue,
   tagOperand,
 } from "@esco/ladder";
+import { parseRungText } from "@esco/parser-l5x";
 import { fail, findRoutine, getLadder, ok, withProgramRoutines, withRoutineLadder } from "./helpers";
 import type {
   AddInstructionInput,
+  AddRungFromTextInput,
   AddRungInput,
   CreateRoutineInput,
   DeleteRungInput,
@@ -67,6 +70,37 @@ export function addRung(
   const nextLadder = ladderAddRung(ladder);
   const rungId = nextLadder.rungs[nextLadder.rungs.length - 1]?.id ?? "";
   return ok(withRoutineLadder(project, input.routineId, () => nextLadder), { rungId });
+}
+
+/**
+ * Append a rung built from Logix neutral text (e.g. a seal-in branch). The text
+ * is parsed into the semantic AST via the L5X parser, so branches and all
+ * supported instructions work. Unsupported instructions are preserved + warned.
+ */
+export function addRungFromText(
+  project: PlcProject,
+  input: AddRungFromTextInput,
+): ProjectActionResult<{ rungId: string }> {
+  const routine = findRoutine(project, input.routineId);
+  if (!routine) return fail(project, `Routine "${input.routineId}" not found.`);
+  if (!input.text?.trim()) return fail(project, "Rung text is required.");
+
+  const parsed = parseRungText(input.text, registry);
+  const ladder = getLadder(routine) ?? createLadderRoutine();
+  const nextLadder = appendRungWithRoot(ladder, parsed.root, input.comment);
+  const newRung = nextLadder.rungs[nextLadder.rungs.length - 1];
+  if (newRung) newRung.sourceText = input.text;
+  const rungId = newRung?.id ?? "";
+
+  const warnings = [
+    ...parsed.unsupportedTypes.map((type) => `Unsupported instruction "${type}" preserved.`),
+    ...(parsed.complexBranch ? ["Nested/complex branch flattened to a series."] : []),
+  ];
+  return ok(
+    withRoutineLadder(project, input.routineId, () => nextLadder),
+    { rungId },
+    warnings.length > 0 ? warnings : undefined,
+  );
 }
 
 /** Delete a rung from a routine. */

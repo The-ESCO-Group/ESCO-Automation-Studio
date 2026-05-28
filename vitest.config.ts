@@ -10,6 +10,7 @@ const pkgSrc = (name: string) => resolve(here, `packages/${name}/src/index.ts`);
 export default defineConfig({
   resolve: {
     alias: {
+      "@esco/ai-assistant": pkgSrc("ai-assistant"),
       "@esco/core": pkgSrc("core"),
       "@esco/shared": pkgSrc("shared"),
       "@esco/ladder": pkgSrc("ladder"),

@@ -26,6 +26,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@esco/ai-assistant':
+        specifier: workspace:*
+        version: link:../../packages/ai-assistant
       '@esco/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -75,6 +78,34 @@ importers:
       vite:
         specifier: ^6.0.3
         version: 6.4.2(@types/node@22.19.19)
+
+  packages/ai-assistant:
+    dependencies:
+      '@esco/core':
+        specifier: workspace:*
+        version: link:../core
+      '@esco/instructions':
+        specifier: workspace:*
+        version: link:../instructions
+      '@esco/ladder':
+        specifier: workspace:*
+        version: link:../ladder
+      '@esco/project-actions':
+        specifier: workspace:*
+        version: link:../project-actions
+      '@esco/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@esco/validator':
+        specifier: workspace:*
+        version: link:../validator
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@22.19.19)
 
   packages/core:
     dependencies:

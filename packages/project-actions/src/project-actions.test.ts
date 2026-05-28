@@ -10,6 +10,7 @@ import { createLadderRoutine } from "@esco/ladder";
 import {
   addInstruction,
   addRung,
+  addRungFromText,
   createRoutine as createRoutineAction,
   createTag,
   defaultValues,
@@ -179,6 +180,29 @@ describe("project-actions: rungs and routines", () => {
     const result = createRoutineAction(base.project, { programId: base.programId, name: "Faults" });
     expect(result.ok).toBe(true);
     expect(result.data?.routineId).toBeTruthy();
+  });
+
+  it("addRungFromText builds a seal-in branch rung that simulates", () => {
+    const base = baseProject();
+    let p = addRungFromText(base.project, {
+      routineId: base.routineId,
+      text: "[XIC(StartPB),XIC(MotorRun)]XIO(StopPB)OTE(MotorRun)",
+    }).project;
+    for (const name of ["StartPB", "StopPB", "MotorRun"]) {
+      p = createTag(p, { name, dataType: "BOOL" }).project;
+    }
+
+    let values: TagValues = { ...defaultValues(p), StartPB: true };
+    values = scanProject(p, values).data!.values;
+    expect(values.MotorRun).toBe(true);
+
+    // Seal-in: release Start, MotorRun stays on.
+    values = scanProject(p, { ...values, StartPB: false }).data!.values;
+    expect(values.MotorRun).toBe(true);
+
+    // Stop breaks it.
+    values = scanProject(p, { ...values, StopPB: true }).data!.values;
+    expect(values.MotorRun).toBe(false);
   });
 });
 

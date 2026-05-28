@@ -22,11 +22,21 @@ function renumber(rungs: LadderRung[]): LadderRung[] {
 
 /** Append a new empty rung. */
 export function addRung(routine: LadderRoutine): LadderRoutine {
+  return appendRungWithRoot(routine, createBranch([]));
+}
+
+/** Append a rung with a pre-built branch root (e.g. parsed from rung text). */
+export function appendRungWithRoot(
+  routine: LadderRoutine,
+  root: LadderBranch,
+  comment?: string,
+): LadderRoutine {
   const rung: LadderRung = {
     id: createId("rung"),
     routineId: routine.id,
     number: routine.rungs.length,
-    root: createBranch([]),
+    comment,
+    root,
   };
   return { ...routine, rungs: renumber([...routine.rungs, rung]) };
 }

@@ -13,6 +13,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "@esco/ai-assistant": pkgSrc("ai-assistant"),
       "@esco/core": pkgSrc("core"),
       "@esco/shared": pkgSrc("shared"),
       "@esco/ladder": pkgSrc("ladder"),
