@@ -1,5 +1,5 @@
 import { createProject, type PlcProject } from "@esco/core";
-import { importL5X, type ImportSummary } from "@esco/parser-l5x";
+import { exportL5X, importL5X, type ImportSummary } from "@esco/parser-l5x";
 import { deserializeProject, serializeProject } from "@esco/project-store";
 import { fail, ok, validate } from "./helpers";
 import type { ProjectActionResult } from "./types";
@@ -32,4 +32,16 @@ export function importL5XFile(text: string): ProjectActionResult<{ summary: Impo
 /** Serialize the project to `.plcproj.json` text. */
 export function exportProjectJson(project: PlcProject): ProjectActionResult<{ text: string }> {
   return { ok: true, project, data: { text: serializeProject(project) } };
+}
+
+/**
+ * Generate a new offline `.L5X` for the project (review-only). The original
+ * project is never mutated and no `.ACD` file or controller is touched; the
+ * `warnings` describe anything exported with caveats.
+ */
+export function exportProjectL5X(
+  project: PlcProject,
+): ProjectActionResult<{ text: string; warnings: string[] }> {
+  const { xml, warnings } = exportL5X(project);
+  return { ok: true, project, warnings, data: { text: xml, warnings } };
 }

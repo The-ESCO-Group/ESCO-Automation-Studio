@@ -10,6 +10,7 @@ export * from "./extractRoutines";
 export * from "./extractPrograms";
 export * from "./extractStructure";
 export * from "./toDomainProject";
+export * from "./exportL5X";
 
 /**
  * Import an L5X (RSLogix 5000 export) XML string into the internal project
