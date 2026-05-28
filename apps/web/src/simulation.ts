@@ -29,6 +29,15 @@ export interface WatchRow {
   members?: WatchMember[];
 }
 
+export interface TrendSample {
+  id: number;
+  at: string;
+  values: Record<string, boolean | number | string>;
+}
+
+const TREND_ROW_LIMIT = 32;
+let nextTrendId = 1;
+
 /** Power-up values for the project (delegates to the action layer). */
 export function zeroValues(project: PlcProject): TagValues {
   return defaultValues(project);
@@ -97,4 +106,18 @@ export function watchRows(project: PlcProject, values: TagValues): WatchRow[] {
     }
   }
   return rows;
+}
+
+/** Capture an in-session trend row from the rendered watch rows. */
+export function createTrendSample(rows: WatchRow[]): TrendSample {
+  const values: TrendSample["values"] = {};
+  for (const row of rows.slice(0, TREND_ROW_LIMIT)) {
+    if (row.kind === "struct") {
+      values[row.name] =
+        row.members?.map((member) => `${member.name}=${String(member.value)}`).join(" · ") ?? "";
+    } else {
+      values[row.name] = row.value ?? (row.kind === "bool" ? false : 0);
+    }
+  }
+  return { id: nextTrendId++, at: new Date().toISOString(), values };
 }

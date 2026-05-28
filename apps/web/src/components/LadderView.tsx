@@ -121,17 +121,28 @@ function BoxGlyph({ node }: { node: LadderNode }) {
   const editing = useContext(EditingContext);
   const def = registry.get(node.instructionType);
   const supported = !!def;
-  const operandDefs = def?.operands ?? node.operands.map((_, i) => ({ name: `op${i}`, label: `op${i}` }));
-  const boxBase = `esco-lad__box${supported ? "" : " esco-lad__box--unsupported"}`;
+  const declaredOperands = def?.operands ?? [];
+  const operandDefs = declaredOperands.length
+    ? declaredOperands
+    : node.operands.map((_, i) => ({ name: `op${i}`, label: `op${i}` }));
+  const modelOnly = !!def?.modelOnly;
+  const boxBase = `esco-lad__box${supported ? "" : " esco-lad__box--unsupported"}${
+    modelOnly ? " esco-lad__box--model-only" : ""
+  }`;
+  const title = modelOnly
+    ? `${node.instructionType} (model-only, preserved for offline review)`
+    : supported
+      ? node.instructionType
+      : `${node.instructionType} (unsupported, read-only)`;
 
   if (!editing) {
     const text = node.operands.map((operand) => operand.value || "?").join(", ");
-    return <span className={`${boxBase} esco-lad__box--readonly`}>{`${node.instructionType}(${text})`}</span>;
+    return <span className={`${boxBase} esco-lad__box--readonly`} title={title}>{`${node.instructionType}(${text})`}</span>;
   }
   return (
     <span
       className={nodeClass(boxBase, editing, node.id)}
-      title={supported ? node.instructionType : `${node.instructionType} (unsupported, read-only)`}
+      title={title}
       onClick={(event) => {
         event.stopPropagation();
         editing.onSelectNode?.(editing.rungId, node.id);

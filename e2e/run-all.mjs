@@ -33,6 +33,7 @@ const ORDER = [
   "xref.mjs",
   "arrayvalues.mjs",
   "structure.mjs",
+  "readonly-monitoring.mjs",
   "aoidetail.mjs",
   "udtdetail.mjs",
   "iodetail.mjs",

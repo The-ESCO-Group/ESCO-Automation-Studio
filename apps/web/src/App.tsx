@@ -53,7 +53,17 @@ import type { Selection } from "./selection";
 import { createBlankRoutineProject, createInitialProject, findMainRoutine } from "./project-edit";
 import { searchProject } from "./search";
 import { downloadTextFile, readFileAsText, slugify } from "./file-io";
-import { scanOnce, traceOnce, watchRows, zeroValues, type Forces, type TagValues, type TraceEntry } from "./simulation";
+import {
+  createTrendSample,
+  scanOnce,
+  traceOnce,
+  watchRows,
+  zeroValues,
+  type Forces,
+  type TagValues,
+  type TraceEntry,
+  type TrendSample,
+} from "./simulation";
 import { useToasts } from "./toasts";
 import { useHistoryState } from "./history";
 import { clearAutosave, loadAutosave, saveAutosave, type AutosaveEntry } from "./autosave";
@@ -66,6 +76,7 @@ import {
 } from "./recent-projects";
 
 const SCAN_INTERVAL_MS = 250;
+const TREND_BUFFER_LIMIT = 120;
 const AI_MODEL_NAME = "Opus 4.7";
 type CenterView = "welcome" | "routine" | "tags" | "compare" | "structure";
 
@@ -85,6 +96,7 @@ export function App() {
   const [values, setValues] = useState<TagValues>(() => zeroValues(project));
   const [forces, setForces] = useState<Forces>({});
   const [trace, setTrace] = useState<TraceEntry[]>([]);
+  const [trendSamples, setTrendSamples] = useState<TrendSample[]>([]);
   const [running, setRunning] = useState(false);
   const [projectOpen, setProjectOpen] = useState(false);
   const [view, setView] = useState<CenterView>("welcome");
@@ -235,7 +247,10 @@ export function App() {
   const runTagAction = (result: ProjectActionResult, successMsg?: string, resyncValues = true) => {
     if (result.ok) {
       setProject(result.project);
-      if (resyncValues) setValues(zeroValues(result.project));
+      if (resyncValues) {
+        setValues(zeroValues(result.project));
+        setTrendSamples([]);
+      }
       if (successMsg) push("success", successMsg);
     } else {
       push("error", result.error ?? "Tag action failed.");
@@ -254,11 +269,13 @@ export function App() {
   const handleUndo = () => {
     if (!history.canUndo) return;
     if (history.undoTarget) setValues(zeroValues(history.undoTarget));
+    setTrendSamples([]);
     history.undo();
   };
   const handleRedo = () => {
     if (!history.canRedo) return;
     if (history.redoTarget) setValues(zeroValues(history.redoTarget));
+    setTrendSamples([]);
     history.redo();
   };
 
@@ -267,14 +284,20 @@ export function App() {
     setValues((current) => ({ ...current, [name]: current[name] !== true }));
   const handleSetNumber = (name: string, value: number) =>
     setValues((current) => ({ ...current, [name]: value }));
+  const captureTrend = (nextProject: PlcProject, nextValues: TagValues) => {
+    const sample = createTrendSample(watchRows(nextProject, nextValues));
+    setTrendSamples((samples) => [...samples, sample].slice(-TREND_BUFFER_LIMIT));
+  };
   const handleScanOnce = () => {
     const result = traceOnce(project, values, forces);
     setValues(result.values);
     setTrace(result.trace);
+    captureTrend(project, result.values);
   };
   const handleReset = () => {
     setValues(zeroValues(project));
     setTrace([]);
+    setTrendSamples([]);
   };
 
   // ---- Force table (offline simulation override) ----
@@ -293,6 +316,7 @@ export function App() {
     if (result.ok) {
       setProject(result.project);
       setValues(zeroValues(result.project));
+      setTrendSamples([]);
       logActivity("ai", `Applied "${plan.title}" — ${result.applied.length} action(s).`);
     }
     return result;
@@ -331,6 +355,7 @@ export function App() {
     setSavedProject(loaded); // freshly loaded = no unsaved changes
     setProjectOpen(true);
     setValues(zeroValues(loaded));
+    setTrendSamples([]);
     setRunning(false);
     setRecovery(null);
     clearAutosave(); // starting from a file supersedes any recovered autosave
@@ -354,6 +379,7 @@ export function App() {
     setValues(zeroValues(blank));
     setForces({});
     setTrace([]);
+    setTrendSamples([]);
     setRunning(false);
     setRecovery(null);
     const main = findMainRoutine(blank);
@@ -374,6 +400,7 @@ export function App() {
     setValues(zeroValues(initialProject));
     setForces({});
     setTrace([]);
+    setTrendSamples([]);
     setRunning(false);
     setRecovery(null);
     setOpenRoutineId(undefined);
@@ -389,6 +416,7 @@ export function App() {
     history.reset(recovery.project);
     setProjectOpen(true);
     setValues(zeroValues(recovery.project));
+    setTrendSamples([]);
     setSavedProject(initialProject); // recovered work is unsaved → stays dirty
     setRunning(false);
     setRecovery(null);
@@ -541,6 +569,7 @@ export function App() {
     }
     setProject(result.project);
     setValues(zeroValues(result.project));
+    setTrendSamples([]);
     logActivity(
       "import",
       `Imported tag CSV "${tagCsvPreview.fileName}": ${result.data.created} created, ${result.data.updated} updated, ${result.data.skipped} skipped.`,
@@ -562,13 +591,22 @@ export function App() {
   projectRef.current = project;
   const forcesRef = useRef(forces);
   forcesRef.current = forces;
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
   useEffect(() => {
     if (!running) return;
     const id = setInterval(
-      () => setValues((current) => scanOnce(projectRef.current, current, forcesRef.current)),
+      () => {
+        const nextValues = scanOnce(projectRef.current, valuesRef.current, forcesRef.current);
+        valuesRef.current = nextValues;
+        setValues(nextValues);
+        captureTrend(projectRef.current, nextValues);
+      },
       SCAN_INTERVAL_MS,
     );
     return () => clearInterval(id);
+    // captureTrend writes state only; project/values refs keep the interval fresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
 
   // Undo/redo keyboard shortcuts (latest handlers via refs; native undo in text fields).
@@ -648,6 +686,7 @@ export function App() {
     } else {
       push("success", "Verification passed in Offline Simulation.");
     }
+    logActivity("info", `Verified "${project.name}": ${errorCount} error(s), ${warnCount} warning(s).`);
   };
   const handleSaveAiProfile = (draft: Partial<AiProfile>) => {
     const saved = saveAiProfile(draft);
@@ -930,6 +969,9 @@ export function App() {
           onToggleForce={handleToggleForce}
           onClearForces={handleClearForces}
           trace={trace}
+          trendSamples={trendSamples}
+          scanIntervalMs={SCAN_INTERVAL_MS}
+          onClearTrend={() => setTrendSamples([])}
           project={project}
           selectedTagName={selectedTagName}
           onOpenRoutine={handleOpenRoutine}
@@ -937,6 +979,7 @@ export function App() {
           onSearchChange={setSearchQuery}
           searchHits={searchHits}
           activity={activity}
+          onClearActivity={() => setActivity([])}
         />
       }
       statusBar={

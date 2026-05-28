@@ -1,7 +1,7 @@
 import type { PlcProject } from "@esco/core";
 import { collectTagReferences } from "@esco/project-actions";
 import type { ValidationFinding } from "@esco/validator";
-import type { Forces, TraceEntry, WatchRow } from "../simulation";
+import type { Forces, TraceEntry, TrendSample, WatchRow } from "../simulation";
 import type { SearchHit } from "../search";
 import type { ActivityEntry } from "../activity";
 import { CrossRefPanel } from "./CrossRefPanel";
@@ -34,6 +34,9 @@ interface Props {
   onToggleForce: (name: string) => void;
   onClearForces: () => void;
   trace: TraceEntry[];
+  trendSamples: TrendSample[];
+  scanIntervalMs: number;
+  onClearTrend: () => void;
   project: PlcProject;
   selectedTagName?: string;
   onOpenRoutine: (routineId: string) => void;
@@ -41,6 +44,7 @@ interface Props {
   onSearchChange?: (query: string) => void;
   searchHits?: SearchHit[];
   activity?: ActivityEntry[];
+  onClearActivity?: () => void;
 }
 
 /** The Value-column content for one watched tag, by kind. */
@@ -113,6 +117,31 @@ function WatchValue({
   );
 }
 
+function formatTrendValue(value: TrendSample["values"][string] | undefined): string {
+  if (value == null) return "-";
+  return typeof value === "boolean" ? (value ? "true" : "false") : String(value);
+}
+
+function trendStats(samples: TrendSample[], tagName: string) {
+  const values = samples.map((sample) => sample.values[tagName]).filter((value) => value != null);
+  const latest = values[values.length - 1];
+  const numeric = values.every((value) => typeof value === "number");
+  let changes = 0;
+  for (let i = 1; i < values.length; i += 1) {
+    if (values[i] !== values[i - 1]) changes += 1;
+  }
+  if (numeric) {
+    const nums = values as number[];
+    return {
+      latest: formatTrendValue(latest),
+      min: nums.length ? String(Math.min(...nums)) : "-",
+      max: nums.length ? String(Math.max(...nums)) : "-",
+      changes,
+    };
+  }
+  return { latest: formatTrendValue(latest), min: "-", max: "-", changes };
+}
+
 export function BottomPanel({
   tab,
   onTabChange,
@@ -129,6 +158,9 @@ export function BottomPanel({
   onToggleForce,
   onClearForces,
   trace,
+  trendSamples,
+  scanIntervalMs,
+  onClearTrend,
   project,
   selectedTagName,
   onOpenRoutine,
@@ -136,6 +168,7 @@ export function BottomPanel({
   onSearchChange,
   searchHits = [],
   activity = [],
+  onClearActivity,
 }: Props) {
   const setTab = onTabChange;
   const xrefCount = selectedTagName ? collectTagReferences(project, selectedTagName).length : 0;
@@ -152,6 +185,19 @@ export function BottomPanel({
       ])
       .map((tag) => [tag.name, tag.description ?? ""]),
   );
+  const trendNames = tags
+    .filter((row) => row.kind !== "struct")
+    .slice(0, 10)
+    .map((row) => row.name);
+  const latestTrend = trendSamples[trendSamples.length - 1];
+  const controllers = project.controllers;
+  const programsById = new Map(
+    controllers.flatMap((controller) => controller.programs.map((program) => [program.id, program.name])),
+  );
+  const routineCount = controllers
+    .flatMap((controller) => controller.programs)
+    .reduce((count, program) => count + program.routines.length, 0);
+  const taskCount = controllers.reduce((count, controller) => count + controller.tasks.length, 0);
 
   if (empty) {
     return (
@@ -486,15 +532,62 @@ export function BottomPanel({
           </div>
         ) : tab === "trend" ? (
           <div className="esco-trend">
-            <p className="esco-empty">Trend buffer capture is not implemented yet. Current watch values are shown below for selection context.</p>
-            <table className="esco-watch">
-              <thead><tr><th>Tag</th><th>Value</th><th>Type</th></tr></thead>
-              <tbody>
-                {tags.slice(0, 20).map((row) => (
-                  <tr key={row.name}><td>{row.name}</td><td>{String(row.value ?? "-")}</td><td>{row.dataType}</td></tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="esco-dockbar">
+              <span>
+                Trend buffer: {trendSamples.length} sample{trendSamples.length === 1 ? "" : "s"}
+                {" · "}offline scan period {scanIntervalMs} ms
+                {latestTrend ? ` · latest ${new Date(latestTrend.at).toLocaleTimeString()}` : ""}
+              </span>
+              <div className="esco-dockbar__actions">
+                <button type="button" className="esco-btn" onClick={onScanOnce}>
+                  Capture Scan
+                </button>
+                <button type="button" className="esco-btn" disabled={trendSamples.length === 0} onClick={onClearTrend}>
+                  Clear Buffer
+                </button>
+              </div>
+            </div>
+            {trendSamples.length === 0 ? (
+              <p className="esco-empty">No trend samples yet. Capture a scan or run Offline Simulation to fill the buffer.</p>
+            ) : (
+              <>
+                <table className="esco-watch esco-trend__stats">
+                  <thead><tr><th>Tag</th><th>Latest</th><th>Min</th><th>Max</th><th>Changes</th></tr></thead>
+                  <tbody>
+                    {trendNames.map((name) => {
+                      const stats = trendStats(trendSamples, name);
+                      return (
+                        <tr key={name}>
+                          <td>{name}</td>
+                          <td>{stats.latest}</td>
+                          <td>{stats.min}</td>
+                          <td>{stats.max}</td>
+                          <td>{stats.changes}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <table className="esco-watch esco-trend__samples">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      {trendNames.slice(0, 6).map((name) => <th key={name}>{name}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trendSamples.slice(-12).reverse().map((sample) => (
+                      <tr key={sample.id}>
+                        <td>{new Date(sample.at).toLocaleTimeString()}</td>
+                        {trendNames.slice(0, 6).map((name) => (
+                          <td key={name}>{formatTrendValue(sample.values[name])}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
           </div>
         ) : tab === "trace" ? (
           <div className="esco-trace">
@@ -583,6 +676,14 @@ export function BottomPanel({
           </div>
         ) : tab === "logger" ? (
           <div className="esco-logger">
+            <div className="esco-dockbar">
+              <span>Activity logger: {activity.length} event{activity.length === 1 ? "" : "s"} this session</span>
+              <div className="esco-dockbar__actions">
+                <button type="button" className="esco-btn" disabled={activity.length === 0} onClick={onClearActivity}>
+                  Clear Log
+                </button>
+              </div>
+            </div>
             {activity.length === 0 ? (
               <p className="esco-empty">No activity recorded yet. Imports, exports, verifies, comparisons, and AI-applied actions appear here.</p>
             ) : (
@@ -602,11 +703,20 @@ export function BottomPanel({
           </div>
         ) : tab === "task-monitor" ? (
           <div className="esco-taskmon">
-            <p className="esco-empty">Offline task metadata only. Real controller task execution metrics are not available.</p>
+            <div className="esco-dockbar">
+              <span>
+                Offline task monitor: {taskCount} task{taskCount === 1 ? "" : "s"} · {routineCount} routine{routineCount === 1 ? "" : "s"} · simulation {running ? "running" : "stopped"}
+              </span>
+              <span className="esco-dockbar__muted">No controller execution metrics are read.</span>
+            </div>
             <table className="esco-diagnostics__table">
               <thead><tr><th>Controller</th><th>Task</th><th>Type</th><th>Period</th><th>Priority</th><th>Watchdog</th><th>Programs</th><th>Inhibited</th></tr></thead>
               <tbody>
-                {project.controllers.flatMap((controller) =>
+                {taskCount === 0 ? (
+                  <tr>
+                    <td colSpan={8}>No tasks imported for this project.</td>
+                  </tr>
+                ) : controllers.flatMap((controller) =>
                   controller.tasks.map((task) => (
                     <tr key={task.id}>
                       <td>{controller.name}</td>
@@ -615,7 +725,11 @@ export function BottomPanel({
                       <td>{task.periodMs != null ? `${task.periodMs} ms` : "-"}</td>
                       <td>{task.priority ?? "-"}</td>
                       <td>{task.watchdogMs != null ? `${task.watchdogMs} ms` : "-"}</td>
-                      <td>{task.scheduledProgramIds.length}</td>
+                      <td>
+                        {task.scheduledProgramIds
+                          .map((id) => programsById.get(id) ?? id)
+                          .join(", ") || "-"}
+                      </td>
                       <td>{task.inhibited ? "yes" : "no"}</td>
                     </tr>
                   )),

@@ -1,4 +1,5 @@
 import { chromium } from "playwright-core";
+import { readFileSync } from "node:fs";
 import { URL, importStarterProject } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
@@ -34,7 +35,28 @@ try {
   // Search filter.
   await page.locator(".esco-tags__search").fill("Start");
   check("search filters rows", (await rows(page).count()) === 1);
-  await page.screenshot({ path: "C:/Users/nmodha/Projects/esco-e2e/tags1.png" });
+  await page.locator(".esco-tags__search").fill("");
+
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator('.esco-tags__bar button:has-text("Export CSV")').click(),
+  ]);
+  const csvPath = await download.path();
+  const csvText = csvPath ? readFileSync(csvPath, "utf-8") : "";
+  check("tag CSV export downloads the expected file", /-tags\.csv$/i.test(download.suggestedFilename()) && /Scope,Program,Name,DataType/.test(csvText));
+
+  await page.locator('input[type="file"][accept*=".csv"]').setInputFiles({
+    name: "tags-import.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Name,DataType,Scope,Program,Description,AliasFor,Dimension\nCsvLamp,BOOL,controller,,Imported from CSV,,\n"),
+  });
+  await page.locator(".esco-tagcsv").waitFor({ timeout: 5000 });
+  const previewText = await page.locator(".esco-tagcsv").innerText();
+  check("tag CSV import preview shows created tag", /CsvLamp/.test(previewText) && /1 create/.test(previewText));
+  await page.locator('.esco-tagcsv button:has-text("Apply CSV")').click();
+  await page.locator(".esco-tagcsv").waitFor({ state: "detached", timeout: 5000 });
+  await page.locator(".esco-tags__search").fill("CsvLamp");
+  check("tag CSV apply adds imported tag", (await rows(page).count()) === 1 && (await page.locator('.esco-tags__table input[value="CsvLamp"]').count()) === 1);
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

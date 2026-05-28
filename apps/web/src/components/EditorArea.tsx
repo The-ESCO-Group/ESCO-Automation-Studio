@@ -163,9 +163,11 @@ const INSTRUCTION_GROUPS: { label: string; types: string[] }[] = [
   { label: "Bit", types: ["XIC", "XIO", "OTE", "OTL", "OTU", "ONS"] },
   { label: "Timer / Counter", types: ["TON", "TOF", "RTO", "CTU", "CTD", "RES"] },
   { label: "Move / Math", types: ["MOV", "ADD", "SUB", "MUL", "DIV", "MOD", "SQR", "NEG", "ABS", "CLR"] },
+  { label: "Data", types: ["COP", "CPS", "FLL", "MVM"] },
+  { label: "Convert", types: ["TOD", "FRD", "BTD", "SWPB"] },
   { label: "Bitwise", types: ["AND", "OR", "XOR", "NOT"] },
   { label: "Compare", types: ["EQU", "NEQ", "GRT", "GEQ", "LES", "LEQ", "LIM", "MEQ"] },
-  { label: "Program", types: ["JSR", "SBR", "RET", "NOP", "AFI"] },
+  { label: "Program", types: ["JSR", "SBR", "RET", "NOP", "AFI", "TND", "JMP", "LBL", "MCR", "FOR", "BRK"] },
 ];
 
 const LANGUAGE_LABEL: Record<Routine["language"], string> = {
@@ -211,6 +213,41 @@ function routineText(routine: Routine): string {
   return routine.sourceText ?? "";
 }
 
+function outlineRows(source: string, query: string): { id: string; depth: number; name: string; attrs: string }[] {
+  const term = query.trim().toLowerCase();
+  return source
+    .split(/\r?\n/)
+    .map((line, index) => {
+      const depth = Math.floor((line.match(/^\s*/)?.[0].length ?? 0) / 2);
+      const trimmed = line.trim();
+      const match = trimmed.match(/^([^\[]+?)(?:\s+\[(.*)\])?$/);
+      return {
+        id: `${index}-${trimmed}`,
+        depth,
+        name: (match?.[1] ?? trimmed).trim(),
+        attrs: (match?.[2] ?? "").trim(),
+      };
+    })
+    .filter((row) => row.name.length > 0)
+    .filter((row) => !term || `${row.name} ${row.attrs}`.toLowerCase().includes(term));
+}
+
+function GraphicalRoutineOutline({ source, query }: { source: string; query: string }) {
+  const rows = outlineRows(source, query);
+  return (
+    <div className="esco-graphical-outline">
+      {rows.map((row) => (
+        <div className="esco-graphical-outline__row" key={row.id} style={{ paddingLeft: `${row.depth * 18 + 10}px` }}>
+          <span className="esco-graphical-outline__glyph" aria-hidden="true" />
+          <strong>{row.name}</strong>
+          {row.attrs ? <code>{row.attrs}</code> : null}
+        </div>
+      ))}
+      {rows.length === 0 ? <p className="esco-empty">No source lines match the current search.</p> : null}
+    </div>
+  );
+}
+
 function NonLadderRoutineView({ routine }: { routine: Routine }) {
   const [query, setQuery] = useState("");
   const source = routineText(routine);
@@ -231,10 +268,14 @@ function NonLadderRoutineView({ routine }: { routine: Routine }) {
         <div>
           <h1>{routine.name}</h1>
           <p>
-            {LANGUAGE_LABEL[routine.language]} readonly imported routine. Editing and simulation are not supported yet.
+            {LANGUAGE_LABEL[routine.language]} imported routine is preserved read-only for review. It is not executed by Offline Simulation.
           </p>
         </div>
-        <span className="esco-detail__readonly">Read-only</span>
+        <div className="esco-nonladder__badges">
+          <span className="esco-detail__readonly">Read-only</span>
+          <span className="esco-detail__readonly">{lines.length} line{lines.length === 1 ? "" : "s"}</span>
+          {term ? <span className="esco-detail__readonly">{visible.length} match{visible.length === 1 ? "" : "es"}</span> : null}
+        </div>
       </header>
       <div className="esco-nonladder__toolbar">
         <input
@@ -258,7 +299,7 @@ function NonLadderRoutineView({ routine }: { routine: Routine }) {
             ))}
           </ol>
         ) : (
-          <pre className="esco-graphical-source">{source}</pre>
+          <GraphicalRoutineOutline source={source} query={query} />
         )
       ) : (
         <div className="esco-nonladder__empty">
