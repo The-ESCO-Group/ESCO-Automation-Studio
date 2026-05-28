@@ -1,5 +1,5 @@
-import type { AddOnInstruction, PlcProject } from "@esco/core";
-import { aoiReferences } from "@esco/project-actions";
+import type { AddOnInstruction, PlcProject, UserDefinedType } from "@esco/core";
+import { aoiReferences, tagsUsingType, udtMemberPaths } from "@esco/project-actions";
 import type { Selection } from "../selection";
 
 interface Props {
@@ -14,6 +14,76 @@ function findAoi(project: PlcProject, id: string): AddOnInstruction | undefined 
     if (aoi) return aoi;
   }
   return undefined;
+}
+
+function findUdt(project: PlcProject, id: string): UserDefinedType | undefined {
+  for (const controller of project.controllers) {
+    const udt = controller.dataTypes.find((d) => d.id === id);
+    if (udt) return udt;
+  }
+  return undefined;
+}
+
+/** Read-only UDT detail: members (with array dims), member paths, and tags using it. */
+function UdtDetail({ udt, project }: { udt: UserDefinedType; project: PlcProject }) {
+  const tags = tagsUsingType(project, udt.name);
+  const paths = udtMemberPaths(udt);
+  return (
+    <div className="esco-detail">
+      <header className="esco-detail__head">
+        <h1 className="esco-detail__title">Data Type · {udt.name}</h1>
+        <span className="esco-detail__readonly">Read-only</span>
+      </header>
+      {udt.description ? <p className="esco-detail__desc">{udt.description}</p> : null}
+
+      <section className="esco-detail__section">
+        <h2>Members ({udt.members.length})</h2>
+        {udt.members.length === 0 ? (
+          <p className="esco-empty">No members imported.</p>
+        ) : (
+          <table className="esco-detail__table">
+            <thead><tr><th>Member</th><th>Type</th><th>Dimension</th><th>Description</th></tr></thead>
+            <tbody>
+              {udt.members.map((m) => (
+                <tr key={m.name}>
+                  <td>{m.name}</td>
+                  <td>{m.dataType}</td>
+                  <td>{m.dimension ? `[${m.dimension}]` : "—"}</td>
+                  <td>{m.description ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="esco-detail__section">
+        <h2>Member paths</h2>
+        <ul className="esco-detail__list">
+          {paths.map((path) => (
+            <li key={path}><code>{path}</code></li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="esco-detail__section">
+        <h2>Tags using this type ({tags.length})</h2>
+        {tags.length === 0 ? (
+          <p className="esco-empty">No tags use this type.</p>
+        ) : (
+          <ul className="esco-detail__list">
+            {tags.map((t) => (
+              <li key={`${t.scope}:${t.name}`}>
+                {t.name}
+                {t.dimension ? `[${t.dimension}]` : ""}
+                <span className="esco-detail__muted"> · {t.programName ? `program ${t.programName}` : "controller"}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
 }
 
 /** Read-only Add-On Instruction detail: signature, parameters, local tags, calls. */
@@ -107,6 +177,10 @@ export function StructureView({ project, selection, onOpenRoutine }: Props) {
   if (selection?.kind === "aoi") {
     const aoi = findAoi(project, selection.id);
     if (aoi) return <AoiDetail aoi={aoi} project={project} onOpenRoutine={onOpenRoutine} />;
+  }
+  if (selection?.kind === "udt") {
+    const udt = findUdt(project, selection.id);
+    if (udt) return <UdtDetail udt={udt} project={project} />;
   }
   return (
     <div className="esco-detail">

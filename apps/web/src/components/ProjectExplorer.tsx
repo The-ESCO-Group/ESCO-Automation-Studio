@@ -103,9 +103,16 @@ export function ProjectExplorer({ project, selection, onSelect }: Props) {
                   <ul className="esco-tree esco-tree--nested">
                     {controller.dataTypes.map((udt) => (
                       <li key={udt.id}>
-                        <span className="esco-tree__leaf" title={`${udt.members.length} member(s)`}>
+                        <button
+                          type="button"
+                          className={`esco-tree__node esco-tree__node--udt${
+                            isSelected("udt", udt.id) ? " is-selected" : ""
+                          }`}
+                          title={`${udt.members.length} member(s)`}
+                          onClick={() => onSelect({ kind: "udt", id: udt.id })}
+                        >
                           {udt.name} · {udt.members.length} member{udt.members.length === 1 ? "" : "s"}
-                        </span>
+                        </button>
                       </li>
                     ))}
                   </ul>

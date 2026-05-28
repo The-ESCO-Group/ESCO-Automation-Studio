@@ -32,6 +32,7 @@ const ORDER = [
   "arrayvalues.mjs",
   "structure.mjs",
   "aoidetail.mjs",
+  "udtdetail.mjs",
   "compare.mjs",
   "ai.mjs",
   "persist.mjs",

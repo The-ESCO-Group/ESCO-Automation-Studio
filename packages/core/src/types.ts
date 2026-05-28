@@ -96,6 +96,7 @@ export interface Tag {
 export interface UserDefinedType {
   id: string;
   name: string;
+  description?: string;
   members: UdtMember[];
 }
 

@@ -452,6 +452,7 @@ const STRUCTURE = `<?xml version="1.0" encoding="UTF-8"?>
   <Controller Use="Target" Name="StructCtl">
     <DataTypes>
       <DataType Name="MotorUdt">
+        <Description><![CDATA[Motor status UDT]]></Description>
         <Members>
           <Member Name="Running" DataType="BOOL"><Description><![CDATA[Run feedback]]></Description></Member>
           <Member Name="Speed" DataType="DINT"/>
@@ -494,6 +495,7 @@ describe("importL5X (structure: UDT / AOI / I/O)", () => {
     expect(controller.dataTypes).toHaveLength(1);
     const udt = controller.dataTypes[0]!;
     expect(udt.name).toBe("MotorUdt");
+    expect(udt.description).toBe("Motor status UDT");
     expect(udt.members.map((m) => `${m.name}:${m.dataType}`)).toEqual([
       "Running:BOOL",
       "Speed:DINT",

@@ -14,6 +14,7 @@ export function extractDataTypes(controllerNode: L5XNode): UserDefinedType[] {
   return toArray<L5XNode>(child(child(controllerNode, "DataTypes"), "DataType")).flatMap((dtNode) => {
     const name = attr(dtNode, "Name");
     if (!name) return [];
+    const dtDescription = child(dtNode, "Description");
     const members = toArray<L5XNode>(child(child(dtNode, "Members"), "Member")).flatMap((memberNode) => {
       const memberName = attr(memberNode, "Name");
       if (!memberName) return [];
@@ -28,7 +29,7 @@ export function extractDataTypes(controllerNode: L5XNode): UserDefinedType[] {
         },
       ];
     });
-    return [{ id: createId("udt"), name, members }];
+    return [{ id: createId("udt"), name, ...(dtDescription ? { description: text(dtDescription) } : {}), members }];
   });
 }
 
