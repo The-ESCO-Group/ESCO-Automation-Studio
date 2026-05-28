@@ -1464,6 +1464,65 @@ body {
   background: var(--accent-soft);
 }
 
+/* ---- Saved / unsaved indicator ---- */
+.esco-titlebar__saved {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.esco-titlebar__saved.is-dirty {
+  color: var(--warn, #e0b050);
+  border-color: var(--warn, #e0b050);
+}
+
+.esco-titlebar__saved.is-saved {
+  color: var(--text-dim);
+}
+
+/* ---- Crash / error boundary fallback ---- */
+.esco-crash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg, #1b1d23);
+  padding: 24px;
+}
+
+.esco-crash__box {
+  max-width: 560px;
+  padding: 24px 28px;
+  border: 1px solid var(--error);
+  border-radius: 10px;
+  background: var(--bg-panel, #23252c);
+}
+
+.esco-crash__title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  color: var(--error);
+}
+
+.esco-crash__msg {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.esco-crash__detail {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  background: var(--bg, #1b1d23);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+
 .esco-lad__rung-no {
   display: inline-flex;
   align-items: center;

@@ -52,6 +52,11 @@ export function App() {
   const history = useHistoryState(initialProject);
   const project = history.present;
   const setProject = history.set;
+  // The project reference last saved (exported) or loaded; identity equality with
+  // the current project tells us whether there are unsaved changes. Because history
+  // keeps references, undoing back to a saved state also returns to "clean".
+  const [savedProject, setSavedProject] = useState(initialProject);
+  const dirty = project !== savedProject;
   const [selection, setSelection] = useState<Selection>(null);
   const [values, setValues] = useState<TagValues>(() => zeroValues(project));
   const [running, setRunning] = useState(false);
@@ -215,6 +220,7 @@ export function App() {
   // ---- File workflows ----
   const loadProject = (loaded: PlcProject) => {
     history.reset(loaded); // opening/importing a project is a fresh undo baseline
+    setSavedProject(loaded); // freshly loaded = no unsaved changes
     setValues(zeroValues(loaded));
     setRunning(false);
     const main = findMainRoutine(loaded);
@@ -234,6 +240,7 @@ export function App() {
     if (result.data) {
       const filename = `${slugify(project.name)}${PLCPROJ_EXTENSION}`;
       downloadTextFile(filename, result.data.text);
+      setSavedProject(project); // exporting is the save point — mark clean
       push("success", `Exported "${project.name}" → ${filename}`);
     }
   };
@@ -341,6 +348,19 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Warn before closing/reloading the tab when there are unsaved changes.
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      event.preventDefault();
+      event.returnValue = ""; // triggers the browser's native "unsaved changes" prompt
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
   const validationLabel = errorCount
     ? `${errorCount} error${errorCount > 1 ? "s" : ""}`
     : warnCount
@@ -365,6 +385,12 @@ export function App() {
 
         <div className="esco-titlebar__context">
           <span className="esco-titlebar__project" title="Project">{project.name}</span>
+          <span
+            className={`esco-titlebar__saved ${dirty ? "is-dirty" : "is-saved"}`}
+            title={dirty ? "Unsaved changes — export to save" : "All changes saved"}
+          >
+            {dirty ? "● Unsaved" : "✓ Saved"}
+          </span>
           {openRoutine ? <span className="esco-titlebar__routine">▸ {openRoutine.name}</span> : null}
           <span className={`esco-titlebar__validation ${validationClass}`} title="Validation status">
             {validationLabel}
