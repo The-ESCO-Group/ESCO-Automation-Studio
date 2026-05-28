@@ -10,6 +10,9 @@ export interface HistoryApi<T> {
   present: T;
   canUndo: boolean;
   canRedo: boolean;
+  /** Number of states on the undo (past) and redo (future) stacks. */
+  undoDepth: number;
+  redoDepth: number;
   /** State that an undo would restore (the new present), or null. */
   undoTarget: T | null;
   /** State that a redo would restore (the new present), or null. */
@@ -83,6 +86,8 @@ export function useHistoryState<T>(initial: T): HistoryApi<T> {
     present: state.present,
     canUndo: state.past.length > 0,
     canRedo: state.future.length > 0,
+    undoDepth: state.past.length,
+    redoDepth: state.future.length,
     undoTarget: state.past.length > 0 ? state.past[state.past.length - 1]! : null,
     redoTarget: state.future.length > 0 ? state.future[0]! : null,
     set,

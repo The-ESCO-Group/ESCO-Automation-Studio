@@ -31,7 +31,7 @@ import { applyPlan, type ApplyResult, type AssistantPlan } from "@esco/ai-assist
 import { createDefaultEngine } from "@esco/validator";
 import { ProjectExplorer } from "./components/ProjectExplorer";
 import { EditorArea } from "./components/EditorArea";
-import { PropertiesPanel } from "./components/PropertiesPanel";
+import { InspectorPanel, type InspectorTab } from "./components/InspectorPanel";
 import { BottomPanel, type DockTab } from "./components/BottomPanel";
 import { WelcomeDashboard } from "./components/WelcomeDashboard";
 import { TagsView } from "./components/TagsView";
@@ -45,6 +45,7 @@ import { scanOnce, traceOnce, watchRows, zeroValues, type Forces, type TagValues
 import { useToasts } from "./toasts";
 import { useHistoryState } from "./history";
 import { clearAutosave, loadAutosave, saveAutosave, type AutosaveEntry } from "./autosave";
+import { recordActivity, type ActivityEntry, type ActivityKind } from "./activity";
 
 const SCAN_INTERVAL_MS = 250;
 type CenterView = "welcome" | "routine" | "tags" | "compare" | "structure";
@@ -69,6 +70,10 @@ export function App() {
   const [view, setView] = useState<CenterView>("welcome");
   const [openRoutineId, setOpenRoutineId] = useState<string | undefined>(undefined);
   const [dockTab, setDockTab] = useState<DockTab>("watch");
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("properties");
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const logActivity = (kind: ActivityKind, message: string) =>
+    setActivity((log) => recordActivity(log, kind, message));
   const [lastImport, setLastImport] = useState<{ name: string; summary: ImportSummary } | null>(null);
   const [comparison, setComparison] = useState<{ name: string; project: PlcProject } | null>(null);
   const [clipboardRung, setClipboardRung] = useState<{ root: LadderBranch; comment?: string } | null>(null);
@@ -227,6 +232,7 @@ export function App() {
     if (result.ok) {
       setProject(result.project);
       setValues(zeroValues(result.project));
+      logActivity("ai", `Applied "${plan.title}" — ${result.applied.length} action(s).`);
     }
     return result;
   };
@@ -291,6 +297,7 @@ export function App() {
       setSavedProject(project); // exporting is the save point — mark clean
       setLastExportedAt(new Date().toISOString());
       clearAutosave();
+      logActivity("export", `Exported "${project.name}" → ${filename}`);
       push("success", `Exported "${project.name}" → ${filename}`);
     }
   };
@@ -309,6 +316,7 @@ export function App() {
       const result = isL5X ? importL5XFile(text) : importProjectFile(text);
       if (result.ok) {
         setComparison({ name: file.name, project: result.project });
+        logActivity("compare", `Loaded "${file.name}" for comparison.`);
         push("success", `Loaded "${file.name}" for comparison.`);
       } else {
         push("error", result.error ?? "Failed to load the comparison file.");
@@ -326,6 +334,7 @@ export function App() {
       const result = importProjectFile(await readFileAsText(file));
       if (result.ok) {
         loadProject(result.project);
+        logActivity("open", `Opened project "${result.project.name}".`);
         push("success", `Opened project "${result.project.name}".`);
       } else {
         push("error", result.error ?? "Failed to import project.");
@@ -353,6 +362,7 @@ export function App() {
       const s = result.data.summary;
       setLastImport({ name: result.project.name, summary: s });
       const counts = `${s.programs} program(s), ${s.routines} routine(s), ${s.rungs} rung(s), ${s.tags} tag(s)`;
+      logActivity("import", `Imported L5X "${result.project.name}": ${counts}.`);
       const unsupported = s.unsupportedInstructions.length
         ? ` Unsupported: ${s.unsupportedInstructions.join(", ")}.`
         : "";
@@ -365,6 +375,14 @@ export function App() {
       push("error", error instanceof Error ? error.message : "Failed to read the file.");
     }
   };
+
+  // Selecting an inspectable node surfaces its details in the inspector. AOI/UDT/IO
+  // open their own center detail view, so they don't steal the inspector tab.
+  useEffect(() => {
+    if (!selection) return;
+    if (selection.kind === "aoi" || selection.kind === "udt" || selection.kind === "io") return;
+    setInspectorTab("properties");
+  }, [selection]);
 
   // Continuous run uses the latest project + forces via refs.
   const projectRef = useRef(project);
@@ -631,7 +649,7 @@ export function App() {
               }}
               onImportL5X={handleImportL5XClick}
               onExport={handleExport}
-              onOpenAi={() => setDockTab("ai")}
+              onOpenAi={() => setInspectorTab("ai")}
               onOpenCrossRef={() => setDockTab("xref")}
               onOpenWatch={() => setDockTab("watch")}
               onOpenTags={() => setView("tags")}
@@ -642,7 +660,21 @@ export function App() {
         </main>
 
         <aside className="esco-right">
-          <PropertiesPanel project={project} selection={selection} values={values} findings={findings} />
+          <InspectorPanel
+            tab={inspectorTab}
+            onTabChange={setInspectorTab}
+            project={project}
+            selection={selection}
+            values={values}
+            findings={findings}
+            selectedRoutineId={openRoutineId}
+            openRoutineName={openRoutine?.name}
+            onApplyPlan={handleApplyPlan}
+            undoDepth={history.undoDepth}
+            redoDepth={history.redoDepth}
+            dirty={dirty}
+            activity={activity}
+          />
         </aside>
       </div>
 
@@ -663,9 +695,7 @@ export function App() {
           onClearForces={handleClearForces}
           trace={trace}
           project={project}
-          selectedRoutineId={openRoutineId}
           selectedTagName={selectedTagName}
-          onApplyPlan={handleApplyPlan}
           onOpenRoutine={handleOpenRoutine}
         />
       </footer>

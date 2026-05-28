@@ -1,12 +1,10 @@
 import type { PlcProject } from "@esco/core";
-import type { AssistantPlan, ApplyResult } from "@esco/ai-assistant";
 import { collectTagReferences } from "@esco/project-actions";
 import type { ValidationFinding } from "@esco/validator";
 import type { Forces, TraceEntry, WatchRow } from "../simulation";
-import { AiAssistantPanel } from "./AiAssistantPanel";
 import { CrossRefPanel } from "./CrossRefPanel";
 
-export type DockTab = "errors" | "watch" | "trace" | "ai" | "xref";
+export type DockTab = "errors" | "watch" | "trace" | "forces" | "xref";
 
 interface Props {
   tab: DockTab;
@@ -24,9 +22,7 @@ interface Props {
   onClearForces: () => void;
   trace: TraceEntry[];
   project: PlcProject;
-  selectedRoutineId?: string;
   selectedTagName?: string;
-  onApplyPlan: (plan: AssistantPlan) => ApplyResult;
   onOpenRoutine: (routineId: string) => void;
 }
 
@@ -116,14 +112,13 @@ export function BottomPanel({
   onClearForces,
   trace,
   project,
-  selectedRoutineId,
   selectedTagName,
-  onApplyPlan,
   onOpenRoutine,
 }: Props) {
   const setTab = onTabChange;
   const xrefCount = selectedTagName ? collectTagReferences(project, selectedTagName).length : 0;
   const forceCount = Object.keys(forces).length;
+  const forcedRows = tags.filter((row) => row.name in forces);
 
   return (
     <div className="esco-dock">
@@ -151,10 +146,10 @@ export function BottomPanel({
         </button>
         <button
           type="button"
-          className={`esco-dock__tab${tab === "ai" ? " is-active" : ""}`}
-          onClick={() => setTab("ai")}
+          className={`esco-dock__tab${tab === "forces" ? " is-active" : ""}`}
+          onClick={() => setTab("forces")}
         >
-          AI Assistant
+          Forces ({forceCount})
         </button>
         <button
           type="button"
@@ -294,12 +289,55 @@ export function BottomPanel({
               </table>
             )}
           </div>
-        ) : tab === "ai" ? (
-          <AiAssistantPanel
-            project={project}
-            selectedRoutineId={selectedRoutineId}
-            onApply={onApplyPlan}
-          />
+        ) : tab === "forces" ? (
+          <div className="esco-forces">
+            <div className="esco-forces__bar">
+              <span className="esco-forces__note">
+                Forces are offline simulation overrides — they pin a tag's value and never reach a
+                controller.
+              </span>
+              {forceCount > 0 ? (
+                <button type="button" className="esco-btn esco-btn--danger" onClick={onClearForces}>
+                  Clear Forces ({forceCount})
+                </button>
+              ) : null}
+            </div>
+            {forcedRows.length === 0 ? (
+              <p className="esco-empty">No forces active. Use “Force” in the Watch tab to pin a value.</p>
+            ) : (
+              <table className="esco-watch">
+                <thead>
+                  <tr>
+                    <th>Tag</th>
+                    <th>Type</th>
+                    <th>Forced value</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {forcedRows.map((row) => (
+                    <tr key={row.name} className="is-forced">
+                      <td>{row.name}</td>
+                      <td>{row.dataType}</td>
+                      <td>
+                        <span className="esco-watch__value">{String(forces[row.name])}</span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="esco-btn esco-btn--toggle is-on"
+                          title="Remove force"
+                          onClick={() => onToggleForce(row.name)}
+                        >
+                          Forced
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         ) : (
           <CrossRefPanel
             project={project}

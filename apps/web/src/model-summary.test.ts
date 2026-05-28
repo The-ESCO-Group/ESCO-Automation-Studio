@@ -1,0 +1,57 @@
+import { describe, expect, it } from "vitest";
+import { createDefaultEngine } from "@esco/validator";
+import { appendRungWithRoot, createBranch, createNode } from "@esco/ladder";
+import type { LadderRoutine } from "@esco/ladder";
+import { buildModelSummary } from "./model-summary";
+import { createInitialProject } from "./project-edit";
+
+describe("buildModelSummary", () => {
+  it("aggregates counts for the seed demo project", () => {
+    const project = createInitialProject();
+    const summary = buildModelSummary(project, createDefaultEngine().run(project));
+
+    expect(summary.projectName).toBe(project.name);
+    expect(summary.controllerName).toBe(project.controllers[0]?.name);
+    expect(summary.counts.controllers).toBe(1);
+    expect(summary.counts.programs).toBeGreaterThanOrEqual(1);
+    expect(summary.counts.routines).toBeGreaterThanOrEqual(1);
+    expect(summary.counts.rungs).toBeGreaterThanOrEqual(1);
+    expect(summary.counts.tags).toBe(summary.counts.controllerTags + summary.counts.programTags);
+  });
+
+  it("reports no unsupported instructions for the supported demo logic", () => {
+    const project = createInitialProject();
+    const summary = buildModelSummary(project);
+    expect(summary.unsupportedTotal).toBe(0);
+    expect(summary.unsupportedInstructions).toEqual([]);
+  });
+
+  it("counts unsupported instruction types found in ladders", () => {
+    const project = createInitialProject();
+    // Inject two occurrences of an unknown instruction type into the main routine ladder.
+    const controller = project.controllers[0]!;
+    const program = controller.programs[0]!;
+    const main = program.routines.find((r) => r.id === program.mainRoutineId) ?? program.routines[0]!;
+    let ladder = main.ladder as LadderRoutine;
+    ladder = appendRungWithRoot(ladder, createBranch([createNode("PIDE", []), createNode("XIC", [])]));
+    ladder = appendRungWithRoot(ladder, createBranch([createNode("PIDE", [])]));
+    main.ladder = ladder;
+
+    const summary = buildModelSummary(project);
+    const pide = summary.unsupportedInstructions.find((u) => u.type === "PIDE");
+    expect(pide?.count).toBe(2);
+    expect(summary.unsupportedTotal).toBe(2);
+  });
+
+  it("tallies validator error and warning findings", () => {
+    const project = createInitialProject();
+    const findings = [
+      { ruleId: "x", severity: "error", message: "e" } as const,
+      { ruleId: "y", severity: "warning", message: "w" } as const,
+      { ruleId: "z", severity: "warning", message: "w2" } as const,
+    ];
+    const summary = buildModelSummary(project, findings as never);
+    expect(summary.errorCount).toBe(1);
+    expect(summary.warningCount).toBe(2);
+  });
+});

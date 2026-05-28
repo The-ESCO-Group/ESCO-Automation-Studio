@@ -82,41 +82,7 @@ export function AiAssistantPanel({ project, selectedRoutineId, onApply }: Props)
         changes go only through the controlled project-action layer.
       </p>
 
-      <div className="esco-ai__prompt">
-        <input
-          className="esco-ai__input"
-          value={prompt}
-          placeholder="Ask the assistant… (e.g. explain routine)"
-          spellCheck={false}
-          onChange={(event) => setPrompt(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") void ask(prompt);
-          }}
-        />
-        <button type="button" className="esco-btn esco-btn--primary" onClick={() => void ask(prompt)}>
-          Send
-        </button>
-        <button type="button" className="esco-btn" onClick={handleClear}>
-          Clear
-        </button>
-      </div>
-
-      <div className="esco-ai__quick">
-        {QUICK_ACTIONS.map((action) => (
-          <button
-            key={action.prompt}
-            type="button"
-            className="esco-btn esco-btn--quick"
-            onClick={() => {
-              setPrompt(action.prompt);
-              void ask(action.prompt);
-            }}
-          >
-            {action.label}
-          </button>
-        ))}
-      </div>
-
+      <div className="esco-ai__scroll">
       {result ? (
         <div className="esco-ai__response">
           <div className="esco-ai__response-head">
@@ -192,6 +158,42 @@ export function AiAssistantPanel({ project, selectedRoutineId, onApply }: Props)
           Ask a question or pick a quick action. I propose changes; you preview and Apply them.
         </p>
       )}
+      </div>
+
+      <div className="esco-ai__quick">
+        {QUICK_ACTIONS.map((action) => (
+          <button
+            key={action.prompt}
+            type="button"
+            className="esco-btn esco-btn--quick"
+            onClick={() => {
+              setPrompt(action.prompt);
+              void ask(action.prompt);
+            }}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="esco-ai__prompt">
+        <input
+          className="esco-ai__input"
+          value={prompt}
+          placeholder="Ask the assistant… (e.g. explain routine)"
+          spellCheck={false}
+          onChange={(event) => setPrompt(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void ask(prompt);
+          }}
+        />
+        <button type="button" className="esco-btn esco-btn--primary" onClick={() => void ask(prompt)}>
+          Send
+        </button>
+        <button type="button" className="esco-btn" onClick={handleClear}>
+          Clear
+        </button>
+      </div>
     </div>
   );
 }

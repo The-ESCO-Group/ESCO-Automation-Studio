@@ -121,21 +121,20 @@ body {
 
 .esco-body {
   display: grid;
-  grid-template-columns: 280px 1fr 300px;
+  grid-template-columns: 280px 1fr 340px;
   min-height: 0;
 }
 
-.esco-left,
-.esco-right {
+.esco-left {
   background: var(--bg-panel);
   overflow: auto;
-}
-
-.esco-left {
   border-right: 1px solid var(--border);
 }
 
 .esco-right {
+  background: var(--bg-panel);
+  overflow: hidden;
+  display: flex;
   border-left: 1px solid var(--border);
 }
 
@@ -1900,4 +1899,261 @@ body {
   padding-left: 18px;
   color: var(--warning);
   font-size: 12px;
+}
+
+/* ---- Right inspector (tabbed: Properties / AI / Model / History / Help) ---- */
+.esco-inspector {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  width: 100%;
+}
+
+.esco-inspector__rail {
+  flex: 0 0 60px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+}
+
+.esco-inspector__tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 9px 2px;
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font: inherit;
+}
+
+.esco-inspector__tab:hover {
+  color: var(--text);
+  background: var(--bg-panel);
+}
+
+.esco-inspector__tab.is-active {
+  color: var(--accent);
+  background: var(--bg-panel);
+  border-left-color: var(--accent);
+}
+
+.esco-inspector__glyph {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.esco-inspector__label {
+  font-size: 10px;
+  letter-spacing: 0.3px;
+}
+
+.esco-inspector__content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* The AI panel fills the inspector so its chat input pins to the bottom. */
+.esco-inspector__content .esco-ai {
+  height: 100%;
+  padding: 8px 8px 10px;
+}
+
+.esco-ai__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* ---- Model summary tab ---- */
+.esco-model {
+  padding: 8px 10px 14px;
+}
+
+.esco-model__heading,
+.esco-history__heading,
+.esco-help__heading {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  margin: 14px 0 6px;
+}
+
+.esco-model__heading:first-child {
+  margin-top: 4px;
+}
+
+.esco-model__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.esco-model__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.esco-model__stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.esco-model__stat-label {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.esco-model__health {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.esco-model__pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.esco-model__pill.is-ok {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.esco-model__pill.is-warn {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.esco-model__pill.is-error {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.esco-model__unsupported {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 12px;
+}
+
+.esco-model__note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ---- History tab ---- */
+.esco-history {
+  padding: 8px 10px 14px;
+}
+
+.esco-history__log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.esco-history__entry {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.esco-history__kind {
+  flex: 0 0 auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.esco-history__kind--ai { color: var(--accent); border-color: var(--accent); }
+.esco-history__kind--import { color: var(--info); border-color: var(--info); }
+.esco-history__kind--export { color: var(--ok); border-color: var(--ok); }
+.esco-history__kind--compare { color: var(--warning); border-color: var(--warning); }
+
+.esco-history__msg {
+  flex: 1;
+  word-break: break-word;
+}
+
+.esco-history__time {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+/* ---- Help tab ---- */
+.esco-help {
+  padding: 8px 10px 14px;
+}
+
+.esco-help__notice {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--warning);
+  background: var(--bg-elevated);
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.esco-help__list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.esco-help__list li {
+  margin-bottom: 5px;
+}
+
+/* ---- Forces dock tab ---- */
+.esco-forces {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.esco-forces__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.esco-forces__note {
+  font-size: 12px;
+  color: var(--text-dim);
 }

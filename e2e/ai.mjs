@@ -19,8 +19,8 @@ try {
   await page.goto(URL, { waitUntil: "networkidle" });
   await page.locator('button:has-text("MainRoutine")').first().click();
 
-  // Open the AI Assistant tab.
-  await page.locator('.esco-dock__tab:has-text("AI Assistant")').click();
+  // Open the AI Assistant tab in the right inspector rail.
+  await page.locator('.esco-inspector__tab[title="AI Assistant (offline)"]').click();
   check("AI Assistant tab opens", (await page.locator(".esco-ai").count()) === 1);
 
   // Explain routine.

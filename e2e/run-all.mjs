@@ -28,6 +28,7 @@ const ORDER = [
   "forcetrace.mjs",
   "tags.mjs",
   "props.mjs",
+  "inspector.mjs",
   "xref.mjs",
   "arrayvalues.mjs",
   "structure.mjs",
