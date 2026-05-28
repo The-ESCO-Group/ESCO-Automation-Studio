@@ -800,6 +800,15 @@ body {
   margin-bottom: 6px;
 }
 
+.esco-ai__response-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
 .esco-ai__actions {
   list-style: none;
   margin: 0 0 6px;

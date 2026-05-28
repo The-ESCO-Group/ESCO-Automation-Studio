@@ -27,11 +27,13 @@ export function AiAssistantPanel({ project, selectedRoutineId, onApply }: Props)
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<AssistantResult | null>(null);
   const [applied, setApplied] = useState<ApplyResult | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const ask = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
     setApplied(null);
+    setCopied(false);
     setResult(
       runAssistant({
         prompt: trimmed,
@@ -45,10 +47,19 @@ export function AiAssistantPanel({ project, selectedRoutineId, onApply }: Props)
     if (result?.plan) setApplied(onApply(result.plan));
   };
 
+  const handleCopy = () => {
+    if (!result) return;
+    void navigator.clipboard?.writeText(result.message).then(
+      () => setCopied(true),
+      () => setCopied(false),
+    );
+  };
+
   const handleClear = () => {
     setPrompt("");
     setResult(null);
     setApplied(null);
+    setCopied(false);
   };
 
   const plan = result?.plan;
@@ -97,11 +108,19 @@ export function AiAssistantPanel({ project, selectedRoutineId, onApply }: Props)
 
       {result ? (
         <div className="esco-ai__response">
+          <div className="esco-ai__response-head">
+            <span>Assistant</span>
+            <button type="button" className="esco-btn esco-btn--quick" onClick={handleCopy}>
+              {copied ? "Copied ✓" : "Copy explanation"}
+            </button>
+          </div>
           <pre className="esco-ai__message">{result.message}</pre>
 
           {plan ? (
             <div className="esco-ai__plan">
-              <div className="esco-ai__plan-title">Proposed actions ({plan.actions.length})</div>
+              <div className="esco-ai__plan-title">
+                {plan.title} — proposed actions ({plan.actions.length})
+              </div>
               {plan.actions.length === 0 ? (
                 <p className="esco-empty">Nothing to do.</p>
               ) : (
@@ -136,7 +155,7 @@ export function AiAssistantPanel({ project, selectedRoutineId, onApply }: Props)
             >
               {applied.ok ? (
                 <>
-                  <div>Applied {applied.applied.length} action(s).</div>
+                  <div>✓ Applied successfully — {applied.applied.length} action(s).</div>
                   <div>
                     Validation after apply:{" "}
                     {applied.findings.length === 0
