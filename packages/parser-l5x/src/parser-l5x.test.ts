@@ -114,6 +114,14 @@ describe("parseRungText", () => {
       "ONS", "TOF", "RTO", "CTD", "RES", "NOP", "AFI",
     ]);
   });
+
+  it("treats the compute/bitwise instructions as supported", () => {
+    const parsed = parseRungText("AND(A,B,D)OR(A,B,D)XOR(A,B,D)NOT(A,D)MOD(A,B,D)SQR(A,D)NEG(A,D)ABS(A,D)CLR(D)LIM(0,X,10)MEQ(S,M,C);", registry);
+    expect(parsed.unsupportedTypes).toEqual([]);
+    expect(parsed.root.nodes.map((n) => n.instructionType)).toEqual([
+      "AND", "OR", "XOR", "NOT", "MOD", "SQR", "NEG", "ABS", "CLR", "LIM", "MEQ",
+    ]);
+  });
 });
 
 describe("importL5X (fixture)", () => {

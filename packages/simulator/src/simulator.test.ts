@@ -608,6 +608,79 @@ describe("NOP / AFI - program-control utilities", () => {
   });
 });
 
+describe("Bitwise - AND / OR / XOR / NOT", () => {
+  const run = (type: string, ...args: string[]): number => {
+    const memory = new TagMemory();
+    registry.get(type)!.execute(node(type, ...args), contextFor(memory, true));
+    return memory.readNumber("Dest");
+  };
+
+  it("computes bitwise operations on integers", () => {
+    expect(run("AND", "12", "10", "Dest")).toBe(12 & 10); // 8
+    expect(run("OR", "12", "10", "Dest")).toBe(12 | 10); // 14
+    expect(run("XOR", "12", "10", "Dest")).toBe(12 ^ 10); // 6
+  });
+
+  it("NOT is the bitwise complement", () => {
+    const memory = new TagMemory();
+    registry.get("NOT")!.execute(node("NOT", "0", "Dest"), contextFor(memory, true));
+    expect(memory.readNumber("Dest")).toBe(~0); // -1
+  });
+});
+
+describe("Extended math - MOD / SQR / NEG / ABS / CLR", () => {
+  const memory = new TagMemory();
+  const run = (type: string, ...args: string[]): number => {
+    registry.get(type)!.execute(node(type, ...args), contextFor(memory, true));
+    return memory.readNumber("Dest");
+  };
+
+  it("computes modulo, square root, negate, absolute, and clear", () => {
+    expect(run("MOD", "17", "5", "Dest")).toBe(2);
+    expect(run("MOD", "5", "0", "Dest")).toBe(0); // safe divide-by-zero
+    expect(run("SQR", "9", "Dest")).toBe(3);
+    expect(run("SQR", "-4", "Dest")).toBe(0); // negative → 0
+    expect(run("NEG", "7", "Dest")).toBe(-7);
+    expect(run("ABS", "-7", "Dest")).toBe(7);
+    memory.write("Dest", 42);
+    expect(run("CLR", "Dest")).toBe(0);
+  });
+
+  it("does nothing when the rung is false", () => {
+    const m = new TagMemory();
+    m.write("Dest", 99);
+    registry.get("ABS")!.execute(node("ABS", "-1", "Dest"), contextFor(m, false));
+    expect(m.readNumber("Dest")).toBe(99);
+  });
+});
+
+describe("Compare - LIM / MEQ", () => {
+  const test = (type: string, ...args: string[]): boolean =>
+    registry.get(type)!.execute(node(type, ...args), contextFor(new TagMemory(), true));
+
+  it("LIM passes when Test is within an ascending range", () => {
+    expect(test("LIM", "0", "5", "10")).toBe(true);
+    expect(test("LIM", "0", "15", "10")).toBe(false);
+  });
+
+  it("LIM handles a circular range when Low > High", () => {
+    // Low 10, High 2: passes when test >= 10 OR test <= 2.
+    expect(test("LIM", "10", "1", "2")).toBe(true);
+    expect(test("LIM", "10", "12", "2")).toBe(true);
+    expect(test("LIM", "10", "5", "2")).toBe(false);
+  });
+
+  it("MEQ compares under a mask", () => {
+    // (0xF3 & 0x0F) === (0x03 & 0x0F) → 3 === 3
+    expect(test("MEQ", "243", "15", "3")).toBe(true);
+    expect(test("MEQ", "243", "15", "4")).toBe(false);
+  });
+
+  it("LIM/MEQ never pass when the rung is already false", () => {
+    expect(registry.get("LIM")!.execute(node("LIM", "0", "5", "10"), contextFor(new TagMemory(), false))).toBe(false);
+  });
+});
+
 describe("Integration - XIC(Btn) ONS(OneShot) CTU(Counter1, 5)", () => {
   it("counts exactly once per button press, however long it is held", () => {
     const rung = singleRung([

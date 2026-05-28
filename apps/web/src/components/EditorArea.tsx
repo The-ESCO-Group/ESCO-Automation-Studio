@@ -135,8 +135,9 @@ interface UndefinedTag {
 const INSTRUCTION_GROUPS: { label: string; types: string[] }[] = [
   { label: "Bit", types: ["XIC", "XIO", "OTE", "OTL", "OTU", "ONS"] },
   { label: "Timer / Counter", types: ["TON", "TOF", "RTO", "CTU", "CTD", "RES"] },
-  { label: "Move / Math", types: ["MOV", "ADD", "SUB", "MUL", "DIV"] },
-  { label: "Compare", types: ["EQU", "NEQ", "GRT", "GEQ", "LES", "LEQ"] },
+  { label: "Move / Math", types: ["MOV", "ADD", "SUB", "MUL", "DIV", "MOD", "SQR", "NEG", "ABS", "CLR"] },
+  { label: "Bitwise", types: ["AND", "OR", "XOR", "NOT"] },
+  { label: "Compare", types: ["EQU", "NEQ", "GRT", "GEQ", "LES", "LEQ", "LIM", "MEQ"] },
   { label: "Program", types: ["NOP", "AFI"] },
 ];
 
