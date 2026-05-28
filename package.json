@@ -1,0 +1,25 @@
+{
+  "name": "esco-automation-studio",
+  "version": "0.0.1",
+  "private": true,
+  "description": "ESCO Automation Studio - a Studio 5000-style PLC/automation IDE",
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @esco/web dev",
+    "dev:web": "pnpm --filter @esco/web dev",
+    "dev:api": "pnpm --filter @esco/api dev",
+    "build": "pnpm --filter @esco/web build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "pnpm -r exec node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  }
+}

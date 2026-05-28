@@ -1,0 +1,48 @@
+import type { InstructionDefinition } from "./types";
+
+function firstTag(node: { operands: { value: string }[] }): string {
+  return node.operands[0]?.value ?? "";
+}
+
+function requireTag(node: { operands: { value: string }[] }): string[] {
+  return firstTag(node) ? [] : ["Operand 'tag' is required."];
+}
+
+/** XIC - Examine If Closed. Passes when the BOOL tag is true. */
+export const XIC: InstructionDefinition = {
+  type: "XIC",
+  displayName: "Examine If Closed",
+  category: "bit",
+  description: "Passes rung condition when the BOOL tag is true.",
+  operands: [{ name: "tag", label: "Tag", required: true, allowedTypes: ["BOOL"] }],
+  validate: requireTag,
+  execute: (node, ctx) => ctx.rungIn && ctx.readBool(firstTag(node)),
+  render: { symbol: "--[ ]--", style: "contact" },
+};
+
+/** XIO - Examine If Open. Passes when the BOOL tag is false. */
+export const XIO: InstructionDefinition = {
+  type: "XIO",
+  displayName: "Examine If Open",
+  category: "bit",
+  description: "Passes rung condition when the BOOL tag is false.",
+  operands: [{ name: "tag", label: "Tag", required: true, allowedTypes: ["BOOL"] }],
+  validate: requireTag,
+  execute: (node, ctx) => ctx.rungIn && !ctx.readBool(firstTag(node)),
+  render: { symbol: "--[/]--", style: "contact" },
+};
+
+/** OTE - Output Energize. Writes the rung-in condition to the BOOL tag. */
+export const OTE: InstructionDefinition = {
+  type: "OTE",
+  displayName: "Output Energize",
+  category: "bit",
+  description: "Sets the BOOL tag to the rung-in condition.",
+  operands: [{ name: "tag", label: "Tag", required: true, allowedTypes: ["BOOL"] }],
+  validate: requireTag,
+  execute: (node, ctx) => {
+    ctx.writeBool(firstTag(node), ctx.rungIn);
+    return ctx.rungIn;
+  },
+  render: { symbol: "--( )--", style: "coil" },
+};
