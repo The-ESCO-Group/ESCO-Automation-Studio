@@ -24,7 +24,7 @@ const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
           <Routine Name="Main" Type="RLL">
             <RLLContent>
               <Rung Number="0" Type="N"><Comment><![CDATA[Seal-in with run feedback]]></Comment><Text><![CDATA[[XIC(Start),XIC(Run)]XIO(Stop)OTE(Run);]]></Text></Rung>
-              <Rung Number="1" Type="N"><Text><![CDATA[XIC(Start)PID(SubRoutine);]]></Text></Rung>
+              <Rung Number="1" Type="N"><Text><![CDATA[XIC(Start)XUNKNOWN(SubRoutine);]]></Text></Rung>
             </RLLContent>
           </Routine>
         </Routines>
@@ -54,11 +54,12 @@ try {
 
   const notice = await page.locator(".esco-toast").innerText();
   check("import summary shows counts", /1 program\(s\),\s*1 routine\(s\),\s*2 rung\(s\),\s*5 tag\(s\)/.test(notice), notice);
-  check("import summary lists unsupported PID", /Unsupported:\s*PID/.test(notice));
+  check("import summary lists unknown unsupported instruction", /Unsupported:\s*XUNKNOWN/.test(notice));
 
   await page.locator('.esco-tree__node--routine:has-text("Main")').first().click();
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung").length === 2);
   check("branch routine opens with 2 rungs", true);
+  check("unknown unsupported branch fixture instruction renders read-only", (await page.locator(".esco-lad__box--unsupported:has-text('XUNKNOWN')").count()) === 1);
   await page.screenshot({ path: join(here, "b1-imported.png") });
 
   // Seal-in branch: Start -> Run true; release Start -> Run stays true; Stop -> Run false.

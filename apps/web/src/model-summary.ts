@@ -25,6 +25,11 @@ export interface UnsupportedInstruction {
   count: number;
 }
 
+export interface ModelOnlyInstruction {
+  type: string;
+  count: number;
+}
+
 export interface ModelSummary {
   projectName: string;
   controllerName?: string;
@@ -35,6 +40,9 @@ export interface ModelSummary {
   /** Instruction types present in the project that the registry does not support, with occurrence counts. */
   unsupportedInstructions: UnsupportedInstruction[];
   unsupportedTotal: number;
+  /** Registered model-only instructions preserved for review but not simulated. */
+  modelOnlyInstructions: ModelOnlyInstruction[];
+  modelOnlyTotal: number;
 }
 
 /**
@@ -57,6 +65,7 @@ export function buildModelSummary(
   let ioModules = 0;
   let rungs = 0;
   const unsupported = new Map<string, number>();
+  const modelOnly = new Map<string, number>();
 
   for (const controller of project.controllers) {
     tasks += controller.tasks.length;
@@ -74,8 +83,11 @@ export function buildModelSummary(
         rungs += ladder.rungs.length;
         for (const rung of ladder.rungs) {
           for (const node of rungNodes(rung)) {
-            if (!registry.has(node.instructionType)) {
+            const definition = registry.get(node.instructionType);
+            if (!definition) {
               unsupported.set(node.instructionType, (unsupported.get(node.instructionType) ?? 0) + 1);
+            } else if (definition.modelOnly) {
+              modelOnly.set(node.instructionType, (modelOnly.get(node.instructionType) ?? 0) + 1);
             }
           }
         }
@@ -85,6 +97,9 @@ export function buildModelSummary(
 
   const firstController = project.controllers[0];
   const unsupportedInstructions = [...unsupported.entries()]
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type));
+  const modelOnlyInstructions = [...modelOnly.entries()]
     .map(([type, count]) => ({ type, count }))
     .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type));
 
@@ -109,5 +124,7 @@ export function buildModelSummary(
     warningCount: findings.filter((f) => f.severity === "warning").length,
     unsupportedInstructions,
     unsupportedTotal: unsupportedInstructions.reduce((sum, u) => sum + u.count, 0),
+    modelOnlyInstructions,
+    modelOnlyTotal: modelOnlyInstructions.reduce((sum, u) => sum + u.count, 0),
   };
 }

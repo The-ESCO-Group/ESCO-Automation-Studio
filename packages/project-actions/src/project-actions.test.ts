@@ -732,7 +732,7 @@ describe("project-actions: validation and IO", () => {
     expect(collectTagReferences(p, "Timer1").every((r) => r.tag === "Timer1")).toBe(true);
   });
 
-  it("validates a richer imported L5X cleanly (members/arrays resolve, PID flagged)", () => {
+  it("validates a richer imported L5X cleanly (members/arrays resolve, unknown block flagged)", () => {
     const xml = `<?xml version="1.0"?>
 <RSLogix5000Content>
   <Controller Name="Imported">
@@ -749,7 +749,7 @@ describe("project-actions: validation and IO", () => {
           <Rung Number="1"><Text><![CDATA[XIC(Run)RTO(Dwell,1000);]]></Text></Rung>
           <Rung Number="2"><Text><![CDATA[XIC(Dwell.DN)CTU(Cnt,5);]]></Text></Rung>
           <Rung Number="3"><Text><![CDATA[MOV(Arr[0],Dest);]]></Text></Rung>
-          <Rung Number="4"><Text><![CDATA[XIC(Start)PID(Sub);]]></Text></Rung>
+          <Rung Number="4"><Text><![CDATA[XIC(Start)XUNKNOWN(Sub);]]></Text></Rung>
         </RLLContent></Routine></Routines>
       </Program>
     </Programs>
@@ -762,7 +762,7 @@ describe("project-actions: validation and IO", () => {
     expect(result.ok).toBe(true);
     // Member (Dwell.DN) and array (Arr[0]) paths resolve to defined base tags.
     expect(result.findings?.some((f) => f.ruleId === "undefined-tag")).toBe(false);
-    // The unsupported PID is reported as info, not an error.
+    // The truly unknown vendor block is reported as info, not an error.
     expect(result.findings?.some((f) => f.ruleId === "unsupported-instruction")).toBe(true);
   });
 

@@ -14,6 +14,9 @@ try {
   await page.goto(URL, { waitUntil: "networkidle" });
   await importStarterProject(page);
   check("registry palette exposes advanced model-only instructions", (await palette(page, "SQO").count()) === 1 && (await palette(page, "MSO").count()) === 1);
+  await page.locator(".esco-lad__node").first().click();
+  await page.locator(".esco-props").waitFor({ timeout: 5000 });
+  check("executable instruction properties are labelled", /Executable/.test(await page.locator(".esco-props").innerText()));
 
   // Rung: XIC(StartPB) MOV(123, SomeDint)
   await page.locator('button:has-text("Add Rung")').click();
@@ -50,8 +53,12 @@ try {
 
   await page.locator('button:has-text("Add Rung")').click();
   await palette(page, "SQO").click();
-  await page.locator(".esco-lad__box--model-only:has-text('SQO')").waitFor({ timeout: 5000 });
+  const modelOnlyBox = page.locator(".esco-lad__box--model-only:has-text('SQO')").first();
+  await modelOnlyBox.waitFor({ timeout: 5000 });
   check("model-only instruction can be added from the registry palette", (await page.locator(".esco-lad__box--model-only:has-text('SQO')").count()) >= 1);
+  await modelOnlyBox.click();
+  await page.locator(".esco-props").waitFor({ timeout: 5000 });
+  check("model-only instruction properties are labelled", /Model-only \/ preserved, not simulated/.test(await page.locator(".esco-props").innerText()));
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

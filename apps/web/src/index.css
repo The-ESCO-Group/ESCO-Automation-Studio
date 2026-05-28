@@ -2069,6 +2069,11 @@ body {
   border-color: var(--warning);
 }
 
+.esco-model__pill.is-info {
+  color: var(--info);
+  border-color: var(--info);
+}
+
 .esco-model__pill.is-error {
   color: var(--error);
   border-color: var(--error);

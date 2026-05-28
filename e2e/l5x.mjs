@@ -27,7 +27,7 @@ const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
               <Rung Number="0" Type="N"><Comment><![CDATA[Start / stop motor]]></Comment><Text><![CDATA[XIC(StartPB)XIO(StopPB)OTE(MotorRun);]]></Text></Rung>
               <Rung Number="1" Type="N"><Text><![CDATA[XIC(StartPB)MOV(123,SomeDint);]]></Text></Rung>
               <Rung Number="2" Type="N"><Text><![CDATA[XIC(StartPB)TON(Timer1,1000);]]></Text></Rung>
-              <Rung Number="3" Type="N"><Text><![CDATA[XIC(StartPB)PID(SubRoutine);]]></Text></Rung>
+              <Rung Number="3" Type="N"><Text><![CDATA[XIC(StartPB)XUNKNOWN(SubRoutine);]]></Text></Rung>
             </RLLContent>
           </Routine>
         </Routines>
@@ -62,9 +62,9 @@ try {
   const tagText = await page.locator(".esco-left").innerText();
   check("imported tags appear in explorer (Timer1 : TIMER)", /Timer1\s*:\s*TIMER/.test(tagText));
 
-  // Import notice flags the unsupported ADD instruction.
+  // Import notice flags a truly unknown vendor block, not a process/PID instruction.
   const notice = await page.locator(".esco-toast").innerText().catch(() => "");
-  check("import notice warns about unsupported PID", /PID/.test(notice), notice.slice(0, 80));
+  check("import notice warns about unknown unsupported instruction", /XUNKNOWN/.test(notice), notice.slice(0, 80));
   await dismissToasts(page);
 
   // Export the imported project back to review-only L5X, then re-import that generated file.
@@ -89,6 +89,11 @@ try {
   const operands = await page.locator("input.esco-lad__operand").evaluateAll((els) => els.map((e) => e.value));
   check("imported rungs render operands (MotorRun present)", operands.includes("MotorRun"),
     JSON.stringify(operands));
+  const unsupportedBox = page.locator(".esco-lad__box--unsupported:has-text('XUNKNOWN')").first();
+  check("unknown unsupported instruction renders read-only", (await unsupportedBox.count()) === 1);
+  await unsupportedBox.click();
+  await page.locator(".esco-props").waitFor({ timeout: 5000 });
+  check("unknown unsupported instruction properties are labelled", /Unknown unsupported/.test(await page.locator(".esco-props").innerText()));
   await page.screenshot({ path: join(here, "l1-imported.png") });
 
   // Simulate: StartPB on, then scan (4× to let TON reach 1000ms).

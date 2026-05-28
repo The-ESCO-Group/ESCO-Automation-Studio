@@ -130,10 +130,10 @@ function BoxGlyph({ node }: { node: LadderNode }) {
     modelOnly ? " esco-lad__box--model-only" : ""
   }`;
   const title = modelOnly
-    ? `${node.instructionType} (model-only, preserved for offline review)`
+    ? `${node.instructionType} (model-only / preserved, not simulated)`
     : supported
       ? node.instructionType
-      : `${node.instructionType} (unsupported, read-only)`;
+      : `${node.instructionType} (unknown unsupported, read-only)`;
 
   if (!editing) {
     const text = node.operands.map((operand) => operand.value || "?").join(", ");

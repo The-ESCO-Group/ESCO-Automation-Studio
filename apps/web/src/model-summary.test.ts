@@ -5,6 +5,8 @@ import type { LadderRoutine } from "@esco/ladder";
 import { buildModelSummary } from "./model-summary";
 import { createBlankRoutineProject, createInitialProject } from "./project-edit";
 
+const UNKNOWN_SENTINEL = "UNSUPPORTED_VENDOR_BLOCK";
+
 describe("buildModelSummary", () => {
   it("aggregates counts for a blank routine project", () => {
     const project = createBlankRoutineProject();
@@ -24,6 +26,8 @@ describe("buildModelSummary", () => {
     const summary = buildModelSummary(project);
     expect(summary.unsupportedTotal).toBe(0);
     expect(summary.unsupportedInstructions).toEqual([]);
+    expect(summary.modelOnlyTotal).toBe(0);
+    expect(summary.modelOnlyInstructions).toEqual([]);
   });
 
   it("counts unsupported instruction types found in ladders", () => {
@@ -33,14 +37,31 @@ describe("buildModelSummary", () => {
     const program = controller.programs[0]!;
     const main = program.routines.find((r) => r.id === program.mainRoutineId) ?? program.routines[0]!;
     let ladder = main.ladder as LadderRoutine;
-    ladder = appendRungWithRoot(ladder, createBranch([createNode("PIDE", []), createNode("XIC", [])]));
-    ladder = appendRungWithRoot(ladder, createBranch([createNode("PIDE", [])]));
+    ladder = appendRungWithRoot(ladder, createBranch([createNode(UNKNOWN_SENTINEL, []), createNode("XIC", [])]));
+    ladder = appendRungWithRoot(ladder, createBranch([createNode(UNKNOWN_SENTINEL, [])]));
     main.ladder = ladder;
 
     const summary = buildModelSummary(project);
-    const pide = summary.unsupportedInstructions.find((u) => u.type === "PIDE");
-    expect(pide?.count).toBe(2);
+    const unknown = summary.unsupportedInstructions.find((u) => u.type === UNKNOWN_SENTINEL);
+    expect(unknown?.count).toBe(2);
     expect(summary.unsupportedTotal).toBe(2);
+    expect(summary.modelOnlyTotal).toBe(0);
+  });
+
+  it("counts registered model-only instructions separately from unknown unsupported instructions", () => {
+    const project = createBlankRoutineProject();
+    const controller = project.controllers[0]!;
+    const program = controller.programs[0]!;
+    const main = program.routines.find((r) => r.id === program.mainRoutineId) ?? program.routines[0]!;
+    let ladder = main.ladder as LadderRoutine;
+    ladder = appendRungWithRoot(ladder, createBranch([createNode("SQO", []), createNode(UNKNOWN_SENTINEL, [])]));
+    main.ladder = ladder;
+
+    const summary = buildModelSummary(project);
+    expect(summary.modelOnlyInstructions.find((u) => u.type === "SQO")?.count).toBe(1);
+    expect(summary.modelOnlyTotal).toBe(1);
+    expect(summary.unsupportedInstructions.find((u) => u.type === UNKNOWN_SENTINEL)?.count).toBe(1);
+    expect(summary.unsupportedTotal).toBe(1);
   });
 
   it("tallies validator error and warning findings", () => {

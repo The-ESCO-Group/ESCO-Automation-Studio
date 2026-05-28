@@ -72,14 +72,30 @@ export function ModelSummaryPanel({ project, findings, openRoutineName }: Props)
         <span className={`esco-model__pill${summary.warningCount ? " is-warn" : " is-ok"}`}>
           {summary.warningCount} warning{summary.warningCount === 1 ? "" : "s"}
         </span>
+        <span className={`esco-model__pill${summary.modelOnlyTotal ? " is-info" : " is-ok"}`}>
+          {summary.modelOnlyTotal} model-only instruction{summary.modelOnlyTotal === 1 ? "" : "s"}
+        </span>
         <span className={`esco-model__pill${summary.unsupportedTotal ? " is-warn" : " is-ok"}`}>
-          {summary.unsupportedTotal} unsupported instruction{summary.unsupportedTotal === 1 ? "" : "s"}
+          {summary.unsupportedTotal} unknown unsupported instruction{summary.unsupportedTotal === 1 ? "" : "s"}
         </span>
       </div>
 
+      {summary.modelOnlyInstructions.length > 0 ? (
+        <>
+          <div className="esco-model__heading">Model-only instructions (preserved, not simulated)</div>
+          <ul className="esco-model__unsupported">
+            {summary.modelOnlyInstructions.map((u) => (
+              <li key={u.type}>
+                <code>{u.type}</code> × {u.count}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+
       {summary.unsupportedInstructions.length > 0 ? (
         <>
-          <div className="esco-model__heading">Unsupported instructions (read-only)</div>
+          <div className="esco-model__heading">Unknown unsupported instructions (read-only)</div>
           <ul className="esco-model__unsupported">
             {summary.unsupportedInstructions.map((u) => (
               <li key={u.type}>
@@ -88,8 +104,8 @@ export function ModelSummaryPanel({ project, findings, openRoutineName }: Props)
             ))}
           </ul>
           <p className="esco-model__note">
-            These instructions were imported and are preserved read-only. The simulator does not
-            execute them.
+            These unknown instruction blocks were imported and preserved read-only. The simulator
+            does not execute them.
           </p>
         </>
       ) : null}

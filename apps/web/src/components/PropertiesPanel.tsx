@@ -58,6 +58,11 @@ function routineFindings(findings: ValidationFinding[], routineName: string): Va
   return findings.filter((f) => f.target?.includes(`/${routineName}`));
 }
 
+function instructionStatus(def: ReturnType<typeof registry.get>): string {
+  if (!def) return "Unknown unsupported (read-only)";
+  return def.modelOnly ? "Model-only / preserved, not simulated" : "Executable";
+}
+
 interface View {
   heading: string;
   rows: Row[];
@@ -197,7 +202,8 @@ function buildView(props: Props): View | null {
     const def = registry.get(node.instructionType);
     const rows: Row[] = [
       { label: "Instruction", value: node.instructionType },
-      { label: "Name", value: def?.displayName ?? "Unsupported (read-only)" },
+      { label: "Name", value: def?.displayName ?? "Unknown unsupported block" },
+      { label: "Status", value: instructionStatus(def) },
       { label: "Routine", value: routine.name },
       { label: "Rung", value: String(rung.number) },
     ];

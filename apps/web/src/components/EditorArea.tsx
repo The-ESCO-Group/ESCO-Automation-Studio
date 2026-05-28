@@ -169,7 +169,7 @@ interface InstructionGroup {
   definitions: InstructionDefinition[];
 }
 
-const CATEGORY_LABELS: Record<InstructionCategory, string> = {
+const CATEGORY_LABELS: Partial<Record<InstructionCategory, string>> = {
   bit: "Bit",
   timer: "Timer",
   counter: "Counter",
@@ -208,14 +208,22 @@ function buildInstructionGroups(): InstructionGroup[] {
     current.push(definition);
     byCategory.set(definition.category, current);
   }
-  return CATEGORY_ORDER.flatMap((category) => {
+  const ordered = CATEGORY_ORDER.flatMap((category) => {
     const definitions = byCategory.get(category);
     if (!definitions?.length) return [];
+    byCategory.delete(category);
     return [{
-      label: CATEGORY_LABELS[category],
+      label: CATEGORY_LABELS[category] ?? category,
       definitions: definitions.sort((a, b) => a.type.localeCompare(b.type)),
     }];
   });
+  const remaining = [...byCategory.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([category, definitions]) => ({
+      label: CATEGORY_LABELS[category] ?? category,
+      definitions: definitions.sort((a, b) => a.type.localeCompare(b.type)),
+    }));
+  return [...ordered, ...remaining];
 }
 
 /** Instruction palette follows the registry so backend instruction additions appear automatically. */
