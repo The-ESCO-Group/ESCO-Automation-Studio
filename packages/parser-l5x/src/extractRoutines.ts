@@ -26,6 +26,8 @@ export function extractRoutines(
       const name = attr(routineNode, "Name");
       if (!name) return [];
       const routine = createRoutine(programId, name, "ladder");
+      const description = child(routineNode, "Description");
+      if (description) routine.description = text(description);
 
       const rllContent = child(routineNode, "RLLContent");
       if (rllContent) {
@@ -50,8 +52,8 @@ export function extractRoutines(
           for (const type of parsed.unsupportedTypes) {
             warnings.push(`${where}: unsupported instruction "${type}" (preserved, not simulated).`);
           }
-          if (parsed.hasBranches) {
-            warnings.push(`${where}: branch logic imported as a series (simulation may differ).`);
+          if (parsed.complexBranch) {
+            warnings.push(`${where}: nested/complex branch flattened to a series (simulation may differ).`);
           }
         });
         routine.ladder = ladder;

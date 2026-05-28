@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { PlcProject, Routine } from "@esco/core";
-import { createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
+import { baseTagName, createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
 import { routineNodes, type LadderRoutine } from "@esco/ladder";
 import type { Selection } from "../selection";
 import { tagExists } from "../project-edit";
@@ -43,9 +43,10 @@ function findUndefinedTags(ladder: LadderRoutine, project: PlcProject): Undefine
     const definition = registry.get(node.instructionType);
     node.operands.forEach((operand, index) => {
       const value = operand.value.trim();
-      if (!value || isNumericLiteral(value) || tagExists(project, value)) return;
-      if (found.has(value)) return;
-      found.set(value, definition?.operands[index]?.allowedTypes?.[0] ?? "BOOL");
+      if (!value || isNumericLiteral(value)) return;
+      const base = baseTagName(value); // Timer1.DN -> Timer1, MyArray[0] -> MyArray
+      if (!base || tagExists(project, base) || found.has(base)) return;
+      found.set(base, definition?.operands[index]?.allowedTypes?.[0] ?? "BOOL");
     });
   }
   return [...found].map(([name, inferredType]) => ({ name, inferredType }));
@@ -76,7 +77,10 @@ export function EditorArea({
   const editing = {
     onEditOperand,
     onRemoveInstruction,
-    isUndefinedTag: (name: string) => !tagExists(project, name),
+    isUndefinedTag: (value: string) => {
+      const base = baseTagName(value);
+      return base !== "" && !tagExists(project, base);
+    },
   };
 
   return (

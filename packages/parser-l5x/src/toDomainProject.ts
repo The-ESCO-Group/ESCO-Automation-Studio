@@ -6,14 +6,66 @@ import {
   type Task,
 } from "@esco/core";
 import type { InstructionRegistry } from "@esco/instructions";
+import { routineNodes, type LadderRoutine } from "@esco/ladder";
 import { attr, child, toArray, type L5XNode } from "./parseL5X";
 import { mapTaskType, resolveController } from "./extractController";
 import { extractPrograms } from "./extractPrograms";
 import { extractTags } from "./extractTags";
 
+/** A human-/UI-readable summary of what an import produced. */
+export interface ImportSummary {
+  programs: number;
+  routines: number;
+  rungs: number;
+  tags: number;
+  unsupportedInstructions: string[];
+  warnings: string[];
+}
+
 export interface ImportResult {
   project: PlcProject;
   warnings: string[];
+  summary: ImportSummary;
+}
+
+function asLadderRoutine(ladder: unknown): LadderRoutine | undefined {
+  if (ladder && typeof ladder === "object" && Array.isArray((ladder as { rungs?: unknown }).rungs)) {
+    return ladder as LadderRoutine;
+  }
+  return undefined;
+}
+
+function summarize(project: PlcProject, warnings: string[], registry: InstructionRegistry): ImportSummary {
+  let routines = 0;
+  let rungs = 0;
+  let tags = 0;
+  const unsupported = new Set<string>();
+
+  for (const controller of project.controllers) {
+    tags += controller.controllerTags.length;
+    for (const program of controller.programs) {
+      tags += program.programTags.length;
+      for (const routine of program.routines) {
+        routines += 1;
+        const ladder = asLadderRoutine(routine.ladder);
+        if (!ladder) continue;
+        rungs += ladder.rungs.length;
+        for (const node of routineNodes(ladder)) {
+          if (!registry.get(node.instructionType)) unsupported.add(node.instructionType);
+        }
+      }
+    }
+  }
+
+  const programs = project.controllers.reduce((sum, c) => sum + c.programs.length, 0);
+  return {
+    programs,
+    routines,
+    rungs,
+    tags,
+    unsupportedInstructions: [...unsupported].sort(),
+    warnings,
+  };
 }
 
 function extractTasks(
@@ -72,5 +124,5 @@ export function toDomainProject(root: L5XNode, registry: InstructionRegistry): I
   );
 
   project.controllers.push(controller);
-  return { project, warnings };
+  return { project, warnings, summary: summarize(project, warnings, registry) };
 }

@@ -106,14 +106,15 @@ export function App() {
     event.target.value = "";
     if (!file) return;
     try {
-      const { project: imported, warnings } = importL5X(await readFileAsText(file));
+      const { project: imported, summary } = importL5X(await readFileAsText(file));
       loadProject(imported);
       setImportError(null);
-      setImportNotice(
-        warnings.length > 0
-          ? `Imported "${imported.name}" with ${warnings.length} warning(s): ${warnings.join(" · ")}`
-          : `Imported "${imported.name}" from L5X.`,
-      );
+      const counts = `${summary.programs} program(s), ${summary.routines} routine(s), ${summary.rungs} rung(s), ${summary.tags} tag(s)`;
+      const unsupported = summary.unsupportedInstructions.length
+        ? ` Unsupported: ${summary.unsupportedInstructions.join(", ")}.`
+        : "";
+      const warned = summary.warnings.length ? ` ${summary.warnings.length} warning(s).` : "";
+      setImportNotice(`Imported "${imported.name}": ${counts}.${unsupported}${warned}`);
     } catch (error) {
       setImportError(error instanceof Error ? error.message : "Failed to import L5X file.");
     }

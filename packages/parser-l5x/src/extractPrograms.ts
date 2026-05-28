@@ -1,6 +1,6 @@
 import { createProgram, type Program } from "@esco/core";
 import type { InstructionRegistry } from "@esco/instructions";
-import { attr, child, toArray, type L5XNode } from "./parseL5X";
+import { attr, child, text, toArray, type L5XNode } from "./parseL5X";
 import { extractRoutines } from "./extractRoutines";
 import { extractTags } from "./extractTags";
 
@@ -22,6 +22,8 @@ export function extractPrograms(
       if (!name) return [];
 
       const program = createProgram(controllerId, name);
+      const description = child(programNode, "Description");
+      if (description) program.description = text(description);
       program.programTags.push(
         ...extractTags(child(programNode, "Tags"), controllerId, "program", program.id),
       );

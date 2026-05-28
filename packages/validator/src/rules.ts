@@ -1,4 +1,4 @@
-import { createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
+import { baseTagName, createDefaultRegistry, isNumericLiteral, isPlainTag } from "@esco/instructions";
 import { routineNodes, type LadderRoutine } from "@esco/ladder";
 import type { ValidationFinding, ValidationRule } from "./types";
 
@@ -118,15 +118,24 @@ export const ladderOperands: ValidationRule = {
 
               if (isNumericLiteral(value)) return; // a constant, not a tag reference
 
-              const dataType = tagTypes.get(value);
+              // Resolve the base tag of a member/array path (e.g. Timer1.DN -> Timer1).
+              const base = baseTagName(value);
+              if (base === "") return; // unparseable (expression) — skip
+
+              const dataType = tagTypes.get(base);
               if (dataType === undefined) {
                 findings.push({
                   ruleId: "undefined-tag",
                   severity: "error",
-                  message: `Undefined tag "${value}" referenced in routine "${routine.name}".`,
+                  message: `Undefined tag "${base}" referenced in routine "${routine.name}".`,
                   target,
                 });
-              } else if (operandDef.allowedTypes && !operandDef.allowedTypes.includes(dataType)) {
+              } else if (
+                isPlainTag(value) &&
+                operandDef.allowedTypes &&
+                !operandDef.allowedTypes.includes(dataType)
+              ) {
+                // Only type-check plain tags; member/array paths can be any atomic type.
                 findings.push({
                   ruleId: "operand-type-mismatch",
                   severity: "error",

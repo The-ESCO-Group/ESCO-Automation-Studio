@@ -56,6 +56,7 @@ export interface Program {
   id: string;
   controllerId: string;
   name: string;
+  description?: string;
   mainRoutineId?: string;
   faultRoutineId?: string;
   routines: Routine[];
@@ -66,6 +67,7 @@ export interface Routine {
   id: string;
   programId: string;
   name: string;
+  description?: string;
   language: RoutineLanguage;
   /** Populated for ladder routines. Typed loosely here to avoid a hard dependency on @esco/ladder. */
   ladder?: unknown;
