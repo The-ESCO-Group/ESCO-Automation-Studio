@@ -35,6 +35,7 @@ corepack pnpm install        # install dependencies
 corepack pnpm -r typecheck   # type-check every package
 corepack pnpm test           # run the Vitest suite
 corepack pnpm dev            # start the web IDE (http://localhost:5173)
+corepack pnpm e2e            # browser smoke tests (needs dev server running)
 ```
 
 > If `pnpm` is on your PATH you can drop the `corepack` prefix.
