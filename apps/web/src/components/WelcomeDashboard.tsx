@@ -15,15 +15,18 @@ interface Props {
   onOpenCrossRef: () => void;
   onOpenWatch: () => void;
   onOpenTags: () => void;
+  onOpenCompare: () => void;
   lastImport?: { name: string; summary: ImportSummary } | null;
 }
 
 const FEATURES = [
   "Editable ladder logic (semantic AST)",
+  "Branch editing (parallel / seal-in)",
   "Offline scan-cycle simulation",
   "Studio 5000 L5X import",
   "Project export / import (.plcproj.json)",
-  "Local, rule-based AI assistant",
+  "Routine & project compare",
+  "AI assistant (offline, LLM-ready)",
   "Tag cross-reference & validation",
 ];
 
@@ -42,12 +45,14 @@ export function WelcomeDashboard({
   onOpenCrossRef,
   onOpenWatch,
   onOpenTags,
+  onOpenCompare,
   lastImport,
 }: Props) {
   const cards: Card[] = [
     { title: "Open Demo Routine", description: "Edit the seal-in motor starter ladder.", action: onOpenDemo, primary: true },
     { title: "Import L5X", description: "Load a Studio 5000 export into the project.", action: onImportL5X },
     { title: "Export Project", description: "Save the project as .plcproj.json.", action: onExport },
+    { title: "Compare Projects", description: "Diff routines by logic, not just names.", action: onOpenCompare },
     { title: "AI Assistant", description: "Explain logic and generate rungs (offline).", action: onOpenAi },
     { title: "Cross Reference", description: "See where each tag is used.", action: onOpenCrossRef },
     { title: "Watch / Simulation", description: "Toggle inputs and run the scan.", action: onOpenWatch },

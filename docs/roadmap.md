@@ -8,27 +8,34 @@ Status legend: ✅ done · 🔜 next · ⏳ later
 - ✅ Instruction registry + simulator (scan cycle)
 - ✅ Validation engine
 - ✅ Project persistence (`.plcproj.json` export/import)
-- ✅ Instruction expansion: XIC, XIO, OTE, TON, CTU, MOV, EQU, GRT, LES
-- ✅ L5X import (MVP + hardening: branches, member/array paths, descriptions, summary)
+- ✅ Instruction set: XIC, XIO, OTE, OTL, OTU, ONS, TON, TOF, RTO, CTU, CTD,
+  RES, MOV, ADD, SUB, MUL, DIV, EQU, NEQ, GRT, GEQ, LES, LEQ, NOP, AFI
+- ✅ L5X import (MVP + hardening: branches, member/array paths, descriptions,
+  alias/unmodeled-type warnings, located warnings, summary, stress fixtures)
 - ✅ Controlled project-actions API
-- ✅ AI assistant MVP (offline/rule-based) + UX polish
+- ✅ Cross-reference panel — where each tag is read/written across routines
+- ✅ Tag table editor — create/rename/describe/delete with types
+- ✅ Branch editing UI — build single-level parallel/seal-in branches by hand
+- ✅ Routine & project compare — match by logic fingerprint, not just names
+- ✅ AI assistant (offline/rule-based) + provider interface (local/mock/external
+  seam, no API key) + UX polish
+- ✅ In-repo E2E smoke harness (`pnpm e2e`)
 - ✅ Architecture & AI documentation
 
 ## Next milestones
 
-1. **Real LLM connector** behind the same action layer (swap `planner.ts`;
-   apply path and safety model unchanged; key via configuration).
-2. **More instructions:** ✅ OTL, OTU, NEQ, LEQ, GEQ, ADD, SUB, MUL, DIV added;
-   🔜 remaining: ONS, RES, TOF, RTO, CTD (need edge/retentive state).
-3. **Better branch editing UI** (create/split parallel branches in the editor,
-   not only via imported/text rungs).
-4. ✅ **Cross-reference panel** — where each tag is read/written across routines.
-5. **Tag table editor** — bulk create/edit/delete tags with types/descriptions.
-6. **Routine compare** — diff two routines / project versions.
-7. **L5X export research** (not yet implemented; import-only today).
-8. **Desktop packaging with Tauri.**
-9. **Offline docs / tutorials** inside the app.
-10. **Real project import stress testing** with large Studio 5000 exports.
+1. **Real LLM connector** — implement an `external` `AssistantProvider` that
+   calls a model and returns the same `AssistantResult`/`AssistantPlan` shape;
+   apply path and safety model unchanged; key via configuration (none bundled).
+2. **Nested / multi-level branch editing** (single-level is implemented;
+   imported nested branches are still flattened with a warning).
+3. **More instructions:** ONS/RES/TOF/RTO/CTD/NOP/AFI added; 🔜 TOF retentivity
+   edge cases, ONS variants, JSR/RET offline routine-call simulation.
+4. **Compare report export** — JSON/CSV of compare results (see optional M7).
+5. **L5X export research** (not yet implemented; import-only today).
+6. **Desktop packaging with Tauri.**
+7. **Offline docs / tutorials** inside the app.
+8. **Real project import stress testing** with large Studio 5000 exports.
 
 ## Constraints (unchanged)
 

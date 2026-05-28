@@ -288,11 +288,11 @@ describe("importL5X (realistic fixture)", () => {
     expect(controller.tasks[0]?.scheduledProgramIds).toHaveLength(2);
   });
 
-  it("preserves unsupported instructions (ADD, JSR) as nodes", () => {
+  it("preserves all instructions as nodes, including the unsupported JSR", () => {
     const { project } = importL5X(REALISTIC);
     const types = routineNodes(programLadder(project, "Mixer")).map((n) => n.instructionType);
-    expect(types).toContain("ADD");
-    expect(types).toContain("JSR");
+    expect(types).toContain("ADD"); // supported
+    expect(types).toContain("JSR"); // unsupported, preserved read-only
   });
 
   it("simulates the imported branch (seal-in) routine", () => {

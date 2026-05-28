@@ -8,20 +8,25 @@ files.
 ## What it supports today
 
 - **Editable ladder logic** stored as a semantic AST (not text).
+- **Branch editing** — build single-level parallel / seal-in branches by hand
+  (add a parallel branch, add/remove legs, add instructions per leg).
 - **Offline scan-cycle simulation** with a Watch panel (toggle inputs, Scan
   Once / Run / Reset).
-- **Instruction set:** XIC, XIO, OTE, OTL, OTU, TON, CTU, MOV, ADD, SUB, MUL,
-  DIV, EQU, NEQ, GRT, GEQ, LES, LEQ.
+- **Instruction set:** XIC, XIO, OTE, OTL, OTU, ONS, TON, TOF, RTO, CTU, CTD,
+  RES, MOV, ADD, SUB, MUL, DIV, EQU, NEQ, GRT, GEQ, LES, LEQ, NOP, AFI.
 - **Validation engine** (undefined tags, type mismatches, missing operands,
   unsupported instructions).
 - **Project persistence** — export / import `.plcproj.json`.
-- **Studio 5000 L5X import** (branches, member/array paths, descriptions,
-  import summary). Import-only; unsupported instructions are preserved
-  read-only.
+- **Studio 5000 L5X import** (branches, member/array paths, descriptions, alias
+  and unmodeled-type warnings, located warnings, import summary). Import-only;
+  unsupported instructions are preserved read-only.
 - **Tag table editor** — create / rename / describe / delete tags.
 - **Cross reference** — where each tag is read / written.
-- **Local, rule-based AI assistant** — explains logic and proposes previewable
-  plans applied only through the controlled action layer (no API key, offline).
+- **Routine & project compare** — match routines by logic fingerprint (not just
+  names) and see identical / changed / only-in-either, with side-by-side diffs.
+- **AI assistant** — offline, rule-based; explains logic and proposes previewable
+  plans applied only through the controlled action layer (no API key). Runs
+  behind a provider interface (local / mock / external) ready for a future LLM.
 
 ## Requirements
 

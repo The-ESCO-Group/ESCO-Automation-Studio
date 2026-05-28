@@ -415,6 +415,7 @@ export function App() {
               onOpenCrossRef={() => setDockTab("xref")}
               onOpenWatch={() => setDockTab("watch")}
               onOpenTags={() => setView("tags")}
+              onOpenCompare={() => setView("compare")}
               lastImport={lastImport}
             />
           )}

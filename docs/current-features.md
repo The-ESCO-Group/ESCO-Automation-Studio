@@ -7,8 +7,11 @@ A detailed inventory of what ESCO Automation Studio supports today.
 - Semantic ladder AST (`@esco/ladder`): rungs → branches (series, parallel,
   continuation) → nodes → operands. Not stored as text.
 - Add / delete rungs; editable rung comments.
-- Grouped instruction palette (Bit / Timer-Counter / Move-Math / Compare) that
-  adds to the selected rung.
+- Grouped instruction palette (Bit / Timer-Counter / Move-Math / Compare /
+  Program) that adds to the selected rung.
+- **Branch editing** for the selected rung: add a parallel branch, add/remove
+  legs (empty legs only), and add instructions to a specific leg — enough to
+  build a seal-in by hand. Single-level parallels (the MVP scope).
 - Inline operand editing with undefined-tag highlighting and one-click
   "create the missing tag" (data type inferred from the operand).
 - Rung and instruction selection with a focus highlight.
@@ -19,14 +22,16 @@ A detailed inventory of what ESCO Automation Studio supports today.
 
 | Category | Instructions |
 |---|---|
-| Bit | XIC, XIO, OTE, OTL, OTU |
-| Timer / Counter | TON, CTU |
+| Bit | XIC, XIO, OTE, OTL, OTU, ONS |
+| Timer / Counter | TON, TOF, RTO, CTU, CTD, RES |
 | Move / Math | MOV, ADD, SUB, MUL, DIV |
 | Compare | EQU, NEQ, GRT, GEQ, LES, LEQ |
+| Program | NOP, AFI |
 
-Instruction metadata (operands, allowed types, read/write direction, render
-style) lives in the registry (`@esco/instructions`) and drives the editor,
-simulator, validator, and import.
+ONS is a rising-edge one-shot (storage bit); RTO is a retentive timer cleared by
+RES; CTD counts down (mirror of CTU). Instruction metadata (operands, allowed
+types, read/write direction, render style) lives in the registry
+(`@esco/instructions`) and drives the editor, simulator, validator, and import.
 
 ## Simulation
 
@@ -61,7 +66,19 @@ simulator, validator, and import.
 - Export / import `.plcproj.json` (full project incl. ladder AST).
 - Studio 5000 `.L5X` import: controller, programs, routines, rungs (+comments),
   controller & program tags (+descriptions, aliases), supported instructions,
-  with a counts + warnings import summary.
+  with a counts + warnings import summary. Warnings include routine/rung
+  location for unsupported instructions and flattened branches, plus alias and
+  unmodeled-data-type notices.
+
+## Compare (`@esco/compare`)
+
+- Normalize each routine to canonical neutral text (ids and absolute rung
+  numbers dropped) into a full (operand-sensitive) and structure
+  (operand-insensitive) fingerprint.
+- Compare view: load a second `.plcproj.json` or `.L5X`, then see matched /
+  changed / only-in-current / only-in-comparison counts. Routines pair by logic
+  fingerprint first, then by name — so renamed routines still match.
+- Expand a changed routine for a side-by-side normalized rung diff.
 
 ## AI assistant (offline, rule-based)
 
@@ -69,12 +86,16 @@ simulator, validator, and import.
 - Generate motor starter, timer, counter, MOV examples; fix undefined tags.
 - Proposes a previewable plan; applies only on click, only through
   `project-actions`; shows validation after apply. No API key required.
+- Runs behind an `AssistantProvider` seam (local / mock / external). The local
+  rule-based provider is the default; the external stub is unconfigured (no
+  network/key) — ready for a future LLM behind the same apply path.
 
 ## UI / UX
 
 - Welcome dashboard (action cards, feature & limitation summaries, last-import
   summary, offline notice).
-- Title bar with project / routine / validation status and offline badge.
+- Title bar with project / routine / validation status, offline badge, and
+  Tags / Compare views.
 - Bottom dock: Errors · Watch · AI Assistant · Cross Ref (with counts).
 - Properties panel: context-aware detail for controller / program / tag /
   routine / rung / instruction.

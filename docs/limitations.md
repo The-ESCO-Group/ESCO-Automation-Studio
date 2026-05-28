@@ -16,16 +16,19 @@ following are intentional boundaries and known gaps.
 ## Functional gaps
 
 - **No L5X export yet** — import-only. Export research is on the roadmap.
-- **Incomplete instruction set.** Supported: XIC, XIO, OTE, OTL, OTU, TON, CTU,
-  MOV, ADD, SUB, MUL, DIV, EQU, NEQ, GRT, GEQ, LES, LEQ. Not yet: ONS, RES, TOF,
-  RTO, CTD, JSR, and others. Unsupported instructions are **preserved read-only**
-  and pass through the simulator (they do not execute).
-- **Limited branch editing.** Branches import and simulate, but the editor adds
-  instructions as a series; creating/splitting parallel branches in the UI is
-  not implemented (use imported rungs or AI/text-generated rungs).
-- **Local / rule-based AI only.** Intent matching is keyword-based; there is no
-  LLM connector yet (the architecture is ready for one behind the same action
-  layer).
+- **Instruction set is growing but partial.** Supported: XIC, XIO, OTE, OTL, OTU,
+  ONS, TON, TOF, RTO, CTU, CTD, RES, MOV, ADD, SUB, MUL, DIV, EQU, NEQ, GRT, GEQ,
+  LES, LEQ, NOP, AFI. Not yet: JSR/RET (offline routine calls), TOD/RTOR, file/
+  sequencer/PID and many others. Unsupported instructions are **preserved
+  read-only** and pass through the simulator (they do not execute).
+- **Single-level branch editing only.** You can build parallel/seal-in branches
+  by hand (add branch, add/remove legs, add instructions per leg), but nested
+  branches can't be created in the UI; imported nested branches are flattened
+  with a warning.
+- **Local / rule-based AI by default.** Intent matching is keyword-based. There
+  is an `AssistantProvider` seam (local / mock / external) ready for a real LLM,
+  but the external provider is unconfigured — no LLM connector, no API key, no
+  network calls.
 - **Import robustness is still improving.** Real-world L5X variety (UDTs,
   AOIs, complex/nested branches, arrays) is partially handled; nested branches
   are flattened with a warning, and unmodeled members default to 0/false in
