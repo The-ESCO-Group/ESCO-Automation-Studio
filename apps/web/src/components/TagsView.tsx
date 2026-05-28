@@ -4,6 +4,10 @@ import { TAG_DATA_TYPES, arrayElementNames, isStructuredType, memberDefs } from 
 import { collectTagReferences, outputTags } from "@esco/project-actions";
 import { getTags } from "../project-edit";
 import type { TagValues } from "../simulation";
+import { capList } from "../windowing";
+
+/** Max tag rows rendered at once; search narrows large tag sets below this. */
+const TAG_ROW_LIMIT = 200;
 
 interface Props {
   project: PlcProject;
@@ -64,9 +68,17 @@ export function TagsView({
   }, [project, values]);
 
   const term = filter.trim().toLowerCase();
-  const visible = term
-    ? rows.filter((r) => r.tag.name.toLowerCase().includes(term) || r.tag.dataType.toLowerCase().includes(term))
-    : rows;
+  const visible = useMemo(
+    () =>
+      term
+        ? rows.filter(
+            (r) => r.tag.name.toLowerCase().includes(term) || r.tag.dataType.toLowerCase().includes(term),
+          )
+        : rows,
+    [rows, term],
+  );
+  // Cap rendered rows for very large projects (search to narrow down).
+  const windowed = capList(visible, TAG_ROW_LIMIT);
 
   const handleAdd = () => {
     const name = newName.trim();
@@ -134,7 +146,7 @@ export function TagsView({
             </tr>
           </thead>
           <tbody>
-            {visible.map(({ tag, role, references, value }) => (
+            {windowed.items.map(({ tag, role, references, value }) => (
               <tr key={tag.id}>
                 <td>
                   <input
@@ -188,6 +200,11 @@ export function TagsView({
           </tbody>
         </table>
       )}
+      {windowed.truncated ? (
+        <p className="esco-tags__more">
+          Showing first {windowed.items.length} of {visible.length} tags — search to narrow down.
+        </p>
+      ) : null}
     </div>
   );
 }

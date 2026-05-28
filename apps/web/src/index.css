@@ -1676,6 +1676,26 @@ body {
   background: var(--accent-soft);
 }
 
+/* ---- Large-project windowing notices ---- */
+.esco-editor__largebanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.esco-tags__more {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
 /* ---- Crash / error boundary fallback ---- */
 .esco-crash {
   display: flex;

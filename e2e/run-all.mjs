@@ -34,6 +34,7 @@ const ORDER = [
   "aoidetail.mjs",
   "udtdetail.mjs",
   "iodetail.mjs",
+  "perf.mjs",
   "compare.mjs",
   "ai.mjs",
   "persist.mjs",

@@ -1,11 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { PlcProject, Routine } from "@esco/core";
 import { baseTagName, createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
 import { routineNodes, type LadderBranch, type LadderRung, type LadderRoutine } from "@esco/ladder";
 import { tagExists } from "../project-edit";
+import { capList } from "../windowing";
 import { RungDiagram } from "./LadderView";
 
 const registry = createDefaultRegistry();
+
+/** Above this many rungs the editor collapses to the first N until "Show all". */
+const LARGE_ROUTINE_LIMIT = 100;
 
 /** Instructions offered inside a branch leg (input conditioning + simple output). */
 const BRANCH_INSTRUCTIONS = ["XIC", "XIO", "OTE"];
@@ -199,6 +203,7 @@ export function EditorArea({
   onRemoveBranchLeg,
   onAddToBranch,
 }: Props) {
+  const [showAllRungs, setShowAllRungs] = useState(false);
   const undefinedTags = useMemo(
     () => (ladder ? findUndefinedTags(ladder, project) : []),
     [ladder, project],
@@ -275,7 +280,19 @@ export function EditorArea({
             </button>
           </div>
         ) : (
-          ladder.rungs.map((rung) => (
+          (() => {
+            const rungCap = capList(ladder.rungs, showAllRungs ? 0 : LARGE_ROUTINE_LIMIT);
+            return (
+          <>
+          {rungCap.truncated ? (
+            <div className="esco-editor__largebanner">
+              Large routine — showing the first {rungCap.items.length} of {rungCap.total} rungs.
+              <button type="button" className="esco-btn" onClick={() => setShowAllRungs(true)}>
+                Show all rungs
+              </button>
+            </div>
+          ) : null}
+          {rungCap.items.map((rung) => (
             <div
               key={rung.id}
               className={`esco-lad__rung${selectedRungId === rung.id ? " is-selected" : ""}`}
@@ -339,7 +356,10 @@ export function EditorArea({
                 />
               ) : null}
             </div>
-          ))
+          ))}
+          </>
+            );
+          })()
         )}
 
         {undefinedTags.length > 0 ? (
