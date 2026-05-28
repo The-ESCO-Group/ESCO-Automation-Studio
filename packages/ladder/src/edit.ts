@@ -78,14 +78,22 @@ function mapBranch(
   return result;
 }
 
-/** Add an instruction (with an optional tag operand) to the end of a rung. */
+/** Add a single-operand instruction (with an optional tag) to the end of a rung. */
 export function appendInstruction(
   routine: LadderRoutine,
   rungId: string,
   instructionType: string,
   tagName = "",
 ): LadderRoutine {
-  const node = createNode(instructionType, [tagOperand("tag", tagName)]);
+  return appendNode(routine, rungId, createNode(instructionType, [tagOperand("tag", tagName)]));
+}
+
+/** Append a pre-built node (e.g. a multi-operand instruction) to the end of a rung. */
+export function appendNode(
+  routine: LadderRoutine,
+  rungId: string,
+  node: LadderNode,
+): LadderRoutine {
   return mapRung(routine, rungId, (rung) => ({
     ...rung,
     root: appendToTerminalSeries(rung.root, node),
@@ -104,26 +112,36 @@ export function removeInstruction(
   }));
 }
 
-function withFirstOperandValue(node: LadderNode, value: string): InstructionOperand[] {
-  if (node.operands.length === 0) {
-    return [tagOperand("tag", value)];
+function withOperandValueAt(
+  node: LadderNode,
+  index: number,
+  value: string,
+): InstructionOperand[] {
+  const operands = node.operands.slice();
+  if (index < operands.length) {
+    operands[index] = { ...operands[index], value };
+    return operands;
   }
-  const [first, ...rest] = node.operands;
-  return [{ ...first, value }, ...rest];
+  while (operands.length < index) {
+    operands.push(tagOperand(`op${operands.length}`, ""));
+  }
+  operands.push(tagOperand(`op${index}`, value));
+  return operands;
 }
 
-/** Set the first operand's value (tag name) of a node. */
+/** Set the value of a node's operand at `index` (defaults to the first operand). */
 export function setOperandValue(
   routine: LadderRoutine,
   rungId: string,
   nodeId: string,
   value: string,
+  index = 0,
 ): LadderRoutine {
   return mapRung(routine, rungId, (rung) => ({
     ...rung,
     root: mapBranch(rung.root, (node) =>
       node.id === nodeId
-        ? { ...node, operands: withFirstOperandValue(node, value) }
+        ? { ...node, operands: withOperandValueAt(node, index, value) }
         : node,
     ),
   }));

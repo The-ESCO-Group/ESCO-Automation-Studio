@@ -7,6 +7,7 @@ interface Props {
   tags: WatchRow[];
   running: boolean;
   onToggleTag: (name: string) => void;
+  onSetNumber: (name: string, value: number) => void;
   onScanOnce: () => void;
   onReset: () => void;
   onToggleRun: () => void;
@@ -14,11 +15,70 @@ interface Props {
 
 type Tab = "errors" | "watch";
 
+/** The Value-column content for one watched tag, by kind. */
+function WatchValue({
+  row,
+  onToggleTag,
+  onSetNumber,
+}: {
+  row: WatchRow;
+  onToggleTag: (name: string) => void;
+  onSetNumber: (name: string, value: number) => void;
+}) {
+  if (row.kind === "struct") {
+    return (
+      <span className="esco-watch__members">
+        {row.members?.map((member) => (
+          <span
+            key={member.name}
+            className={`esco-watch__member${member.value === true ? " is-on" : ""}`}
+          >
+            {member.name}=
+            {member.type === "BOOL" ? (member.value ? "true" : "false") : String(member.value)}
+          </span>
+        ))}
+      </span>
+    );
+  }
+
+  if (row.kind === "number") {
+    if (row.role === "input") {
+      return (
+        <input
+          className="esco-watch__number"
+          type="number"
+          value={Number(row.value ?? 0)}
+          onChange={(event) => onSetNumber(row.name, Number(event.target.value) || 0)}
+        />
+      );
+    }
+    return <span className="esco-watch__value">{String(row.value ?? 0)}</span>;
+  }
+
+  // BOOL
+  const on = row.value === true;
+  return (
+    <span className="esco-watch__bool">
+      <span className={`esco-watch__value${on ? " is-on" : ""}`}>{on ? "true" : "false"}</span>
+      {row.role === "input" ? (
+        <button
+          type="button"
+          className={`esco-btn esco-btn--toggle${on ? " is-on" : ""}`}
+          onClick={() => onToggleTag(row.name)}
+        >
+          Toggle
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
 export function BottomPanel({
   findings,
   tags,
   running,
   onToggleTag,
+  onSetNumber,
   onScanOnce,
   onReset,
   onToggleRun,
@@ -80,7 +140,7 @@ export function BottomPanel({
             </div>
 
             {tags.length === 0 ? (
-              <p className="esco-empty">No BOOL tags in the project.</p>
+              <p className="esco-empty">No tags in the project.</p>
             ) : (
               <table className="esco-watch">
                 <thead>
@@ -89,30 +149,16 @@ export function BottomPanel({
                     <th>Type</th>
                     <th>Role</th>
                     <th>Value</th>
-                    <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {tags.map((tag) => (
-                    <tr key={tag.name}>
-                      <td>{tag.name}</td>
-                      <td>{tag.dataType}</td>
-                      <td>{tag.role}</td>
+                  {tags.map((row) => (
+                    <tr key={row.name}>
+                      <td>{row.name}</td>
+                      <td>{row.dataType}</td>
+                      <td>{row.role}</td>
                       <td>
-                        <span className={`esco-watch__value${tag.value ? " is-on" : ""}`}>
-                          {tag.value ? "true" : "false"}
-                        </span>
-                      </td>
-                      <td>
-                        {tag.role === "input" ? (
-                          <button
-                            type="button"
-                            className={`esco-btn esco-btn--toggle${tag.value ? " is-on" : ""}`}
-                            onClick={() => onToggleTag(tag.name)}
-                          >
-                            Toggle
-                          </button>
-                        ) : null}
+                        <WatchValue row={row} onToggleTag={onToggleTag} onSetNumber={onSetNumber} />
                       </td>
                     </tr>
                   ))}

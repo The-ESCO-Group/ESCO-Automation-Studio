@@ -1,11 +1,15 @@
-import { createDefaultRegistry, type InstructionRegistry } from "@esco/instructions";
+import {
+  createDefaultRegistry,
+  isNumericLiteral,
+  type InstructionRegistry,
+} from "@esco/instructions";
 import { routineNodes, type LadderRoutine } from "@esco/ladder";
 import { PlcRuntime, type TagDescriptor } from "./runtime";
 
 /**
- * Tags written by a coil-style instruction anywhere in the routine — i.e. the
- * routine's outputs. Coil-vs-contact is read from the instruction registry, so
- * no instruction knowledge is hardcoded here.
+ * Tags written by any instruction in the routine — i.e. the routine's outputs.
+ * Read from the registry via each operand's `direction`, so this covers OTE,
+ * MOV's Dest, a TON's timer, a CTU's counter, etc., with no hardcoded list.
  */
 export function collectOutputTags(
   routine: LadderRoutine,
@@ -14,10 +18,12 @@ export function collectOutputTags(
   const outputs = new Set<string>();
   for (const node of routineNodes(routine)) {
     const definition = registry.get(node.instructionType);
-    if (definition?.render.style === "coil") {
-      const tag = node.operands[0]?.value;
-      if (tag) outputs.add(tag);
-    }
+    if (!definition) continue;
+    definition.operands.forEach((operandDef, index) => {
+      if (operandDef.direction !== "write") return;
+      const tag = node.operands[index]?.value?.trim();
+      if (tag && !isNumericLiteral(tag)) outputs.add(tag);
+    });
   }
   return outputs;
 }

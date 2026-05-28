@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import type { PlcProject, Routine } from "@esco/core";
-import { routineTagReferences, type LadderRoutine } from "@esco/ladder";
+import { createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
+import { routineNodes, type LadderRoutine } from "@esco/ladder";
 import type { Selection } from "../selection";
 import { tagExists } from "../project-edit";
 import { RungDiagram } from "./LadderView";
+
+const registry = createDefaultRegistry();
 
 interface Props {
   project: PlcProject;
@@ -12,9 +15,9 @@ interface Props {
   onAddRung: () => void;
   onDeleteRung: (rungId: string) => void;
   onAddInstruction: (rungId: string, instructionType: string) => void;
-  onEditOperand: (rungId: string, nodeId: string, value: string) => void;
+  onEditOperand: (rungId: string, nodeId: string, index: number, value: string) => void;
   onRemoveInstruction: (rungId: string, nodeId: string) => void;
-  onCreateTag: (name: string) => void;
+  onCreateTag: (name: string, dataType: string) => void;
 }
 
 function findRoutine(project: PlcProject, id: string): Routine | undefined {
@@ -27,7 +30,29 @@ function findRoutine(project: PlcProject, id: string): Routine | undefined {
   return undefined;
 }
 
-const INSTRUCTION_BUTTONS = ["XIC", "XIO", "OTE"] as const;
+interface UndefinedTag {
+  name: string;
+  /** Type to create, inferred from the operand's allowed types (defaults to BOOL). */
+  inferredType: string;
+}
+
+/** Collect tag references that don't exist yet, with the type they should be. */
+function findUndefinedTags(ladder: LadderRoutine, project: PlcProject): UndefinedTag[] {
+  const found = new Map<string, string>();
+  for (const node of routineNodes(ladder)) {
+    const definition = registry.get(node.instructionType);
+    node.operands.forEach((operand, index) => {
+      const value = operand.value.trim();
+      if (!value || isNumericLiteral(value) || tagExists(project, value)) return;
+      if (found.has(value)) return;
+      found.set(value, definition?.operands[index]?.allowedTypes?.[0] ?? "BOOL");
+    });
+  }
+  return [...found].map(([name, inferredType]) => ({ name, inferredType }));
+}
+
+// Bit instructions first, then timers/counters, move, and compares.
+const INSTRUCTION_BUTTONS = ["XIC", "XIO", "OTE", "TON", "CTU", "MOV", "EQU", "GRT", "LES"] as const;
 
 export function EditorArea({
   project,
@@ -43,10 +68,10 @@ export function EditorArea({
   const routine =
     selection?.kind === "routine" ? findRoutine(project, selection.id) : undefined;
 
-  const undefinedTags = useMemo(() => {
-    if (!ladder) return [];
-    return routineTagReferences(ladder).filter((name) => !tagExists(project, name));
-  }, [ladder, project]);
+  const undefinedTags = useMemo(
+    () => (ladder ? findUndefinedTags(ladder, project) : []),
+    [ladder, project],
+  );
 
   const editing = {
     onEditOperand,
@@ -70,7 +95,7 @@ export function EditorArea({
                 + Add Rung
               </button>
               <span className="esco-editor__hint">
-                Edit operand tags inline; use each rung's buttons to add XIC / XIO / OTE.
+                Edit operands inline; use each rung's buttons to add instructions.
               </span>
             </div>
 
@@ -112,14 +137,14 @@ export function EditorArea({
             {undefinedTags.length > 0 ? (
               <div className="esco-undef">
                 <span className="esco-undef__label">Undefined tags:</span>
-                {undefinedTags.map((name) => (
+                {undefinedTags.map(({ name, inferredType }) => (
                   <button
                     key={name}
                     type="button"
                     className="esco-btn esco-btn--create"
-                    onClick={() => onCreateTag(name)}
+                    onClick={() => onCreateTag(name, inferredType)}
                   >
-                    + Create BOOL “{name}”
+                    + Create {inferredType} “{name}”
                   </button>
                 ))}
               </div>

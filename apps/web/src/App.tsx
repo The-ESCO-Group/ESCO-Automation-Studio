@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   addRung,
-  appendInstruction,
+  appendNode,
+  createNode,
   removeInstruction,
   removeRung,
   setOperandValue,
+  tagOperand,
 } from "@esco/ladder";
+import { createDefaultRegistry } from "@esco/instructions";
 import {
   deserializeProject,
   serializeProject,
@@ -27,6 +30,7 @@ import { downloadTextFile, readFileAsText, slugify } from "./file-io";
 import { scanOnce, watchRows, zeroValues, type TagValues } from "./simulation";
 
 const SCAN_INTERVAL_MS = 250;
+const registry = createDefaultRegistry();
 
 export function App() {
   const [project, setProject] = useState(createInitialProject);
@@ -46,18 +50,24 @@ export function App() {
   const handleAddRung = () => editLadder(addRung);
   const handleDeleteRung = (rungId: string) =>
     editLadder((ladder) => removeRung(ladder, rungId));
-  const handleAddInstruction = (rungId: string, type: string) =>
-    editLadder((ladder) => appendInstruction(ladder, rungId, type));
-  const handleEditOperand = (rungId: string, nodeId: string, value: string) =>
-    editLadder((ladder) => setOperandValue(ladder, rungId, nodeId, value));
+  const handleAddInstruction = (rungId: string, type: string) => {
+    // Build the node with one (empty) operand per the instruction's definition.
+    const operandDefs = registry.get(type)?.operands ?? [{ name: "tag" }];
+    const node = createNode(type, operandDefs.map((operand) => tagOperand(operand.name, "")));
+    editLadder((ladder) => appendNode(ladder, rungId, node));
+  };
+  const handleEditOperand = (rungId: string, nodeId: string, index: number, value: string) =>
+    editLadder((ladder) => setOperandValue(ladder, rungId, nodeId, value, index));
   const handleRemoveInstruction = (rungId: string, nodeId: string) =>
     editLadder((ladder) => removeInstruction(ladder, rungId, nodeId));
-  const handleCreateTag = (name: string) =>
-    setProject((current) => withNewTag(current, name));
+  const handleCreateTag = (name: string, dataType: string) =>
+    setProject((current) => withNewTag(current, name, dataType));
 
   // Simulation.
   const handleToggleTag = (name: string) =>
     setValues((current) => ({ ...current, [name]: current[name] !== true }));
+  const handleSetNumber = (name: string, value: number) =>
+    setValues((current) => ({ ...current, [name]: value }));
   const handleScanOnce = () => setValues((current) => scanOnce(project, current));
   const handleReset = () => setValues(zeroValues(project));
 
@@ -167,6 +177,7 @@ export function App() {
           tags={rows}
           running={running}
           onToggleTag={handleToggleTag}
+          onSetNumber={handleSetNumber}
           onScanOnce={handleScanOnce}
           onReset={handleReset}
           onToggleRun={() => setRunning((value) => !value)}

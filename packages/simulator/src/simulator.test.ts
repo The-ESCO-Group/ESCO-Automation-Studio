@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createDefaultRegistry,
+  isNumericLiteral,
   type InstructionRuntimeContext,
 } from "@esco/instructions";
 import {
@@ -8,8 +9,10 @@ import {
   appendInstruction,
   createLadderRoutine,
   createNode,
+  createRung,
   setOperandValue,
   tagOperand,
+  type LadderRung,
 } from "@esco/ladder";
 import { TagMemory } from "./tag-memory";
 import { RungExecutor } from "./rung-executor";
@@ -20,13 +23,31 @@ import { buildDemoLadderRoutine, createDemoRuntime } from "./demo";
 const registry = createDefaultRegistry();
 
 /** A runtime context backed by a real TagMemory, as the executor builds one. */
-function contextFor(memory: TagMemory, rungIn: boolean): InstructionRuntimeContext {
+function contextFor(
+  memory: TagMemory,
+  rungIn: boolean,
+  deltaMs = 0,
+): InstructionRuntimeContext {
   return {
     rungIn,
+    deltaMs,
     readBool: (path) => memory.readBool(path),
     writeBool: (path, value) => memory.writeBool(path, value),
+    readNumber: (path) => memory.readNumber(path),
+    writeNumber: (path, value) => memory.write(path, value),
+    numeric: (operand) =>
+      isNumericLiteral(operand) ? Number(operand.trim()) : memory.readNumber(operand.trim()),
   };
 }
+
+/** Build a one-rung routine from raw nodes, for executing a small ladder. */
+function singleRung(nodes: ReturnType<typeof createNode>[]): LadderRung {
+  const routine = createLadderRoutine();
+  return createRung(routine.id, 0, nodes);
+}
+
+const node = (type: string, ...operands: string[]) =>
+  createNode(type, operands.map((value, i) => tagOperand(`op${i}`, value)));
 
 describe("XIC - Examine If Closed", () => {
   const xic = registry.get("XIC")!;
@@ -237,5 +258,139 @@ describe("Edited ladder execution (editor pipeline)", () => {
     runtime.writeTag("Run", true);
     runtime.scanOnce();
     expect(runtime.readTag("MotorRun")).toBe(true);
+  });
+});
+
+describe("MOV - Move", () => {
+  const mov = registry.get("MOV")!;
+
+  it("copies Source to Dest when the rung is true", () => {
+    const memory = new TagMemory();
+    mov.execute(node("MOV", "123", "Dest"), contextFor(memory, true));
+    expect(memory.readNumber("Dest")).toBe(123);
+  });
+
+  it("does nothing when the rung is false", () => {
+    const memory = new TagMemory();
+    memory.write("Dest", 7);
+    mov.execute(node("MOV", "123", "Dest"), contextFor(memory, false));
+    expect(memory.readNumber("Dest")).toBe(7);
+  });
+
+  it("resolves a tag source", () => {
+    const memory = new TagMemory();
+    memory.write("Src", 42);
+    mov.execute(node("MOV", "Src", "Dest"), contextFor(memory, true));
+    expect(memory.readNumber("Dest")).toBe(42);
+  });
+});
+
+describe("EQU / GRT / LES - comparisons", () => {
+  const run = (type: string, a: string, b: string, rungIn = true) =>
+    registry.get(type)!.execute(node(type, a, b), contextFor(new TagMemory(), rungIn));
+
+  it("EQU passes when A == B", () => {
+    expect(run("EQU", "5", "5")).toBe(true);
+    expect(run("EQU", "5", "6")).toBe(false);
+  });
+
+  it("GRT passes when A > B", () => {
+    expect(run("GRT", "6", "5")).toBe(true);
+    expect(run("GRT", "5", "6")).toBe(false);
+  });
+
+  it("LES passes when A < B", () => {
+    expect(run("LES", "4", "5")).toBe(true);
+    expect(run("LES", "5", "4")).toBe(false);
+  });
+
+  it("never passes when the rung is already false", () => {
+    expect(run("EQU", "5", "5", false)).toBe(false);
+  });
+});
+
+describe("TON - Timer On Delay", () => {
+  const ton = registry.get("TON")!;
+
+  it("accumulates time and sets DN when ACC >= PRE", () => {
+    const memory = new TagMemory();
+    ton.execute(node("TON", "Timer1", "3000"), contextFor(memory, true, 1000));
+    expect(memory.readNumber("Timer1.ACC")).toBe(1000);
+    expect(memory.readBool("Timer1.EN")).toBe(true);
+    expect(memory.readBool("Timer1.TT")).toBe(true);
+    expect(memory.readBool("Timer1.DN")).toBe(false);
+
+    ton.execute(node("TON", "Timer1", "3000"), contextFor(memory, true, 1000));
+    ton.execute(node("TON", "Timer1", "3000"), contextFor(memory, true, 1000));
+    expect(memory.readNumber("Timer1.ACC")).toBe(3000);
+    expect(memory.readBool("Timer1.DN")).toBe(true);
+    expect(memory.readBool("Timer1.TT")).toBe(false);
+  });
+
+  it("resets when the rung goes false (non-retentive)", () => {
+    const memory = new TagMemory();
+    ton.execute(node("TON", "Timer1", "3000"), contextFor(memory, true, 1000));
+    ton.execute(node("TON", "Timer1", "3000"), contextFor(memory, false, 1000));
+    expect(memory.readNumber("Timer1.ACC")).toBe(0);
+    expect(memory.readBool("Timer1.EN")).toBe(false);
+    expect(memory.readBool("Timer1.TT")).toBe(false);
+    expect(memory.readBool("Timer1.DN")).toBe(false);
+  });
+});
+
+describe("CTU - Count Up", () => {
+  const ctu = registry.get("CTU")!;
+
+  it("increments only on a false-to-true transition", () => {
+    const memory = new TagMemory();
+    ctu.execute(node("CTU", "Counter1", "2"), contextFor(memory, true));
+    expect(memory.readNumber("Counter1.ACC")).toBe(1);
+    // Held true — no new edge, no increment.
+    ctu.execute(node("CTU", "Counter1", "2"), contextFor(memory, true));
+    expect(memory.readNumber("Counter1.ACC")).toBe(1);
+    // Falling then rising edge — increments again and reaches PRE.
+    ctu.execute(node("CTU", "Counter1", "2"), contextFor(memory, false));
+    ctu.execute(node("CTU", "Counter1", "2"), contextFor(memory, true));
+    expect(memory.readNumber("Counter1.ACC")).toBe(2);
+    expect(memory.readBool("Counter1.DN")).toBe(true);
+  });
+});
+
+describe("Integration - XIC(StartPB) TON(Timer1, 3000)", () => {
+  it("scans until Timer1.DN becomes true", () => {
+    const rung = singleRung([
+      node("XIC", "StartPB"),
+      node("TON", "Timer1", "3000"),
+    ]);
+    const executor = new RungExecutor(registry);
+    const memory = new TagMemory();
+    memory.writeBool("StartPB", true);
+
+    let scans = 0;
+    while (!memory.readBool("Timer1.DN") && scans < 100) {
+      executor.execute(rung, memory, 500); // advance 500ms per scan
+      scans += 1;
+    }
+    expect(memory.readBool("Timer1.DN")).toBe(true);
+    expect(memory.readNumber("Timer1.ACC")).toBe(3000);
+    expect(scans).toBe(6); // 6 * 500ms = 3000ms
+  });
+});
+
+describe("Integration - XIC(StartPB) MOV(123, SomeDint)", () => {
+  it("moves the value only while StartPB is true", () => {
+    const rung = singleRung([
+      node("XIC", "StartPB"),
+      node("MOV", "123", "SomeDint"),
+    ]);
+    const executor = new RungExecutor(registry);
+    const memory = new TagMemory();
+
+    executor.execute(rung, memory); // StartPB false -> MOV inhibited
+    expect(memory.readNumber("SomeDint")).toBe(0);
+
+    memory.writeBool("StartPB", true);
+    executor.execute(rung, memory);
+    expect(memory.readNumber("SomeDint")).toBe(123);
   });
 });

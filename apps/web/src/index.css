@@ -461,6 +461,75 @@ body {
   font-size: 12px;
 }
 
+/* ---- Box / function instructions (TON, CTU, MOV, EQU, GRT, LES) ---- */
+.esco-lad__box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg-elevated);
+}
+
+.esco-lad__box--readonly {
+  color: var(--accent);
+}
+
+.esco-lad__box-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.esco-lad__box-operand {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.esco-lad__box-label {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+/* ---- Watch panel value cells ---- */
+.esco-watch__bool {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.esco-watch__number {
+  width: 90px;
+  padding: 1px 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  font: inherit;
+}
+
+.esco-watch__number:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.esco-watch__members {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.esco-watch__member {
+  color: var(--text-dim);
+}
+
+.esco-watch__member.is-on {
+  color: var(--ok);
+  font-weight: 600;
+}
+
 .esco-btn--danger:hover {
   border-color: var(--error);
   color: var(--error);

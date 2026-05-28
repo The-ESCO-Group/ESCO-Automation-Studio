@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@esco/core": "workspace:*",
+    "@esco/instructions": "workspace:*",
     "@esco/ladder": "workspace:*"
   },
   "devDependencies": {

@@ -14,10 +14,10 @@ export class RoutineExecutor {
     this.rungExecutor = new RungExecutor(registry);
   }
 
-  execute(routine: LadderRoutine, memory: TagMemory): void {
+  execute(routine: LadderRoutine, memory: TagMemory, deltaMs = 0): void {
     const rungs = [...routine.rungs].sort((a, b) => a.number - b.number);
     for (const rung of rungs) {
-      this.rungExecutor.execute(rung, memory);
+      this.rungExecutor.execute(rung, memory, deltaMs);
     }
   }
 }

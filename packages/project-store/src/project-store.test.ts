@@ -10,8 +10,12 @@ import {
 import {
   addRung,
   appendInstruction,
+  appendNode,
   createLadderRoutine,
+  createNode,
+  routineNodes,
   routineTagReferences,
+  tagOperand,
   type LadderRoutine,
 } from "@esco/ladder";
 import { deserializeProject, serializeProject } from "./index";
@@ -68,5 +72,24 @@ describe("project-store serialize/deserialize", () => {
     const file = JSON.parse(serializeProject(project));
     file.formatVersion = 999;
     expect(() => deserializeProject(JSON.stringify(file))).toThrow(/format version/i);
+  });
+
+  it("round-trips a multi-operand instruction (TON) with all its operands", () => {
+    const project = demoProject();
+    const routine = project.controllers[0]!.programs[0]!.routines[0]!;
+    let ladder = routine.ladder as LadderRoutine;
+    ladder = addRung(ladder);
+    const rungId = ladder.rungs[ladder.rungs.length - 1]!.id;
+    ladder = appendNode(
+      ladder,
+      rungId,
+      createNode("TON", [tagOperand("timer", "Timer1"), tagOperand("preset", "3000")]),
+    );
+    routine.ladder = ladder;
+
+    const restored = deserializeProject(serializeProject(project));
+    const restoredLadder = restored.controllers[0]!.programs[0]!.routines[0]!.ladder as LadderRoutine;
+    const ton = routineNodes(restoredLadder).find((n) => n.instructionType === "TON");
+    expect(ton?.operands.map((o) => o.value)).toEqual(["Timer1", "3000"]);
   });
 });

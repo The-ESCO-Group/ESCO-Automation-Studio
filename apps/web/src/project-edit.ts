@@ -71,14 +71,18 @@ export function withMainLadder(
   };
 }
 
-/** Immutably add a BOOL controller tag (no-op if the name already exists). */
-export function withNewTag(project: PlcProject, name: string): PlcProject {
+/** Immutably add a controller tag of the given data type (no-op if name exists). */
+export function withNewTag(
+  project: PlcProject,
+  name: string,
+  dataType = "BOOL",
+): PlcProject {
   const controller = project.controllers[0];
   if (!controller || !name || tagExists(project, name)) return project;
 
-  const tag = createTag(controller.id, name, "BOOL", {
+  const tag = createTag(controller.id, name, dataType, {
     description: "Created in the ladder editor.",
-    value: false,
+    value: dataType === "BOOL" ? false : 0,
   });
 
   return {
@@ -91,10 +95,9 @@ export function withNewTag(project: PlcProject, name: string): PlcProject {
   };
 }
 
-export function getBoolTags(project: PlcProject): Tag[] {
-  return project.controllers.flatMap((controller) =>
-    controller.controllerTags.filter((tag) => tag.dataType === "BOOL"),
-  );
+/** All controller tags across the project, in declaration order. */
+export function getTags(project: PlcProject): Tag[] {
+  return project.controllers.flatMap((controller) => controller.controllerTags);
 }
 
 export function tagExists(project: PlcProject, name: string): boolean {

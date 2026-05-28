@@ -60,13 +60,16 @@ export class PlcRuntime {
     return this.running;
   }
 
-  /** Execute exactly one scan: apply forces, run logic, commit outputs. */
-  scanOnce(): void {
+  /**
+   * Execute exactly one scan: apply forces, run logic, commit outputs.
+   * `deltaMs` is the time elapsed since the previous scan (drives timers).
+   */
+  scanOnce(deltaMs = 0): void {
     for (const [path, value] of this.forces) {
       this.memory.write(path, value);
     }
     if (this.routine) {
-      this.executor.execute(this.routine, this.memory);
+      this.executor.execute(this.routine, this.memory, deltaMs);
     }
     this.memory.commitScan();
   }

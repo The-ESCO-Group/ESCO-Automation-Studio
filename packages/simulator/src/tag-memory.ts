@@ -40,6 +40,18 @@ export class TagMemory {
     this.values.set(path, value);
   }
 
+  /** Read a path as a number, coercing booleans/strings; missing values are 0. */
+  readNumber(path: string): number {
+    const value = this.values.get(path);
+    if (typeof value === "number") return value;
+    if (typeof value === "boolean") return value ? 1 : 0;
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
   /** Restore every defined tag to its registered power-up value. */
   reset(): void {
     this.values = new Map(this.initial);

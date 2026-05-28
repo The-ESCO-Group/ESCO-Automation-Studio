@@ -1,5 +1,8 @@
-import { routineTagReferences, type LadderRoutine } from "@esco/ladder";
+import { createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
+import { routineNodes, type LadderRoutine } from "@esco/ladder";
 import type { ValidationFinding, ValidationRule } from "./types";
+
+const registry = createDefaultRegistry();
 
 /** Recognise a populated ladder routine stored in the loosely-typed `Routine.ladder`. */
 function asLadderRoutine(ladder: unknown): LadderRoutine | undefined {
@@ -59,34 +62,71 @@ export const duplicateControllerTag: ValidationRule = {
   },
 };
 
-/** Every ladder operand must reference a tag that is defined in the project. */
-export const undefinedTag: ValidationRule = {
-  id: "undefined-tag",
-  name: "Undefined tag",
+/**
+ * Validate every ladder operand against the instruction registry:
+ *  - `missing-operand` (warning): a required operand is blank;
+ *  - `undefined-tag` (error): a tag reference has no matching tag;
+ *  - `operand-type-mismatch` (error): a tag's data type isn't allowed there.
+ * Numeric literals (e.g. MOV(123, …)) are constants, not tag references.
+ */
+export const ladderOperands: ValidationRule = {
+  id: "ladder-operands",
+  name: "Ladder operands",
   category: "syntax",
   severity: "error",
   run({ project }) {
     const findings: ValidationFinding[] = [];
     for (const controller of project.controllers) {
-      const defined = new Set<string>();
-      for (const tag of controller.controllerTags) defined.add(tag.name);
+      const tagTypes = new Map<string, string>();
+      for (const tag of controller.controllerTags) tagTypes.set(tag.name, tag.dataType);
       for (const program of controller.programs) {
-        for (const tag of program.programTags) defined.add(tag.name);
+        for (const tag of program.programTags) tagTypes.set(tag.name, tag.dataType);
       }
 
       for (const program of controller.programs) {
         for (const routine of program.routines) {
           const ladder = asLadderRoutine(routine.ladder);
           if (!ladder) continue;
-          for (const name of routineTagReferences(ladder)) {
-            if (!defined.has(name)) {
-              findings.push({
-                ruleId: "undefined-tag",
-                severity: "error",
-                message: `Undefined tag "${name}" referenced in routine "${routine.name}".`,
-                target: `${controller.name}/${program.name}/${routine.name}`,
-              });
-            }
+          const target = `${controller.name}/${program.name}/${routine.name}`;
+
+          for (const node of routineNodes(ladder)) {
+            const definition = registry.get(node.instructionType);
+            if (!definition) continue;
+
+            definition.operands.forEach((operandDef, index) => {
+              const value = node.operands[index]?.value?.trim() ?? "";
+
+              if (value === "") {
+                if (operandDef.required) {
+                  findings.push({
+                    ruleId: "missing-operand",
+                    severity: "warning",
+                    message: `${node.instructionType} is missing required operand "${operandDef.name}".`,
+                    target,
+                  });
+                }
+                return;
+              }
+
+              if (isNumericLiteral(value)) return; // a constant, not a tag reference
+
+              const dataType = tagTypes.get(value);
+              if (dataType === undefined) {
+                findings.push({
+                  ruleId: "undefined-tag",
+                  severity: "error",
+                  message: `Undefined tag "${value}" referenced in routine "${routine.name}".`,
+                  target,
+                });
+              } else if (operandDef.allowedTypes && !operandDef.allowedTypes.includes(dataType)) {
+                findings.push({
+                  ruleId: "operand-type-mismatch",
+                  severity: "error",
+                  message: `${node.instructionType} operand "${operandDef.name}" expects ${operandDef.allowedTypes.join("/")}, but tag "${value}" is ${dataType}.`,
+                  target,
+                });
+              }
+            });
           }
         }
       }
@@ -98,5 +138,5 @@ export const undefinedTag: ValidationRule = {
 export const defaultRules: ValidationRule[] = [
   missingMainRoutine,
   duplicateControllerTag,
-  undefinedTag,
+  ladderOperands,
 ];
