@@ -81,9 +81,10 @@ function ChangedRow({ match }: { match: RoutineMatch }) {
 
 /** Offline project comparison by logic structure (not just names). */
 export function CompareView({ project, comparison, onChooseFile }: Props) {
+  const [mode, setMode] = useState<"strict" | "logical">("logical");
   const result = useMemo(
-    () => (comparison ? compareProjects(project, comparison.project) : null),
-    [project, comparison],
+    () => (comparison ? compareProjects(project, comparison.project, { canonicalize: mode }) : null),
+    [project, comparison, mode],
   );
 
   const exportReport = (format: "json" | "csv", data: ProjectComparison) => {
@@ -106,6 +107,17 @@ export function CompareView({ project, comparison, onChooseFile }: Props) {
           </p>
         </div>
         <div className="esco-cmp__actions">
+          <label className="esco-cmp__mode" title="Logical ignores the order of parallel (OR) branch legs">
+            Match:
+            <select
+              className="esco-tags__select"
+              value={mode}
+              onChange={(event) => setMode(event.target.value === "strict" ? "strict" : "logical")}
+            >
+              <option value="logical">Logical (OR-order insensitive)</option>
+              <option value="strict">Strict (exact order)</option>
+            </select>
+          </label>
           <button type="button" className="esco-btn esco-btn--primary" onClick={onChooseFile}>
             Choose comparison file…
           </button>

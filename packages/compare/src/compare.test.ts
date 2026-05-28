@@ -7,7 +7,15 @@ import {
   type PlcProject,
   type Routine,
 } from "@esco/core";
-import { addRung, appendInstruction, createLadderRoutine } from "@esco/ladder";
+import {
+  addRung,
+  appendInstruction,
+  appendRungWithRoot,
+  createBranch,
+  createLadderRoutine,
+  createNode,
+  tagOperand,
+} from "@esco/ladder";
 import { importL5X } from "@esco/parser-l5x";
 import { compareProjects, compareReportCsv, compareReportJson, compareRoutines } from "./index";
 
@@ -39,6 +47,36 @@ function projectWith(routines: Routine[]): PlcProject {
 }
 
 const sealIn = (): RungSpec[] => [[["XIC", "Start"], ["XIO", "Stop"], ["OTE", "Run"]]];
+
+const xic = (tag: string) => createNode("XIC", [tagOperand("tag", tag)]);
+const ote = (tag: string) => createNode("OTE", [tagOperand("tag", tag)]);
+
+/** One rung: [ XIC(legA) , XIC(legB) ] OTE(Out) — a 2-leg OR group. */
+function orRoutine(name: string, legA: string, legB: string): Routine {
+  const routine = createRoutine("prog", name, "ladder");
+  const root = createBranch([xic(legA)], {
+    parallelBranches: [createBranch([xic(legB)])],
+    next: createBranch([ote("Out")]),
+  });
+  routine.ladder = appendRungWithRoot(createLadderRoutine(), root);
+  return routine;
+}
+
+describe("compare canonicalization (OR-leg order)", () => {
+  it("reordered OR legs are identical in logical mode, changed in strict mode", () => {
+    const r1 = orRoutine("A", "Start", "Run");
+    const r2 = orRoutine("B", "Run", "Start"); // same OR legs, reordered
+    expect(compareRoutines(r1, r2, { canonicalize: "logical" }).status).toBe("identical");
+    expect(compareRoutines(r1, r2, { canonicalize: "strict" }).status).not.toBe("identical");
+  });
+
+  it("compareProjects logical mode matches reordered-branch routines", () => {
+    const left = projectWith([orRoutine("Seal", "Start", "Run")]);
+    const right = projectWith([orRoutine("Seal", "Run", "Start")]);
+    expect(compareProjects(left, right, { canonicalize: "logical" }).summary.matched).toBe(1);
+    expect(compareProjects(left, right, { canonicalize: "strict" }).summary.changed).toBe(1);
+  });
+});
 
 describe("compareRoutines", () => {
   it("treats identical logic with different ids as an exact match", () => {

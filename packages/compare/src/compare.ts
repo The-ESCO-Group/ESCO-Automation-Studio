@@ -75,9 +75,14 @@ function diffDetails(a: RoutineFingerprint, b: RoutineFingerprint): string[] {
 }
 
 /** Compare two routines directly by their logic. */
-export function compareRoutines(left: Routine, right: Routine): RoutineDiff {
-  const a = fingerprintRoutine(left);
-  const b = fingerprintRoutine(right);
+export function compareRoutines(
+  left: Routine,
+  right: Routine,
+  options: { canonicalize?: "strict" | "logical" } = {},
+): RoutineDiff {
+  const canonical = options.canonicalize === "logical";
+  const a = fingerprintRoutine(left, { canonical });
+  const b = fingerprintRoutine(right, { canonical });
   const status = classify(a, b);
   return {
     status,
@@ -92,19 +97,27 @@ interface RoutineEntry {
   fp: RoutineFingerprint;
 }
 
-function collectRoutines(project: PlcProject): RoutineEntry[] {
+function collectRoutines(project: PlcProject, canonical: boolean): RoutineEntry[] {
   const entries: RoutineEntry[] = [];
   for (const controller of project.controllers) {
     for (const program of controller.programs) {
       for (const routine of program.routines) {
         entries.push({
           ref: { programName: program.name, routineName: routine.name, routineId: routine.id },
-          fp: fingerprintRoutine(routine),
+          fp: fingerprintRoutine(routine, { canonical }),
         });
       }
     }
   }
   return entries;
+}
+
+export interface CompareOptions {
+  /**
+   * `strict` (default) preserves exact branch-leg order; `logical` canonicalizes
+   * commutative OR legs so reordered parallel branches compare as equal.
+   */
+  canonicalize?: "strict" | "logical";
 }
 
 /**
@@ -113,9 +126,14 @@ function collectRoutines(project: PlcProject): RoutineEntry[] {
  * structure (operand differences), then routine name as a fallback. Each routine
  * is paired at most once; the rest are reported as only-in-left / only-in-right.
  */
-export function compareProjects(left: PlcProject, right: PlcProject): ProjectComparison {
-  const L = collectRoutines(left);
-  const R = collectRoutines(right);
+export function compareProjects(
+  left: PlcProject,
+  right: PlcProject,
+  options: CompareOptions = {},
+): ProjectComparison {
+  const canonical = options.canonicalize === "logical";
+  const L = collectRoutines(left, canonical);
+  const R = collectRoutines(right, canonical);
   const usedL = new Set<number>();
   const usedR = new Set<number>();
   const matches: RoutineMatch[] = [];

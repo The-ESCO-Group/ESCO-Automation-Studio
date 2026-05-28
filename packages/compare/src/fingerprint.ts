@@ -34,35 +34,47 @@ function nodeToText(node: LadderNode, withOperands: boolean): string {
   return `${node.instructionType}(${operands.join(",")})`;
 }
 
-/** Canonical neutral text for a branch tree: series, `[leg,leg,…]` parallels, then continuation. */
-function branchToText(branch: LadderBranch, withOperands: boolean): string {
+/**
+ * Canonical neutral text for a branch tree: series, `[leg,leg,…]` parallels,
+ * then continuation. In `canonical` mode the parallel legs are sorted, so an OR
+ * group is order-insensitive (logically `[A,B]` == `[B,A]`).
+ */
+function branchToText(branch: LadderBranch, withOperands: boolean, canonical: boolean): string {
   const series = branch.nodes.map((node) => nodeToText(node, withOperands)).join("");
   let text: string;
   if (branch.parallelBranches && branch.parallelBranches.length > 0) {
-    const legs = [series, ...branch.parallelBranches.map((leg) => branchToText(leg, withOperands))];
-    text = `[${legs.join(",")}]`;
+    const legs = [series, ...branch.parallelBranches.map((leg) => branchToText(leg, withOperands, canonical))];
+    text = `[${(canonical ? [...legs].sort() : legs).join(",")}]`;
   } else {
     text = series;
   }
-  if (branch.next) text += branchToText(branch.next, withOperands);
+  if (branch.next) text += branchToText(branch.next, withOperands, canonical);
   return text;
 }
 
 /** Neutral text of a single rung (operands included by default). */
 export function rungText(rung: LadderRung, withOperands = true): string {
-  return branchToText(rung.root, withOperands);
+  return branchToText(rung.root, withOperands, false);
+}
+
+export interface FingerprintOptions {
+  /** Sort commutative OR legs so reordered parallel branches compare equal. */
+  canonical?: boolean;
 }
 
 /** Build a comparable fingerprint of a routine's logic. */
-export function fingerprintRoutine(routine: Routine): RoutineFingerprint {
+export function fingerprintRoutine(routine: Routine, options: FingerprintOptions = {}): RoutineFingerprint {
+  const canonical = options.canonical ?? false;
   const ladder = asLadderRoutine(routine.ladder);
   const rungs = ladder ? [...ladder.rungs].sort((a, b) => a.number - b.number) : [];
-  const fullTexts = rungs.map((rung) => branchToText(rung.root, true));
-  const structureTexts = rungs.map((rung) => branchToText(rung.root, false));
+  const fullTexts = rungs.map((rung) => branchToText(rung.root, true, canonical));
+  const structureTexts = rungs.map((rung) => branchToText(rung.root, false, canonical));
+  // Display text always reflects the real (non-canonical) order.
+  const rungTexts = canonical ? rungs.map((rung) => branchToText(rung.root, true, false)) : fullTexts;
   return {
     full: fullTexts.join(" / "),
     structure: structureTexts.join(" / "),
-    rungTexts: fullTexts,
+    rungTexts,
     rungCount: rungs.length,
   };
 }
