@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import { arrayElementNames, isStructuredType, memberDefs, type PlcProject, type Routine } from "@esco/core";
-import { baseTagName, createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
+import {
+  baseTagName,
+  createDefaultRegistry,
+  isNumericLiteral,
+  type InstructionCategory,
+  type InstructionDefinition,
+} from "@esco/instructions";
 import { routineNodes, type LadderBranch, type LadderRung, type LadderRoutine } from "@esco/ladder";
 import type { ValidationFinding } from "@esco/validator";
 import { tagExists } from "../project-edit";
@@ -158,17 +164,62 @@ interface UndefinedTag {
   inferredType: string;
 }
 
-/** Instruction palette grouped by category. */
-const INSTRUCTION_GROUPS: { label: string; types: string[] }[] = [
-  { label: "Bit", types: ["XIC", "XIO", "OTE", "OTL", "OTU", "ONS"] },
-  { label: "Timer / Counter", types: ["TON", "TOF", "RTO", "CTU", "CTD", "RES"] },
-  { label: "Move / Math", types: ["MOV", "ADD", "SUB", "MUL", "DIV", "MOD", "SQR", "NEG", "ABS", "CLR"] },
-  { label: "Data", types: ["COP", "CPS", "FLL", "MVM"] },
-  { label: "Convert", types: ["TOD", "FRD", "BTD", "SWPB"] },
-  { label: "Bitwise", types: ["AND", "OR", "XOR", "NOT"] },
-  { label: "Compare", types: ["EQU", "NEQ", "GRT", "GEQ", "LES", "LEQ", "LIM", "MEQ"] },
-  { label: "Program", types: ["JSR", "SBR", "RET", "NOP", "AFI", "TND", "JMP", "LBL", "MCR", "FOR", "BRK"] },
+interface InstructionGroup {
+  label: string;
+  definitions: InstructionDefinition[];
+}
+
+const CATEGORY_LABELS: Record<InstructionCategory, string> = {
+  bit: "Bit",
+  timer: "Timer",
+  counter: "Counter",
+  compare: "Compare",
+  math: "Math",
+  move: "Move",
+  "program-control": "Program",
+  sequencer: "Sequencer",
+  shift: "Shift",
+  file: "File",
+  message: "Message",
+  alarm: "Alarm",
+  motion: "Motion",
+};
+
+const CATEGORY_ORDER: InstructionCategory[] = [
+  "bit",
+  "timer",
+  "counter",
+  "move",
+  "math",
+  "compare",
+  "program-control",
+  "sequencer",
+  "shift",
+  "file",
+  "message",
+  "alarm",
+  "motion",
 ];
+
+function buildInstructionGroups(): InstructionGroup[] {
+  const byCategory = new Map<InstructionCategory, InstructionDefinition[]>();
+  for (const definition of registry.all()) {
+    const current = byCategory.get(definition.category) ?? [];
+    current.push(definition);
+    byCategory.set(definition.category, current);
+  }
+  return CATEGORY_ORDER.flatMap((category) => {
+    const definitions = byCategory.get(category);
+    if (!definitions?.length) return [];
+    return [{
+      label: CATEGORY_LABELS[category],
+      definitions: definitions.sort((a, b) => a.type.localeCompare(b.type)),
+    }];
+  });
+}
+
+/** Instruction palette follows the registry so backend instruction additions appear automatically. */
+const INSTRUCTION_GROUPS = buildInstructionGroups();
 
 const LANGUAGE_LABEL: Record<Routine["language"], string> = {
   ladder: "Ladder",
@@ -495,16 +546,22 @@ export function EditorArea({
             {INSTRUCTION_GROUPS.map((group) => (
               <div className="esco-palette__group" key={group.label}>
                 <span className="esco-palette__label">{group.label}</span>
-                {group.types.map((type) => (
+                {group.definitions.map((definition) => (
                   <button
-                    key={type}
+                    key={definition.type}
                     type="button"
-                    className="esco-btn esco-btn--instr"
+                    className={`esco-btn esco-btn--instr${definition.modelOnly ? " esco-btn--model-only" : ""}`}
                     disabled={!selectedRungId}
-                    title={selectedRungId ? `Add ${type} to the selected rung` : "Select a rung first"}
-                    onClick={() => selectedRungId && onAddInstruction(selectedRungId, type)}
+                    aria-label={definition.type}
+                    title={
+                      selectedRungId
+                        ? `Add ${definition.displayName}${definition.modelOnly ? " (model-only)" : ""} to the selected rung`
+                        : "Select a rung first"
+                    }
+                    onClick={() => selectedRungId && onAddInstruction(selectedRungId, definition.type)}
                   >
-                    {type}
+                    <span>{definition.type}</span>
+                    {definition.modelOnly ? <span className="esco-palette__model" aria-hidden="true">M</span> : null}
                   </button>
                 ))}
               </div>

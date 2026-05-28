@@ -1223,9 +1223,31 @@ body {
 }
 
 .esco-btn--instr {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 11px;
   padding: 2px 7px;
   font-family: "Cascadia Code", "Consolas", monospace;
+}
+
+.esco-btn--model-only {
+  border-style: dashed;
+  color: #3f37c9;
+  background: #fbfbff;
+}
+
+.esco-palette__model {
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #8b85ff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 8px;
+  font-weight: 800;
 }
 
 /* ---- Rung selection / header (cleanup pass) ---- */

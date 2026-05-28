@@ -13,6 +13,7 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
   await importStarterProject(page);
+  check("registry palette exposes advanced model-only instructions", (await palette(page, "SQO").count()) === 1 && (await palette(page, "MSO").count()) === 1);
 
   // Rung: XIC(StartPB) MOV(123, SomeDint)
   await page.locator('button:has-text("Add Rung")').click();
@@ -46,6 +47,11 @@ try {
   check("MOV simulates: SomeDint=123", /\b123\b/.test(await watchText(page, "SomeDint")));
   check("TON simulates: Timer1 DN=true", /DN=true/.test(await watchText(page, "Timer1")));
   check("seal-in still drives MotorRun=true", /\btrue\b/.test(await watchText(page, "MotorRun")));
+
+  await page.locator('button:has-text("Add Rung")').click();
+  await palette(page, "SQO").click();
+  await page.locator(".esco-lad__box--model-only:has-text('SQO')").waitFor({ timeout: 5000 });
+  check("model-only instruction can be added from the registry palette", (await page.locator(".esco-lad__box--model-only:has-text('SQO')").count()) >= 1);
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);
