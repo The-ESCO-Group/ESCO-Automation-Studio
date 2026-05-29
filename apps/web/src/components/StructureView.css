@@ -1,0 +1,32 @@
+/* Inline editing controls for the controller-database detail views (UDT / AOI). */
+.esco-edit__input {
+  width: 100%;
+  min-width: 56px;
+  border: 1px solid #d9def2;
+  border-radius: 6px;
+  padding: 5px 6px;
+  background: #ffffff;
+  color: #111827;
+  font: inherit;
+  font-size: 12px;
+}
+
+.esco-edit__input:focus {
+  border-color: #b9c0ff;
+  outline: 2px solid rgba(99, 91, 255, 0.18);
+  outline-offset: 0;
+}
+
+.esco-edit__add-row {
+  background: #f8faff;
+}
+
+.esco-edit__add-row td {
+  border-top: 1px dashed #c8d0e6;
+}
+
+/* Extra-small button used by the inline add/remove controls. */
+.esco-btn--xs {
+  padding: 4px 8px;
+  font-size: 11px;
+}

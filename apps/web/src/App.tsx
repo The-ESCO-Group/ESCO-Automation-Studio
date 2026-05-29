@@ -8,6 +8,9 @@ import {
   addRung,
   addHmiElement,
   addHmiEventCommand,
+  addAoiLocalTag,
+  addAoiParameter,
+  addUdtMember,
   createTag,
   createHmiPopup as createHmiPopupAction,
   createHmiScreen as createHmiScreenAction,
@@ -35,15 +38,21 @@ import {
   pasteRung,
   previewTagCsvImport,
   applyTagCsvImport,
+  removeAoiLocalTag,
+  removeAoiParameter,
   removeBranchLeg,
   removeInstruction,
+  removeUdtMember,
   renameTag,
   setProjectProperties,
   setRungComment,
   setStructuredTextSource,
   setTagAlias,
   setTagDescription,
+  updateAoiLocalTag,
+  updateAoiParameter,
   updateInstructionOperand,
+  updateUdtMember,
   type ProjectActionResult,
   type TagCsvImportPreview,
 } from "@esco/project-actions";
@@ -59,7 +68,7 @@ import { BottomPanel, type DockTab } from "./components/BottomPanel";
 import { WelcomeDashboard } from "./components/WelcomeDashboard";
 import { TagsView } from "./components/TagsView";
 import { CompareView } from "./components/CompareView";
-import { StructureView } from "./components/StructureView";
+import { StructureView, type StructureEditing } from "./components/StructureView";
 import { Toasts } from "./components/Toasts";
 import { AppShell } from "./components/AppShell";
 import { TopAppBar } from "./components/TopAppBar";
@@ -584,6 +593,36 @@ export function App() {
     if (applyHmiEdit(result, `Deleted HMI ${surfaceKind}.`)) {
       setSelection({ kind: "hmi", id: hmiProject?.id ?? "hmi" });
     }
+  };
+
+  // ---- Controller-database editing (UDT members, AOI parameters/local tags) ----
+  const runStructureEdit = (result: ProjectActionResult, successMsg?: string) => {
+    if (!result.ok) {
+      push("error", result.error ?? "Structure edit failed.");
+      return;
+    }
+    setProject(result.project);
+    if (successMsg) push("success", successMsg);
+  };
+  const structureEditing: StructureEditing = {
+    addUdtMember: (udtId, member) =>
+      runStructureEdit(addUdtMember(project, { udtId, member }), `Added UDT member ${member.name}.`),
+    updateUdtMember: (udtId, memberName, patch) =>
+      runStructureEdit(updateUdtMember(project, { udtId, memberName, patch })),
+    removeUdtMember: (udtId, memberName) =>
+      runStructureEdit(removeUdtMember(project, { udtId, memberName }), `Removed UDT member ${memberName}.`),
+    addAoiParameter: (aoiId, parameter) =>
+      runStructureEdit(addAoiParameter(project, { aoiId, parameter }), `Added AOI parameter ${parameter.name}.`),
+    updateAoiParameter: (aoiId, parameterName, patch) =>
+      runStructureEdit(updateAoiParameter(project, { aoiId, parameterName, patch })),
+    removeAoiParameter: (aoiId, parameterName) =>
+      runStructureEdit(removeAoiParameter(project, { aoiId, parameterName }), `Removed AOI parameter ${parameterName}.`),
+    addAoiLocalTag: (aoiId, localTag) =>
+      runStructureEdit(addAoiLocalTag(project, { aoiId, localTag }), `Added AOI local tag ${localTag.name}.`),
+    updateAoiLocalTag: (aoiId, localTagName, patch) =>
+      runStructureEdit(updateAoiLocalTag(project, { aoiId, localTagName, patch })),
+    removeAoiLocalTag: (aoiId, localTagName) =>
+      runStructureEdit(removeAoiLocalTag(project, { aoiId, localTagName }), `Removed AOI local tag ${localTagName}.`),
   };
 
   const selectedRungId =
@@ -1368,7 +1407,7 @@ export function App() {
             onChooseFile={handleCompareFileClick}
           />
         ) : view === "structure" ? (
-          <StructureView project={project} selection={selection} onOpenRoutine={handleOpenRoutine} />
+          <StructureView project={project} selection={selection} onOpenRoutine={handleOpenRoutine} editing={structureEditing} />
         ) : view === "routine" && openRoutine ? (
           <EditorArea
             project={project}

@@ -8,6 +8,8 @@ export * from "./ladder-actions";
 export * from "./validate";
 export * from "./scan";
 export * from "./io-actions";
+export * from "./udt-actions";
+export * from "./aoi-actions";
 export * from "./hmi-actions";
 export * from "./cross-reference";
 export * from "./generate";

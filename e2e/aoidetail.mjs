@@ -2,10 +2,9 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { writeFileSync } from "node:fs";
-import { importL5XPath } from "./helpers.mjs";
+import { URL, importL5XPath } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const URL = "http://localhost:5173/";
 const fixturePath = join(here, "aoi-fixture.L5X");
 
 const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
@@ -58,8 +57,18 @@ try {
   const detail = await page.locator(".esco-detail").innerText();
 
   check("AOI detail shows the name + revision", /ScaleAOI/.test(detail) && /Rev 1\.3/.test(detail));
-  check("AOI detail shows parameters (In/Input, Out/Output)", /\bIn\b/.test(detail) && /Input/.test(detail) && /\bOut\b/.test(detail) && /Output/.test(detail));
-  check("AOI detail shows local tags (Scratch)", /Scratch/.test(detail));
+  // Parameters and local tags are now editable controls (offline AOI editor).
+  check(
+    "AOI detail shows editable parameters (In/Out, Input/Output)",
+    (await page.locator('input[aria-label="Parameter In name"]').count()) === 1 &&
+      (await page.locator('input[aria-label="Parameter Out name"]').count()) === 1 &&
+      (await page.locator('select[aria-label="Parameter In usage"]').inputValue()) === "Input" &&
+      (await page.locator('select[aria-label="Parameter Out usage"]').inputValue()) === "Output",
+  );
+  check(
+    "AOI detail shows editable local tags (Scratch)",
+    (await page.locator('input[aria-label="Local tag Scratch name"]').count()) === 1,
+  );
   check("AOI detail shows routines (Logic)", /Logic/.test(detail));
   check("AOI detail shows 'Used by' (Main rung 0)", /used by/i.test(detail) && /Main/.test(detail) && /rung 0/.test(detail));
 

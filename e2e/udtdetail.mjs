@@ -2,10 +2,9 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { writeFileSync } from "node:fs";
-import { importL5XPath } from "./helpers.mjs";
+import { URL, importL5XPath } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const URL = "http://localhost:5173/";
 const fixturePath = join(here, "udt-fixture.L5X");
 
 const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
@@ -49,7 +48,13 @@ try {
   const detail = await page.locator(".esco-detail").innerText();
 
   check("UDT detail shows name + description", /MotorUdt/.test(detail) && /Motor status/.test(detail));
-  check("UDT detail shows members with array dim", /Running/.test(detail) && /Speed/.test(detail) && /History/.test(detail) && /\[8\]/.test(detail));
+  // Members are now editable inputs (offline data-type editor); assert the controls.
+  check(
+    "UDT detail shows editable members with array dim",
+    (await page.locator('input[aria-label="Member Running name"]').count()) === 1 &&
+      (await page.locator('input[aria-label="Member Speed name"]').count()) === 1 &&
+      (await page.locator('input[aria-label="Member History dimension"]').inputValue()) === "8",
+  );
   check("UDT detail shows member paths", /MotorUdt\.Running/.test(detail));
   check("UDT detail shows tags using the type (M1)", /using this type/i.test(detail) && /\bM1\b/.test(detail));
 
