@@ -73,7 +73,7 @@ function ProjectDetail({ project }: { project: PlcProject }) {
             <tr><th>Description</th><td>{meta(project.description)}</td></tr>
             <tr><th>Created</th><td>{meta(project.createdAt ? new Date(project.createdAt).toLocaleString() : undefined)}</td></tr>
             <tr><th>Updated</th><td>{meta(project.updatedAt ? new Date(project.updatedAt).toLocaleString() : undefined)}</td></tr>
-            <tr><th>Storage</th><td>Browser project export (.plcproj.json)</td></tr>
+            <tr><th>Storage</th><td>ESCO project file (.plcproj.json)</td></tr>
           </tbody>
         </table>
       </section>

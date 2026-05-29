@@ -23,6 +23,7 @@ import {
   removeBranchLeg,
   removeInstruction,
   renameTag,
+  setProjectProperties,
   setRungComment,
   setTagDescription,
   updateInstructionOperand,
@@ -50,10 +51,20 @@ import { StatusBar } from "./components/StatusBar";
 import { FirstRunSetup } from "./components/FirstRunSetup";
 import { TagCsvPreviewDialog } from "./components/TagCsvPreviewDialog";
 import { DesktopStartup } from "./components/DesktopStartup";
+import { ProjectPropertiesDialog } from "./components/ProjectPropertiesDialog";
 import type { Selection } from "./selection";
 import { createBlankRoutineProject, createInitialProject, findMainRoutine } from "./project-edit";
 import { searchProject } from "./search";
-import { downloadTextFile, readFileAsText, slugify } from "./file-io";
+import {
+  downloadTextFile,
+  openDesktopProjectFile,
+  readDesktopProjectFile,
+  readFileAsText,
+  saveDesktopProjectFile,
+  slugify,
+  type DesktopSavedFile,
+  type DesktopTextFile,
+} from "./file-io";
 import {
   createTrendSample,
   scanOnce,
@@ -73,7 +84,9 @@ import { recordActivity, type ActivityEntry, type ActivityKind } from "./activit
 import { aiProfileModelLabel, loadAiProfile, profileInitials, saveAiProfile, type AiProfile } from "./ai-profile";
 import {
   loadRecentProjects,
+  markRecentProjectMissing,
   rememberRecentProject,
+  type RecentProjectInput,
   type RecentProjectEntry,
 } from "./recent-projects";
 import { isDesktopStartupRequested } from "./desktop-runtime";
@@ -113,6 +126,8 @@ export function App() {
     () => isDesktopStartupRequested() && !isFirstRunComplete(),
   );
   const [recentProjects, setRecentProjects] = useState<RecentProjectEntry[]>(() => loadRecentProjects());
+  const [projectFile, setProjectFile] = useState<DesktopSavedFile | null>(null);
+  const [projectPropertiesOpen, setProjectPropertiesOpen] = useState(false);
   const [tagCsvPreview, setTagCsvPreview] = useState<{
     fileName: string;
     csv: string;
@@ -120,7 +135,7 @@ export function App() {
   } | null>(null);
   const logActivity = (kind: ActivityKind, message: string) =>
     setActivity((log) => recordActivity(log, kind, message));
-  const rememberProject = (entry: Omit<RecentProjectEntry, "id" | "at">) =>
+  const rememberProject = (entry: RecentProjectInput) =>
     setRecentProjects((current) => rememberRecentProject(current, entry));
   const [lastImport, setLastImport] = useState<{ name: string; summary: ImportSummary } | null>(null);
   const [comparison, setComparison] = useState<{ name: string; project: PlcProject } | null>(null);
@@ -131,6 +146,7 @@ export function App() {
   const l5xInputRef = useRef<HTMLInputElement>(null);
   const compareInputRef = useRef<HTMLInputElement>(null);
   const tagCsvInputRef = useRef<HTMLInputElement>(null);
+  const openProjectAlreadyConfirmedRef = useRef(false);
 
   const findings = useMemo(() => createDefaultEngine().run(project), [project]);
   const rows = useMemo(() => watchRows(project, values), [project, values]);
@@ -339,6 +355,17 @@ export function App() {
     setSelection({ kind: "project", id: project.id });
     setView("structure");
     setCopilotTab("history");
+    setProjectPropertiesOpen(true);
+  };
+  const handleSaveProjectProperties = (input: { name: string; description?: string }) => {
+    const result = setProjectProperties(project, input);
+    if (!result.ok) {
+      push("error", result.error ?? "Could not update project properties.");
+      return;
+    }
+    setProject(result.project);
+    setProjectPropertiesOpen(false);
+    push("success", "Project properties updated.");
   };
   const handleControllerProperties = () => {
     const controller = project.controllers[0];
@@ -360,10 +387,11 @@ export function App() {
   const confirmDiscardDirtyProject = (action: string) =>
     !dirty || window.confirm(`${action}? Unsaved changes will be lost.`);
 
-  const loadProject = (loaded: PlcProject) => {
+  const loadProject = (loaded: PlcProject, file: DesktopSavedFile | null = null) => {
     history.reset(loaded); // opening/importing a project is a fresh undo baseline
     setSavedProject(loaded); // freshly loaded = no unsaved changes
     setProjectOpen(true);
+    setProjectFile(file);
     setValues(zeroValues(loaded));
     setForces({});
     setTrace([]);
@@ -374,6 +402,7 @@ export function App() {
     setComparison(null);
     setClipboardRung(null);
     setTagCsvPreview(null);
+    setProjectPropertiesOpen(false);
     setRecovery(null);
     clearAutosave(); // starting from a file supersedes any recovered autosave
     const main = findMainRoutine(loaded);
@@ -394,6 +423,7 @@ export function App() {
     history.reset(blank);
     setSavedProject(initialProject);
     setProjectOpen(true);
+    setProjectFile(null);
     setValues(zeroValues(blank));
     setForces({});
     setTrace([]);
@@ -404,6 +434,7 @@ export function App() {
     setComparison(null);
     setClipboardRung(null);
     setTagCsvPreview(null);
+    setProjectPropertiesOpen(false);
     setRecovery(null);
     const main = findMainRoutine(blank);
     if (main) {
@@ -411,7 +442,7 @@ export function App() {
       setSelection({ kind: "routine", id: main.id });
       setView("routine");
     }
-    rememberProject({ name: blank.name, source: "created" });
+    rememberProject({ projectId: blank.id, name: blank.name, source: "created", storage: "metadata" });
     push("success", "Created a blank routine.");
   };
 
@@ -420,6 +451,7 @@ export function App() {
     history.reset(initialProject);
     setSavedProject(initialProject);
     setProjectOpen(false);
+    setProjectFile(null);
     setValues(zeroValues(initialProject));
     setForces({});
     setTrace([]);
@@ -430,6 +462,7 @@ export function App() {
     setComparison(null);
     setClipboardRung(null);
     setTagCsvPreview(null);
+    setProjectPropertiesOpen(false);
     setRecovery(null);
     setOpenRoutineId(undefined);
     setSelection(null);
@@ -444,6 +477,7 @@ export function App() {
     if (!confirmDiscardDirtyProject("Restore autosaved work")) return;
     history.reset(recovery.project);
     setProjectOpen(true);
+    setProjectFile(null);
     setValues(zeroValues(recovery.project));
     setForces({});
     setTrace([]);
@@ -455,6 +489,7 @@ export function App() {
     setComparison(null);
     setClipboardRung(null);
     setTagCsvPreview(null);
+    setProjectPropertiesOpen(false);
     setRecovery(null);
     const main = findMainRoutine(recovery.project);
     if (main) {
@@ -501,19 +536,54 @@ export function App() {
     push("info", "Microsoft SSO is not configured yet. Save a local AI profile or continue offline.");
   };
 
-  const handleExport = () => {
-    const result = exportProjectJson(project);
-    if (result.data) {
-      const filename = `${slugify(project.name)}${PLCPROJ_EXTENSION}`;
-      downloadTextFile(filename, result.data.text);
-      setSavedProject(project); // exporting is the save point — mark clean
-      setLastExportedAt(new Date().toISOString());
-      clearAutosave();
-      logActivity("export", `Exported "${project.name}" → ${filename}`);
-      rememberProject({ name: project.name, source: "exported", fileName: filename });
-      push("success", `Exported "${project.name}" → ${filename}`);
-    }
+  const finishSavedProject = (fileName: string, savedFile: DesktopSavedFile | null) => {
+    setSavedProject(project); // saving/exporting is the save point - mark clean
+    setLastExportedAt(new Date().toISOString());
+    setProjectFile(savedFile);
+    clearAutosave();
+    rememberProject({
+      projectId: project.id,
+      name: project.name,
+      source: "exported",
+      storage: savedFile ? "desktop-file" : "download",
+      fileName,
+      path: savedFile?.path,
+    });
   };
+
+  const handleSaveProject = async (saveAs = false) => {
+    const result = exportProjectJson(project);
+    if (!result.data) return;
+
+    const filename = `${slugify(project.name)}${PLCPROJ_EXTENSION}`;
+    try {
+      const saved = await saveDesktopProjectFile({
+        path: saveAs ? undefined : projectFile?.path,
+        suggestedName: projectFile?.fileName ?? filename,
+        text: result.data.text,
+      });
+      if (saved === null) {
+        push("info", "Save canceled.");
+        return;
+      }
+      if (saved) {
+        finishSavedProject(saved.fileName, saved);
+        logActivity("export", `Saved "${project.name}" -> ${saved.path}`);
+        push("success", `Saved "${project.name}" -> ${saved.fileName}`);
+        return;
+      }
+    } catch (error) {
+      push("error", error instanceof Error ? error.message : "Failed to save the project file.");
+      return;
+    }
+
+    downloadTextFile(filename, result.data.text);
+    finishSavedProject(filename, null);
+    logActivity("export", `Exported "${project.name}" -> ${filename}`);
+    push("success", `Exported "${project.name}" -> ${filename}`);
+  };
+  const handleExport = () => void handleSaveProject(false);
+  const handleExportAs = () => void handleSaveProject(true);
   const handleExportL5X = () => {
     const result = exportProjectL5X(project);
     if (!result.ok || !result.data) {
@@ -523,7 +593,7 @@ export function App() {
     const filename = `${slugify(project.name)}.L5X`;
     downloadTextFile(filename, result.data.text);
     logActivity("export", `Generated offline L5X "${filename}".`);
-    rememberProject({ name: project.name, source: "exported", fileName: filename });
+    rememberProject({ projectId: project.id, name: project.name, source: "exported", storage: "download", fileName: filename });
     push("success", "Generated offline L5X. Review before use. No .ACD modification.");
     if (result.warnings?.length) push("warning", `${result.warnings.length} L5X export warning(s). Review generated file before use.`);
   };
@@ -533,7 +603,55 @@ export function App() {
     logActivity("export", `Exported tag CSV "${filename}".`);
     push("success", `Exported tag CSV "${filename}".`);
   };
-  const handleImportClick = () => fileInputRef.current?.click();
+  const openProjectText = (
+    text: string,
+    fileName: string,
+    file: DesktopTextFile | null,
+    source: RecentProjectEntry["source"] = "opened",
+  ): boolean => {
+    const result = importProjectFile(text);
+    if (!result.ok) {
+      push("error", result.error ?? "Failed to open project.");
+      return false;
+    }
+    const savedFile = file ? { fileName: file.fileName, path: file.path } : null;
+    loadProject(result.project, savedFile);
+    logActivity("open", `Opened project "${result.project.name}".`);
+    rememberProject({
+      projectId: result.project.id,
+      name: result.project.name,
+      source,
+      storage: savedFile ? "desktop-file" : "browser-file",
+      fileName,
+      path: savedFile?.path,
+    });
+    if (result.data?.migrationsApplied.length) {
+      push("warning", `Opened and migrated "${result.project.name}" (${result.data.migrationsApplied.join(", ")}). Save to update the file.`);
+    } else {
+      push("success", `Opened project "${result.project.name}".`);
+    }
+    for (const warning of result.warnings?.slice(0, 2) ?? []) push("warning", warning);
+    return true;
+  };
+
+  const handleImportClick = async () => {
+    if (!confirmDiscardDirtyProject("Open another project")) return;
+    try {
+      const file = await openDesktopProjectFile();
+      if (file === undefined) {
+        openProjectAlreadyConfirmedRef.current = true;
+        fileInputRef.current?.click();
+        return;
+      }
+      if (file === null) {
+        push("info", "Open canceled.");
+        return;
+      }
+      openProjectText(file.text, file.fileName, file);
+    } catch (error) {
+      push("error", error instanceof Error ? error.message : "Failed to open the project file.");
+    }
+  };
   const handleImportL5XClick = () => l5xInputRef.current?.click();
   const handleImportTagsCsvClick = () => tagCsvInputRef.current?.click();
   const handleCompareFileClick = () => compareInputRef.current?.click();
@@ -563,19 +681,34 @@ export function App() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!confirmDiscardDirtyProject("Open another project")) return;
+    const alreadyConfirmed = openProjectAlreadyConfirmedRef.current;
+    openProjectAlreadyConfirmedRef.current = false;
+    if (!alreadyConfirmed && !confirmDiscardDirtyProject("Open another project")) return;
     try {
-      const result = importProjectFile(await readFileAsText(file));
-      if (result.ok) {
-        loadProject(result.project);
-        logActivity("open", `Opened project "${result.project.name}".`);
-        rememberProject({ name: result.project.name, source: "opened", fileName: file.name });
-        push("success", `Opened project "${result.project.name}".`);
-      } else {
-        push("error", result.error ?? "Failed to import project.");
-      }
+      openProjectText(await readFileAsText(file), file.name, null);
     } catch (error) {
       push("error", error instanceof Error ? error.message : "Failed to read the file.");
+    }
+  };
+
+  const handleOpenRecentProject = async (entry: RecentProjectEntry) => {
+    if (!entry.path) {
+      push("info", "This recent item is metadata only. Choose the project file to reopen it.");
+      void handleImportClick();
+      return;
+    }
+    if (!confirmDiscardDirtyProject(`Open "${entry.name}"`)) return;
+    try {
+      const file = await readDesktopProjectFile(entry.path);
+      if (file === undefined) {
+        push("info", "Recent file paths are available in the desktop app. Choose the project file to reopen it.");
+        void handleImportClick();
+        return;
+      }
+      openProjectText(file.text, file.fileName, file, "opened");
+    } catch (error) {
+      setRecentProjects((current) => markRecentProjectMissing(current, entry.id));
+      push("error", error instanceof Error ? error.message : `Could not open "${entry.name}". The file may have moved or been deleted.`);
     }
   };
 
@@ -599,7 +732,7 @@ export function App() {
       setLastImport({ name: result.project.name, summary: s });
       const counts = `${s.programs} program(s), ${s.routines} routine(s), ${s.rungs} rung(s), ${s.tags} tag(s)`;
       logActivity("import", `Imported L5X "${result.project.name}": ${counts}.`);
-      rememberProject({ name: result.project.name, source: "imported", fileName: file.name });
+      rememberProject({ projectId: result.project.id, name: result.project.name, source: "imported", storage: "browser-file", fileName: file.name });
       const unsupported = s.unsupportedInstructions.length
         ? ` Unsupported: ${s.unsupportedInstructions.join(", ")}.`
         : "";
@@ -801,6 +934,7 @@ export function App() {
           onTags={() => requireProject(() => setView("tags"))}
           onCompare={() => requireProject(() => setView("compare"))}
           onExport={() => requireProject(handleExport)}
+          onSaveAs={() => requireProject(handleExportAs)}
           onExportL5X={() => requireProject(handleExportL5X)}
           onExportTagsCsv={() => requireProject(handleExportTagsCsv)}
           onImportProject={handleImportClick}
@@ -833,6 +967,13 @@ export function App() {
             onClose={() => setSetupOpen(false)}
             onSave={handleSaveAiProfile}
           />
+          <ProjectPropertiesDialog
+            open={projectPropertiesOpen}
+            project={project}
+            projectFile={projectFile}
+            onClose={() => setProjectPropertiesOpen(false)}
+            onSave={handleSaveProjectProperties}
+          />
           {desktopStartupOpen ? (
             <DesktopStartup
               hasBackup={!!recovery}
@@ -855,7 +996,7 @@ export function App() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".json,application/json"
+            accept=".plcproj.json,.json,application/json"
             style={{ display: "none" }}
             onChange={handleFileSelected}
           />
@@ -1009,6 +1150,7 @@ export function App() {
             onOpenWatch={() => setDockTab("watch")}
             onOpenTags={() => requireProject(() => setView("tags"))}
             onOpenCompare={() => requireProject(() => setView("compare"))}
+            onOpenRecentProject={handleOpenRecentProject}
             projectOpen={projectOpen}
             recentProjects={recentProjects}
             lastImport={lastImport}

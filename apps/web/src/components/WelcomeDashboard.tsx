@@ -11,6 +11,7 @@ interface Props {
   onOpenWatch: () => void;
   onOpenTags: () => void;
   onOpenCompare: () => void;
+  onOpenRecentProject: (entry: RecentProjectEntry) => void;
   projectOpen: boolean;
   recentProjects: RecentProjectEntry[];
   lastImport?: { name: string; summary: ImportSummary } | null;
@@ -28,6 +29,7 @@ export function WelcomeDashboard({
   onOpenWatch,
   onOpenTags,
   onOpenCompare,
+  onOpenRecentProject,
   projectOpen,
   recentProjects,
   lastImport,
@@ -105,15 +107,22 @@ export function WelcomeDashboard({
           <section className="esco-welcome__recent" aria-label="Recent projects">
             <div className="esco-welcome__quick-head">
               <strong>Recent Projects</strong>
-              <span>metadata only</span>
+              <span>recent files</span>
             </div>
             <ul>
               {recentProjects.slice(0, 5).map((entry) => (
                 <li key={entry.id}>
-                  <span>
+                  <button
+                    type="button"
+                    className="esco-welcome__recent-button"
+                    onClick={() => onOpenRecentProject(entry)}
+                    title={entry.path ?? "Choose this file again to reopen it"}
+                  >
                     <strong>{entry.name}</strong>
-                    <small>{entry.fileName ?? entry.source}</small>
-                  </span>
+                    <small>
+                      {entry.status === "missing" ? "Missing - reselect file" : entry.fileName ?? entry.source}
+                    </small>
+                  </button>
                   <time dateTime={entry.at}>{new Date(entry.at).toLocaleDateString()}</time>
                 </li>
               ))}

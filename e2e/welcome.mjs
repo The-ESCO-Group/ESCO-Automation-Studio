@@ -21,6 +21,14 @@ try {
   check("created project has no tags", (await page.locator(".esco-tree__node--tag").count()) === 0);
   check("titlebar shows current routine", /MainRoutine/.test(await page.locator(".esco-titlebar__context").innerText()));
 
+  await page.locator('.esco-ribbon__tab:has-text("Project")').click();
+  await page.locator('.esco-ribbon__button:has-text("Project Properties")').first().click();
+  await page.locator('.esco-project-props input').fill("Line 1 Project");
+  await page.locator('.esco-project-props textarea').fill("Created by the project properties dialog.");
+  await page.locator('.esco-project-props button:has-text("Apply")').click();
+  await page.waitForFunction(() => document.querySelector(".esco-titlebar__context")?.textContent?.includes("Line 1 Project"));
+  check("project properties rename updates the active project", /Line 1 Project/.test(await page.locator(".esco-titlebar__context").innerText()));
+
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);
   process.exitCode = passed === results.length ? 0 : 1;

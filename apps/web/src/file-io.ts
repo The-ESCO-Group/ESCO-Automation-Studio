@@ -1,4 +1,52 @@
-/** Browser helpers for exporting/importing files (no localStorage). */
+/** Browser + desktop helpers for project file I/O. */
+
+interface DesktopInvoke {
+  invoke?: <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
+}
+
+interface DesktopGlobal {
+  core?: DesktopInvoke;
+}
+
+interface DesktopWindow extends Window {
+  __TAURI_INTERNALS__?: DesktopInvoke;
+  __TAURI__?: DesktopGlobal;
+}
+
+export interface DesktopTextFile {
+  text: string;
+  fileName: string;
+  path: string;
+}
+
+export interface DesktopSavedFile {
+  fileName: string;
+  path: string;
+}
+
+function invokeDesktopCommand<T>(command: string, args?: Record<string, unknown>): Promise<T | undefined> {
+  if (typeof window === "undefined") return Promise.resolve(undefined);
+  const desktopWindow = window as DesktopWindow;
+  const invoke = desktopWindow.__TAURI__?.core?.invoke ?? desktopWindow.__TAURI_INTERNALS__?.invoke;
+  if (!invoke) return Promise.resolve(undefined);
+  return invoke<T>(command, args);
+}
+
+export async function openDesktopProjectFile(): Promise<DesktopTextFile | null | undefined> {
+  return invokeDesktopCommand<DesktopTextFile | null>("open_project_file");
+}
+
+export async function readDesktopProjectFile(path: string): Promise<DesktopTextFile | null | undefined> {
+  return invokeDesktopCommand<DesktopTextFile>("read_project_file", { path });
+}
+
+export async function saveDesktopProjectFile(input: {
+  path?: string;
+  suggestedName: string;
+  text: string;
+}): Promise<DesktopSavedFile | null | undefined> {
+  return invokeDesktopCommand<DesktopSavedFile | null>("save_project_file", input);
+}
 
 /** Trigger a browser download of `text` as `filename`. */
 export function downloadTextFile(

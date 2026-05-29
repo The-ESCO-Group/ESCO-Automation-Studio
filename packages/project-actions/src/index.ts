@@ -2,6 +2,7 @@ export * from "./types";
 export * from "./helpers";
 export * from "./tag-actions";
 export * from "./tag-csv";
+export * from "./project-metadata";
 export * from "./audit";
 export * from "./ladder-actions";
 export * from "./validate";

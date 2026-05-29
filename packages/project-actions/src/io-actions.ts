@@ -1,13 +1,22 @@
 import { createProject, type PlcProject } from "@esco/core";
 import { exportL5X, importL5X, type ImportSummary } from "@esco/parser-l5x";
-import { deserializeProject, serializeProject } from "@esco/project-store";
+import { deserializeProjectFile, serializeProject } from "@esco/project-store";
 import { fail, ok, validate } from "./helpers";
 import type { ProjectActionResult } from "./types";
 
+export interface ProjectFileImportData {
+  importedSource?: string;
+  migrationsApplied: string[];
+}
+
 /** Parse a `.plcproj.json` string into a project. */
-export function importProjectFile(text: string): ProjectActionResult {
+export function importProjectFile(text: string): ProjectActionResult<ProjectFileImportData> {
   try {
-    return ok(deserializeProject(text));
+    const result = deserializeProjectFile(text);
+    return ok(result.project, {
+      migrationsApplied: result.migrationsApplied,
+      importedSource: result.importedSource,
+    }, result.warnings);
   } catch (error) {
     return fail(
       createProject("Untitled"),

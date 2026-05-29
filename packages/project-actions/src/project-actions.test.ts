@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   createController,
+  createContinuousTask,
   createProgram,
   createProject,
   createRoutine,
@@ -32,6 +33,10 @@ import {
   removeInstruction,
   renameTag,
   scanProject,
+  setControllerProperties,
+  setProgramProperties,
+  setProjectProperties,
+  setTaskProperties,
   setTagDescription,
   tagsUsingType,
   traceScan,
@@ -53,6 +58,12 @@ interface Base {
   programId: string;
 }
 
+interface MetadataBase extends Base {
+  controllerId: string;
+  taskId: string;
+  faultRoutineId: string;
+}
+
 function baseProject(): Base {
   const project = createProject("Test");
   const controller = createController(project.id, "DemoController");
@@ -64,6 +75,25 @@ function baseProject(): Base {
   controller.programs.push(program);
   project.controllers.push(controller);
   return { project, routineId: routine.id, programId: program.id };
+}
+
+function metadataProject(): MetadataBase {
+  const base = baseProject();
+  const controller = base.project.controllers[0]!;
+  const program = controller.programs[0]!;
+  const task = createContinuousTask(controller.id, "MainTask", [program.id]);
+  const faultRoutine = createRoutine(program.id, "FaultRoutine", "ladder");
+  faultRoutine.ladder = createLadderRoutine();
+
+  program.routines.push(faultRoutine);
+  controller.tasks.push(task);
+
+  return {
+    ...base,
+    controllerId: controller.id,
+    taskId: task.id,
+    faultRoutineId: faultRoutine.id,
+  };
 }
 
 /** Build the XIC(StartPB) XIO(StopPB) OTE(MotorRun) rung + tags through actions. */
@@ -100,6 +130,137 @@ describe("project-actions: immutability", () => {
     addRung(base.project, { routineId: base.routineId });
     createTag(base.project, { name: "Foo", dataType: "BOOL" });
     expect(JSON.stringify(base.project)).toBe(snapshot);
+  });
+});
+
+describe("project-actions: project metadata", () => {
+  it("sets project properties immutably and returns validation findings", () => {
+    const { project } = metadataProject();
+    const snapshot = JSON.stringify(project);
+
+    const result = setProjectProperties(project, {
+      name: " Renamed Project ",
+      description: "Line one",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.project).not.toBe(project);
+    expect(result.project.name).toBe("Renamed Project");
+    expect(result.project.description).toBe("Line one");
+    expect(result.findings).toBeDefined();
+    expect(JSON.stringify(project)).toBe(snapshot);
+  });
+
+  it("updates controller, task, and program metadata without mutating originals", () => {
+    const base = metadataProject();
+    const { project, controllerId, taskId, programId, routineId, faultRoutineId } = base;
+    const snapshot = JSON.stringify(project);
+
+    const controllerResult = setControllerProperties(project, {
+      controllerId,
+      name: " PlantController ",
+      processorType: " 1756-L85E ",
+      catalogNumber: " 1756-L85E/B ",
+      firmwareRevision: " 35.011 ",
+      chassis: " 1756-A10 ",
+      slot: 2,
+      faultRoutineName: " FaultRoutine ",
+      powerUpRoutineName: " PowerUpRoutine ",
+    });
+    const taskResult = setTaskProperties(controllerResult.project, {
+      taskId,
+      name: " FastTask ",
+      type: "periodic",
+      periodMs: 10,
+      priority: 4,
+      watchdogMs: 500,
+      inhibited: true,
+      scheduledProgramIds: [programId],
+    });
+    const programResult = setProgramProperties(taskResult.project, {
+      programId,
+      name: " ConveyorProgram ",
+      description: "Conveyor sequence",
+      mainRoutineId: routineId,
+      faultRoutineId,
+      inhibited: true,
+    });
+
+    expect(controllerResult.ok).toBe(true);
+    expect(taskResult.ok).toBe(true);
+    expect(programResult.ok).toBe(true);
+    expect(JSON.stringify(project)).toBe(snapshot);
+
+    const controller = programResult.project.controllers[0]!;
+    const task = controller.tasks[0]!;
+    const program = controller.programs[0]!;
+
+    expect(controller).not.toBe(project.controllers[0]);
+    expect(controller.name).toBe("PlantController");
+    expect(controller.processorType).toBe("1756-L85E");
+    expect(controller.catalogNumber).toBe("1756-L85E/B");
+    expect(controller.firmwareRevision).toBe("35.011");
+    expect(controller.chassis).toBe("1756-A10");
+    expect(controller.slot).toBe(2);
+    expect(controller.faultRoutineName).toBe("FaultRoutine");
+    expect(controller.powerUpRoutineName).toBe("PowerUpRoutine");
+
+    expect(task.name).toBe("FastTask");
+    expect(task.type).toBe("periodic");
+    expect(task.periodMs).toBe(10);
+    expect(task.priority).toBe(4);
+    expect(task.watchdogMs).toBe(500);
+    expect(task.inhibited).toBe(true);
+    expect(task.scheduledProgramIds).toEqual([programId]);
+
+    expect(program.name).toBe("ConveyorProgram");
+    expect(program.description).toBe("Conveyor sequence");
+    expect(program.mainRoutineId).toBe(routineId);
+    expect(program.faultRoutineId).toBe(faultRoutineId);
+    expect(program.inhibited).toBe(true);
+  });
+
+  it("rejects missing ids and blank names without changing the project", () => {
+    const { project, controllerId, taskId, programId } = metadataProject();
+    const snapshot = JSON.stringify(project);
+    const failures = [
+      setProjectProperties(project, { name: "   " }),
+      setControllerProperties(project, { controllerId: "missing", name: "Controller" }),
+      setControllerProperties(project, { controllerId, name: " " }),
+      setTaskProperties(project, { taskId: "missing", name: "Task", type: "continuous" }),
+      setTaskProperties(project, { taskId, name: " ", type: "continuous" }),
+      setProgramProperties(project, { programId: "missing", name: "Program" }),
+      setProgramProperties(project, { programId, name: " " }),
+    ];
+
+    for (const result of failures) {
+      expect(result.ok).toBe(false);
+      expect(result.project).toBe(project);
+      expect(result.error).toBeTruthy();
+      expect(result.findings).toBeDefined();
+    }
+    expect(JSON.stringify(project)).toBe(snapshot);
+  });
+
+  it("rejects missing scheduled program and routine references", () => {
+    const { project, taskId, programId } = metadataProject();
+
+    const taskResult = setTaskProperties(project, {
+      taskId,
+      name: "MainTask",
+      type: "continuous",
+      scheduledProgramIds: ["missing-program"],
+    });
+    const programResult = setProgramProperties(project, {
+      programId,
+      name: "MainProgram",
+      mainRoutineId: "missing-routine",
+    });
+
+    expect(taskResult.ok).toBe(false);
+    expect(taskResult.error).toContain("missing-program");
+    expect(programResult.ok).toBe(false);
+    expect(programResult.error).toContain("missing-routine");
   });
 });
 

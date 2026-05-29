@@ -8,7 +8,7 @@ import {
   serializeProject,
   willMigrate,
 } from "./index";
-import { migrateV2toV3 } from "./migrations";
+import { migrateV2toV3, migrateV3toV4 } from "./migrations";
 
 function demoProject(): PlcProject {
   const project = createProject("Migrations");
@@ -75,6 +75,69 @@ describe("v2->v3 normalize project collections", () => {
     const migrated = migrateV2toV3(structuredClone(broken));
     expect(migrated).toEqual(broken); // unchanged; loader will flag malformed
     expect(() => deserializeProjectFile(JSON.stringify(broken))).toThrow(/malformed/i);
+  });
+});
+
+describe("v3->v4 normalize project metadata", () => {
+  it("backfills timestamps, parent ids, and scheduled arrays from an older shape", () => {
+    const legacy = {
+      formatVersion: 3,
+      savedAt: "2026-05-29T08:00:00.000Z",
+      project: {
+        id: "p1",
+        name: "Plant",
+        controllers: [
+          {
+            id: "c1",
+            name: "Ctl",
+            tasks: [{ id: "t1", name: "MainTask", type: "continuous" }],
+            programs: [
+              {
+                id: "pr1",
+                name: "MainProgram",
+                routines: [{ id: "r1", name: "MainRoutine", language: "ladder" }],
+                programTags: [],
+              },
+            ],
+            controllerTags: [],
+            dataTypes: [],
+            addOnInstructions: [],
+            ioConfiguration: { modules: [] },
+          },
+        ],
+      },
+    };
+
+    const migrated = migrateV3toV4(structuredClone(legacy));
+    const project = migrated.project as any;
+    const controller = project.controllers[0];
+    const task = controller.tasks[0];
+    const program = controller.programs[0];
+    const routine = program.routines[0];
+
+    expect(project.createdAt).toBe("2026-05-29T08:00:00.000Z");
+    expect(project.updatedAt).toBe("2026-05-29T08:00:00.000Z");
+    expect(project.description).toBe("");
+    expect(controller.projectId).toBe("p1");
+    expect(task.controllerId).toBe("c1");
+    expect(task.scheduledProgramIds).toEqual([]);
+    expect(program.controllerId).toBe("c1");
+    expect(routine.programId).toBe("pr1");
+  });
+
+  it("lets the loader migrate v3 metadata to the current version", () => {
+    const project = demoProject();
+    const legacy = JSON.parse(serializeProject(project));
+    legacy.formatVersion = 3;
+    delete legacy.project.createdAt;
+    delete legacy.project.updatedAt;
+    delete legacy.project.controllers[0].projectId;
+
+    const result = deserializeProjectFile(JSON.stringify(legacy));
+    expect(result.migrationsApplied).toContain("v3->v4: normalize project metadata");
+    expect(result.project.createdAt).toBe(legacy.savedAt);
+    expect(result.project.updatedAt).toBe(legacy.savedAt);
+    expect(result.project.controllers[0]!.projectId).toBe(project.id);
   });
 });
 

@@ -14,7 +14,7 @@
 
 export const PLCPROJ_FORMAT_NAME = "ESCO Automation Studio Project";
 /** Current on-disk format version. Files below this are migrated on load. */
-export const PLCPROJ_FORMAT_VERSION = 3;
+export const PLCPROJ_FORMAT_VERSION = 4;
 /** App version stamped into saved files (informational). */
 export const APP_VERSION = "0.1.0";
 
@@ -76,6 +76,57 @@ export function migrateV2toV3(file: Record<string, unknown>): Record<string, unk
 }
 
 /**
+ * v3->v4: backfill durable identity/timestamp metadata.
+ *
+ * Early project files allowed a structurally valid project to omit createdAt /
+ * updatedAt and some parent ids. The app now treats those fields as durable
+ * project metadata, so v4 fills them from the file's savedAt timestamp where
+ * possible and repairs parent references for controllers, tasks, and programs.
+ */
+export function migrateV3toV4(file: Record<string, unknown>): Record<string, unknown> {
+  const project = file.project;
+  if (!isObject(project) || !Array.isArray(project.controllers)) return file;
+
+  const savedAt = typeof file.savedAt === "string" ? file.savedAt : new Date(0).toISOString();
+  if (typeof project.createdAt !== "string" || !project.createdAt) project.createdAt = savedAt;
+  if (typeof project.updatedAt !== "string" || !project.updatedAt) project.updatedAt = savedAt;
+  if (typeof project.description !== "string") project.description = "";
+
+  for (const controller of project.controllers) {
+    if (!isObject(controller)) continue;
+    if (typeof controller.projectId !== "string" || !controller.projectId) {
+      controller.projectId = project.id;
+    }
+    if (!Array.isArray(controller.tasks)) controller.tasks = [];
+    if (!Array.isArray(controller.programs)) controller.programs = [];
+
+    for (const task of controller.tasks as unknown[]) {
+      if (!isObject(task)) continue;
+      if (typeof task.controllerId !== "string" || !task.controllerId) {
+        task.controllerId = controller.id;
+      }
+      if (!Array.isArray(task.scheduledProgramIds)) task.scheduledProgramIds = [];
+    }
+
+    for (const program of controller.programs as unknown[]) {
+      if (!isObject(program)) continue;
+      if (typeof program.controllerId !== "string" || !program.controllerId) {
+        program.controllerId = controller.id;
+      }
+      if (!Array.isArray(program.routines)) program.routines = [];
+      if (!Array.isArray(program.programTags)) program.programTags = [];
+      for (const routine of program.routines as unknown[]) {
+        if (isObject(routine) && (typeof routine.programId !== "string" || !routine.programId)) {
+          routine.programId = program.id;
+        }
+      }
+    }
+  }
+
+  return file;
+}
+
+/**
  * Ordered forward migrations. v1 files predate the format metadata block, so the
  * v1→v2 migration stamps the name/app version; v2→v3 normalizes collections.
  * Future structural migrations slot in here.
@@ -92,6 +143,12 @@ export const MIGRATIONS: Migration[] = [
     to: 3,
     name: "v2->v3: normalize project collections",
     migrate: migrateV2toV3,
+  },
+  {
+    from: 3,
+    to: 4,
+    name: "v3->v4: normalize project metadata",
+    migrate: migrateV3toV4,
   },
 ];
 

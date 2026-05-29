@@ -1,4 +1,4 @@
-import type { PlcProject, RoutineLanguage } from "@esco/core";
+import type { PlcProject, RoutineLanguage, TaskType } from "@esco/core";
 import type { LadderBranch } from "@esco/ladder";
 import type { ValidationFinding } from "@esco/validator";
 
@@ -38,6 +38,43 @@ export interface DeleteTagInput {
 export interface SetTagDescriptionInput {
   name: string;
   description: string;
+}
+
+export interface SetProjectPropertiesInput {
+  name: string;
+  description?: string;
+}
+
+export interface SetControllerPropertiesInput {
+  controllerId: string;
+  name: string;
+  processorType?: string;
+  catalogNumber?: string;
+  firmwareRevision?: string;
+  chassis?: string;
+  slot?: number;
+  faultRoutineName?: string;
+  powerUpRoutineName?: string;
+}
+
+export interface SetTaskPropertiesInput {
+  taskId: string;
+  name: string;
+  type: TaskType;
+  periodMs?: number;
+  priority?: number;
+  watchdogMs?: number;
+  inhibited?: boolean;
+  scheduledProgramIds?: string[];
+}
+
+export interface SetProgramPropertiesInput {
+  programId: string;
+  name: string;
+  description?: string;
+  mainRoutineId?: string;
+  faultRoutineId?: string;
+  inhibited?: boolean;
 }
 
 export interface CreateRoutineInput {
