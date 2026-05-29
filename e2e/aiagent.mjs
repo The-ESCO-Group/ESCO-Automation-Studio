@@ -2,8 +2,7 @@
 // request: no inline key/mode clutter, setup opens outside chat, and missing
 // setup short-circuits before project context can leave the app.
 import { chromium } from "playwright-core";
-
-const URL = process.env.E2E_URL || "http://localhost:5173/";
+import { URL, clearAiProfileStorage } from "./helpers.mjs";
 
 const results = [];
 const check = (label, cond, detail = "") => {
@@ -17,12 +16,12 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  await page.evaluate(() => localStorage.removeItem("esco.ai.profile.v1"));
+  await clearAiProfileStorage(page);
   await page.reload({ waitUntil: "networkidle" });
 
   await page.locator('.esco-copilot__tab:has-text("Chat")').click();
   check("copilot chat opens", (await page.locator(".esco-ai").count()) === 1);
-  check("badge reads ONLINE", /ONLINE/.test(await page.locator(".esco-copilot__badge").innerText()));
+  check("badge shows setup required before API key is saved", /SETUP REQUIRED/.test(await page.locator(".esco-copilot__badge").innerText()));
   check("provider selector removed", (await page.locator(".esco-copilot__provider select").count()) === 0);
   check("inline API key field removed", (await page.locator('.esco-copilot-live input[type="password"]').count()) === 0);
   check("transport controls removed", (await page.locator('.esco-copilot-live select').count()) === 0);
@@ -38,7 +37,8 @@ try {
   await page.locator('.esco-setup button:has-text("Save setup")').click();
   await page.waitForTimeout(250);
   check("saved setup drives model footer", /OpenAI: gpt-4\.1/.test(await page.locator(".esco-copilot-live .esco-ai__footer").innerText()));
-  await page.evaluate(() => localStorage.removeItem("esco.ai.profile.v1"));
+  check("saved setup switches badge online", /ONLINE/.test(await page.locator(".esco-copilot__badge").innerText()));
+  await clearAiProfileStorage(page);
   await page.reload({ waitUntil: "networkidle" });
   await page.locator('.esco-copilot__tab:has-text("Chat")').click();
 

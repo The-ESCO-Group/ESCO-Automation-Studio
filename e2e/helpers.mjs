@@ -45,6 +45,14 @@ export async function dismissToasts(page) {
   }
 }
 
+export async function clearAiProfileStorage(page) {
+  await page.evaluate(() => {
+    localStorage.removeItem("esco.ai.profile.v1");
+    localStorage.removeItem("esco.ai.profile.v2");
+    localStorage.removeItem("esco.ai.profile.secret.v1");
+  });
+}
+
 export async function importL5XText(page, text, name = "fixture.L5X") {
   await l5xInput(page).setInputFiles({
     name,

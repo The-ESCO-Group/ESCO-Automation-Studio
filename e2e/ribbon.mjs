@@ -28,8 +28,12 @@ try {
   await tab(page, "Project").click();
   check("Project tab activates", /Project/.test(await activeTab(page)));
   await ribbonButton(page, "Project Properties").click();
-  await page.locator(".esco-detail__title").waitFor({ timeout: 5000 });
-  check("Project Properties opens project detail", /Project · E2E_Starter/.test(await page.locator(".esco-detail__title").innerText()));
+  await page.locator(".esco-project-props").waitFor({ timeout: 5000 });
+  const projectPropsText = await page.locator(".esco-project-props").innerText();
+  const projectNameValue = await page.locator(".esco-project-props input").first().inputValue();
+  check("Project Properties opens project metadata modal", /Project Properties/.test(projectPropsText) && projectNameValue === "E2E_Starter");
+  await page.locator('.esco-project-props button[aria-label="Close project properties"]').click();
+  await page.locator(".esco-project-props").waitFor({ state: "detached", timeout: 5000 });
   await ribbonButton(page, "Controller Properties").click();
   await page.locator(".esco-detail__title").waitFor({ timeout: 5000 });
   check("Controller Properties opens controller detail", /Controller · E2E_Starter/.test(await page.locator(".esco-detail__title").innerText()));

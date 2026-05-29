@@ -1,7 +1,7 @@
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { URL, createBlankProject } from "./helpers.mjs";
+import { URL, clearAiProfileStorage, createBlankProject } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -17,7 +17,7 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  await page.evaluate(() => localStorage.removeItem("esco.ai.profile.v1"));
+  await clearAiProfileStorage(page);
   await page.reload({ waitUntil: "networkidle" });
   await createBlankProject(page);
 

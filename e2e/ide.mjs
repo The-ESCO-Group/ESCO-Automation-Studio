@@ -101,12 +101,7 @@ try {
   check("New project has no fake logic (0 rungs)", (await cnt(page, ".esco-lad__rung")) === 0, `rungs=${await cnt(page, ".esco-lad__rung")}`);
 
   // --- Close project -> honest empty state ---
-  const closeBtns = page.getByRole("button", { name: "Close", exact: true });
-  const closeCount = await closeBtns.count();
-  for (let i = 0; i < closeCount; i++) {
-    try { await closeBtns.nth(i).click({ timeout: 3000 }); await page.waitForTimeout(300); } catch { continue; }
-    if (/No controllers/i.test(await txt(page, ".esco-left"))) break;
-  }
+  try { await page.locator('.esco-ribbon__button[title="Close the current project"]').first().click({ timeout: 3000 }); await page.waitForTimeout(300); } catch {}
   check("Close returns to empty 'No project' state", /No controllers/i.test(await txt(page, ".esco-left")), await txt(page, ".esco-statusbar"));
 
   const passed = results.filter(Boolean).length;

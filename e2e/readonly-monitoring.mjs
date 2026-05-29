@@ -68,9 +68,10 @@ try {
   await dismissToasts(page);
 
   await routineTab(page, "ScaleST").click();
-  await page.locator(".esco-st-viewer").waitFor({ timeout: 5000 });
+  await page.locator(".esco-st-editor").waitFor({ timeout: 5000 });
   const stText = await page.locator(".esco-nonladder").innerText();
-  check("Structured Text routine opens in readonly viewer", /Structured Text/.test(stText) && /SpeedCmd := SpeedCmd \+ 1/.test(stText));
+  const stSource = await page.locator(".esco-st-editor").inputValue();
+  check("Structured Text routine opens in editable ST editor", /Editable ST/.test(stText) && /SpeedCmd := SpeedCmd \+ 1/.test(stSource));
 
   await routineTab(page, "LoopFBD").click();
   await page.locator(".esco-graphical-outline").waitFor({ timeout: 5000 });
