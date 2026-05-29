@@ -26,13 +26,21 @@ try {
   check("provider selector removed", (await page.locator(".esco-copilot__provider select").count()) === 0);
   check("inline API key field removed", (await page.locator('.esco-copilot-live input[type="password"]').count()) === 0);
   check("transport controls removed", (await page.locator('.esco-copilot-live select').count()) === 0);
-  check("model label visible", /Opus 4\.7/.test(await page.locator(".esco-copilot-live .esco-ai__footer").innerText()));
+  check("model label shows unconfigured state", /Not configured/.test(await page.locator(".esco-copilot-live .esco-ai__footer").innerText()));
 
   await page.locator('.esco-copilot-live button:has-text("Set up AI")').click();
   await page.locator(".esco-setup").waitFor({ timeout: 5000 });
   check("setup dialog opens outside chat", (await page.locator(".esco-setup").count()) === 1);
+  await page.locator(".esco-setup select").selectOption("openai");
+  check("setup lets user choose OpenAI", /OpenAI API key/i.test(await page.locator(".esco-setup").innerText()));
   check("setup owns API key entry", (await page.locator('.esco-setup input[type="password"]').count()) === 1);
-  await page.locator('.esco-setup button[aria-label="Close setup"]').click();
+  await page.locator('.esco-setup input[type="password"]').fill("sk-test-openai");
+  await page.locator('.esco-setup button:has-text("Save setup")').click();
+  await page.waitForTimeout(250);
+  check("saved setup drives model footer", /OpenAI: gpt-4\.1/.test(await page.locator(".esco-copilot-live .esco-ai__footer").innerText()));
+  await page.evaluate(() => localStorage.removeItem("esco.ai.profile.v1"));
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator('.esco-copilot__tab:has-text("Chat")').click();
 
   await page.locator(".esco-copilot-live .esco-ai__prompt textarea").fill("explain this routine");
   await page.locator('.esco-copilot-live .esco-ai__prompt button:has-text("Send")').click();

@@ -52,7 +52,7 @@ export function AiAssistantPanel({
   selectedRoutineId,
   onApply,
   empty = false,
-  modelName = "Opus 4.7",
+  modelName = "Local assistant",
 }: Props) {
   const [prompt, setPrompt] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(() => [createIntro()]);

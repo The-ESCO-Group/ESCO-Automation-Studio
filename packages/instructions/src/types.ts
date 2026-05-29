@@ -13,7 +13,9 @@ export type InstructionCategory =
   | "file"
   | "message"
   | "alarm"
-  | "motion";
+  | "motion"
+  | "process"
+  | "safety";
 
 export type InstructionStyle = "contact" | "coil" | "box" | "function";
 
@@ -78,4 +80,33 @@ export interface InstructionDefinition {
     symbol: string;
     style: InstructionStyle;
   };
+}
+
+/**
+ * How fully an instruction is supported, for clear UI labelling:
+ *  - "executable"  — recognized, validated, and simulated by the runtime.
+ *  - "model-only"  — recognized, preserved, and displayed, but never simulated
+ *                    (safe pass-through). Covers process/motion/safety/message
+ *                    families that have no faithful offline execution.
+ *  - "unknown"     — not in the registry at all; preserved verbatim as read-only
+ *                    logic on the rung, never simulated.
+ */
+export type SupportLevel = "executable" | "model-only" | "unknown";
+
+/** Classify an instruction definition (or a missing one) into a support level. */
+export function supportLevel(def: InstructionDefinition | undefined): SupportLevel {
+  if (!def) return "unknown";
+  return def.modelOnly ? "model-only" : "executable";
+}
+
+/** Human-readable label for a support level, matching the UI badges. */
+export function supportLevelLabel(level: SupportLevel): string {
+  switch (level) {
+    case "executable":
+      return "Executable";
+    case "model-only":
+      return "Model-only / preserved, not simulated";
+    case "unknown":
+      return "Unknown unsupported";
+  }
 }

@@ -35,6 +35,9 @@ importers:
       '@esco/compare':
         specifier: workspace:*
         version: link:../../packages/compare
+      '@esco/controller-comm':
+        specifier: workspace:*
+        version: link:../../packages/controller-comm
       '@esco/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -132,6 +135,19 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/node@22.19.19)
 
+  packages/controller-comm:
+    dependencies:
+      '@esco/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@22.19.19)
+
   packages/core:
     dependencies:
       '@esco/shared':
@@ -148,9 +164,15 @@ importers:
         specifier: workspace:*
         version: link:../ladder
     devDependencies:
+      '@esco/core':
+        specifier: workspace:*
+        version: link:../core
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@22.19.19)
 
   packages/ladder:
     dependencies:

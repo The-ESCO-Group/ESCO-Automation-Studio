@@ -4,7 +4,9 @@ import type { ValidationFinding } from "@esco/validator";
 import type { Forces, TraceEntry, TrendSample, WatchRow } from "../simulation";
 import type { SearchHit } from "../search";
 import type { ActivityEntry } from "../activity";
+import type { ControllerSessionApi } from "../controller-session";
 import { CrossRefPanel } from "./CrossRefPanel";
+import { ControllerPanel } from "./ControllerPanel";
 
 export type DockTab =
   | "diagnostics"
@@ -16,7 +18,8 @@ export type DockTab =
   | "trace"
   | "forces"
   | "logger"
-  | "task-monitor";
+  | "task-monitor"
+  | "controller";
 
 interface Props {
   tab: DockTab;
@@ -45,6 +48,8 @@ interface Props {
   searchHits?: SearchHit[];
   activity?: ActivityEntry[];
   onClearActivity?: () => void;
+  controller?: ControllerSessionApi;
+  onToast?: (kind: "info" | "success" | "warning" | "error", message: string) => void;
 }
 
 /** The Value-column content for one watched tag, by kind. */
@@ -169,6 +174,8 @@ export function BottomPanel({
   searchHits = [],
   activity = [],
   onClearActivity,
+  controller,
+  onToast,
 }: Props) {
   const setTab = onTabChange;
   const xrefCount = selectedTagName ? collectTagReferences(project, selectedTagName).length : 0;
@@ -339,6 +346,13 @@ export function BottomPanel({
           onClick={() => setTab("task-monitor")}
         >
           Task Monitor
+        </button>
+        <button
+          type="button"
+          className={`esco-dock__tab${tab === "controller" ? " is-active" : ""}`}
+          onClick={() => setTab("controller")}
+        >
+          Controller
         </button>
       </div>
 
@@ -737,6 +751,12 @@ export function BottomPanel({
               </tbody>
             </table>
           </div>
+        ) : tab === "controller" ? (
+          controller ? (
+            <ControllerPanel controller={controller} onToast={onToast ?? (() => {})} />
+          ) : (
+            <p className="esco-empty">Controller connection is unavailable.</p>
+          )
         ) : (
           <p className="esco-empty">Select a dock tab.</p>
         )}

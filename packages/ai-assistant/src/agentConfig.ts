@@ -4,11 +4,28 @@
 // new model id. Always copy the exact id from the official provider docs — do not
 // guess or append date suffixes. See docs/ai-assistant.md.
 
-/** The Anthropic Messages API model id used for the live online assistant. */
-export const AGENT_MODEL_ID = "claude-opus-4-7";
+/** AI model providers supported by the live online assistant transport. */
+export type AgentModelProvider = "anthropic" | "openai";
 
-/** Human-friendly label shown in the UI. Keep in sync with AGENT_MODEL_ID. */
-export const AGENT_MODEL_LABEL = "Claude Opus 4.7";
+export const AGENT_PROVIDER_LABELS: Record<AgentModelProvider, string> = {
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+};
+
+/** Default model ids used only when a saved workstation profile has no model yet. */
+export const AGENT_DEFAULT_MODELS: Record<AgentModelProvider, string> = {
+  anthropic: "claude-opus-4-7",
+  openai: "gpt-4.1",
+};
+
+export const AGENT_DEFAULT_PROVIDER: AgentModelProvider = "anthropic";
+
+/** Back-compat default for older call sites/tests that do not pass a saved model. */
+export const AGENT_MODEL_ID = AGENT_DEFAULT_MODELS[AGENT_DEFAULT_PROVIDER];
+
+export function agentModelLabel(provider: AgentModelProvider, modelId: string): string {
+  return `${AGENT_PROVIDER_LABELS[provider]}: ${modelId}`;
+}
 
 /** Anthropic API version header value for direct/proxied Messages API calls. */
 export const ANTHROPIC_API_VERSION = "2023-06-01";

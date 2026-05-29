@@ -34,6 +34,37 @@ export const STRUCTURED_TYPES: Record<string, StructMember[]> = {
     { name: "OV", type: "BOOL" },
     { name: "UN", type: "BOOL" },
   ],
+  // Classic PID structure (representative subset). Process loops are model-only:
+  // the members let the Watch seed/display them and let member-path validation
+  // recognise references like PID_01.SP, but the PID instruction is never
+  // simulated (see @esco/instructions process.ts). REAL members are modelled as
+  // DINT numerics for offline display — there is no controller-faithful math.
+  PID: [
+    { name: "SP", type: "DINT" },
+    { name: "PV", type: "DINT" },
+    { name: "OUT", type: "DINT" },
+    { name: "KP", type: "DINT" },
+    { name: "KI", type: "DINT" },
+    { name: "KD", type: "DINT" },
+    { name: "ERR", type: "DINT" },
+    { name: "MAXO", type: "DINT" },
+    { name: "MINO", type: "DINT" },
+    { name: "EN", type: "BOOL" },
+    { name: "DN", type: "BOOL" },
+  ],
+  // Enhanced PID (PIDE) function-block structure (representative subset).
+  PIDE: [
+    { name: "SP", type: "DINT" },
+    { name: "PV", type: "DINT" },
+    { name: "CV", type: "DINT" },
+    { name: "CVEU", type: "DINT" },
+    { name: "KP", type: "DINT" },
+    { name: "KI", type: "DINT" },
+    { name: "KD", type: "DINT" },
+    { name: "ERR", type: "DINT" },
+    { name: "EN", type: "BOOL" },
+    { name: "DN", type: "BOOL" },
+  ],
 };
 
 export function isStructuredType(dataType: string): boolean {

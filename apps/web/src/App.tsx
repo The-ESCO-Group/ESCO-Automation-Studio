@@ -65,10 +65,11 @@ import {
   type TrendSample,
 } from "./simulation";
 import { useToasts } from "./toasts";
+import { useControllerSession } from "./controller-session";
 import { useHistoryState } from "./history";
 import { clearAutosave, loadAutosave, saveAutosave, type AutosaveEntry } from "./autosave";
 import { recordActivity, type ActivityEntry, type ActivityKind } from "./activity";
-import { loadAiProfile, profileInitials, saveAiProfile, type AiProfile } from "./ai-profile";
+import { aiProfileModelLabel, loadAiProfile, profileInitials, saveAiProfile, type AiProfile } from "./ai-profile";
 import {
   loadRecentProjects,
   rememberRecentProject,
@@ -77,7 +78,6 @@ import {
 
 const SCAN_INTERVAL_MS = 250;
 const TREND_BUFFER_LIMIT = 120;
-const AI_MODEL_NAME = "Opus 4.7";
 type CenterView = "welcome" | "routine" | "tags" | "compare" | "structure";
 
 export function App() {
@@ -120,6 +120,7 @@ export function App() {
   const [comparison, setComparison] = useState<{ name: string; project: PlcProject } | null>(null);
   const [clipboardRung, setClipboardRung] = useState<{ root: LadderBranch; comment?: string } | null>(null);
   const { toasts, push, dismiss } = useToasts();
+  const controllerSession = useControllerSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const l5xInputRef = useRef<HTMLInputElement>(null);
   const compareInputRef = useRef<HTMLInputElement>(null);
@@ -696,7 +697,7 @@ export function App() {
     }
     setAiProfile(saved);
     setSetupOpen(false);
-    push("success", "AI setup saved for this workstation.");
+    push("success", `AI setup saved for ${aiProfileModelLabel(saved)}.`);
   };
 
   return (
@@ -937,12 +938,14 @@ export function App() {
           tab={copilotTab}
           onTabChange={setCopilotTab}
           empty={!projectOpen}
-          modelName={AI_MODEL_NAME}
+          modelName={aiProfileModelLabel(aiProfile)}
           project={project}
           selection={selection}
           values={values}
           findings={findings}
           selectedRoutineId={openRoutineId}
+          aiProvider={aiProfile?.provider}
+          modelId={aiProfile?.modelId}
           apiKey={aiProfile?.apiKey}
           onOpenSetup={() => setSetupOpen(true)}
           onApplyPlan={handleApplyPlan}
@@ -980,6 +983,8 @@ export function App() {
           searchHits={searchHits}
           activity={activity}
           onClearActivity={() => setActivity([])}
+          controller={controllerSession}
+          onToast={push}
         />
       }
       statusBar={
@@ -990,6 +995,8 @@ export function App() {
           routineName={openRoutine?.name}
           verificationLabel={validationLabel}
           verificationClass={validationClass}
+          connectionLabel={controllerSession.snapshot.stateLabel}
+          connected={controllerSession.snapshot.connected}
         />
       }
     />

@@ -122,7 +122,7 @@ function normalize(project: PlcProject) {
 }
 
 // Exercises tags (BOOL/DINT/TIMER/COUNTER/array/alias/descriptions), program
-// tags, a parallel seal-in branch, a TON, an unsupported PID, a second program,
+// tags, a parallel seal-in branch, a TON, an unsupported XUNKNOWN, a second program,
 // scheduled tasks, plus read-only structure (UDT / AOI incl. protected / I/O).
 const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
 <RSLogix5000Content SchemaRevision="1.0">
@@ -192,7 +192,7 @@ const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
           <Routine Name="Logic" Type="RLL">
             <RLLContent>
               <Rung Number="0" Type="N"><Text><![CDATA[XIC(Start)CTU(PartCounter,5);]]></Text></Rung>
-              <Rung Number="1" Type="N"><Text><![CDATA[XIC(Start)ADD(Level,1,Level)PID(SubRoutine);]]></Text></Rung>
+              <Rung Number="1" Type="N"><Text><![CDATA[XIC(Start)ADD(Level,1,Level)XUNKNOWN(SubRoutine);]]></Text></Rung>
             </RLLContent>
           </Routine>
         </Routines>
@@ -228,7 +228,7 @@ describe("exportL5X — generated-file basics", () => {
   it("warns that unsupported instructions are preserved (not simulated) and protected AOIs are metadata-only", () => {
     const { project } = importL5X(FIXTURE);
     const { warnings } = exportL5X(project);
-    expect(warnings.some((w) => w.includes("PID"))).toBe(true);
+    expect(warnings.some((w) => w.includes("XUNKNOWN"))).toBe(true);
     expect(warnings.some((w) => w.includes("VendorAOI") && /source-protected/i.test(w))).toBe(true);
   });
 });
@@ -241,12 +241,12 @@ describe("exportL5X — import → export → import round trip", () => {
     expect(normalize(p2)).toEqual(normalize(p1));
   });
 
-  it("preserves the unsupported PID instruction through the round trip", () => {
+  it("preserves the unsupported XUNKNOWN instruction through the round trip", () => {
     const { project: p1 } = importL5X(FIXTURE);
     const { project: p2 } = importL5X(exportL5X(p1).xml);
     const mixer = p2.controllers[0]!.programs.find((p) => p.name === "Mixer")!;
     const logic = ladderOf(mixer.routines.find((r) => r.id === mixer.mainRoutineId)!)!;
-    expect(routineNodes(logic).map((n) => n.instructionType)).toContain("PID");
+    expect(routineNodes(logic).map((n) => n.instructionType)).toContain("XUNKNOWN");
   });
 
   it("preserves the parallel seal-in branch through the round trip", () => {

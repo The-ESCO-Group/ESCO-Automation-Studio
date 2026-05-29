@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import type { AiProfile } from "../ai-profile";
+import {
+  defaultModelForProvider,
+  providerLabel,
+  type AiProfile,
+  type AiProvider,
+} from "../ai-profile";
 
 interface Props {
   open: boolean;
@@ -11,18 +16,29 @@ interface Props {
 export function FirstRunSetup({ open, profile, onClose, onSave }: Props) {
   const [displayName, setDisplayName] = useState(profile?.displayName ?? "Controls Engineer");
   const [email, setEmail] = useState(profile?.email ?? "");
+  const [provider, setProvider] = useState<AiProvider>(profile?.provider ?? "anthropic");
+  const [modelId, setModelId] = useState(
+    profile?.modelId ?? defaultModelForProvider(profile?.provider ?? "anthropic"),
+  );
   const [apiKey, setApiKey] = useState(profile?.apiKey ?? "");
 
   useEffect(() => {
     if (!open) return;
+    const nextProvider = profile?.provider ?? "anthropic";
     setDisplayName(profile?.displayName ?? "Controls Engineer");
     setEmail(profile?.email ?? "");
+    setProvider(nextProvider);
+    setModelId(profile?.modelId ?? defaultModelForProvider(nextProvider));
     setApiKey(profile?.apiKey ?? "");
   }, [open, profile]);
 
   if (!open) return null;
 
-  const canSave = displayName.trim().length > 0 && apiKey.trim().length > 0;
+  const canSave = displayName.trim().length > 0 && modelId.trim().length > 0 && apiKey.trim().length > 0;
+  const updateProvider = (nextProvider: AiProvider) => {
+    setProvider(nextProvider);
+    setModelId(defaultModelForProvider(nextProvider));
+  };
 
   return (
     <div className="esco-setup" role="dialog" aria-modal="true" aria-labelledby="esco-setup-title">
@@ -52,6 +68,22 @@ export function FirstRunSetup({ open, profile, onClose, onSave }: Props) {
             />
           </label>
           <label className="esco-setup__field">
+            <span>AI provider</span>
+            <select value={provider} onChange={(event) => updateProvider(event.target.value as AiProvider)}>
+              <option value="anthropic">Anthropic / Claude</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </label>
+          <label className="esco-setup__field">
+            <span>Model</span>
+            <input
+              value={modelId}
+              placeholder={defaultModelForProvider(provider)}
+              spellCheck={false}
+              onChange={(event) => setModelId(event.target.value)}
+            />
+          </label>
+          <label className="esco-setup__field">
             <span>Work email</span>
             <input
               value={email}
@@ -61,11 +93,11 @@ export function FirstRunSetup({ open, profile, onClose, onSave }: Props) {
             />
           </label>
           <label className="esco-setup__field">
-            <span>Opus 4.7 API key</span>
+            <span>{providerLabel(provider)} API key</span>
             <input
               type="password"
               value={apiKey}
-              placeholder="sk-ant-..."
+              placeholder={provider === "anthropic" ? "sk-ant-..." : "sk-..."}
               spellCheck={false}
               autoComplete="off"
               onChange={(event) => setApiKey(event.target.value)}
@@ -83,7 +115,7 @@ export function FirstRunSetup({ open, profile, onClose, onSave }: Props) {
               type="button"
               className="esco-btn esco-btn--primary"
               disabled={!canSave}
-              onClick={() => onSave({ displayName, email, apiKey })}
+              onClick={() => onSave({ displayName, email, provider, modelId, apiKey })}
             >
               Save setup
             </button>

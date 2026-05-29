@@ -7,6 +7,8 @@ import { ABS, AND, CLR, LIM, MEQ, MOD, NEG, NOT, OR, SQR, XOR } from "./compute"
 import { COP, CPS, FLL, MVM } from "./data-movement";
 import { BRK, BTD, FOR, FRD, JMP, LBL, MCR, SWPB, TND, TOD } from "./conversion-control";
 import { ADVANCED_MODEL_ONLY } from "./advanced";
+import { PROCESS_INSTRUCTIONS } from "./process";
+import { SAFETY_INSTRUCTIONS } from "./safety";
 import { FILE_ARRAY_INSTRUCTIONS } from "./file-array";
 import { STRING_ASCII_INSTRUCTIONS } from "./string-ascii";
 import { AFI, NOP } from "./program-control";
@@ -23,6 +25,8 @@ export * from "./compute";
 export * from "./data-movement";
 export * from "./conversion-control";
 export * from "./advanced";
+export * from "./process";
+export * from "./safety";
 export * from "./file-array";
 export * from "./string-ascii";
 export * from "./program-control";
@@ -45,6 +49,8 @@ export function createDefaultRegistry(): InstructionRegistry {
     ...FILE_ARRAY_INSTRUCTIONS,
     ...STRING_ASCII_INSTRUCTIONS,
     ...ADVANCED_MODEL_ONLY,
+    ...PROCESS_INSTRUCTIONS,
+    ...SAFETY_INSTRUCTIONS,
   ]) {
     registry.register(def);
   }

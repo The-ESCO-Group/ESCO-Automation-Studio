@@ -12,6 +12,7 @@
   "dependencies": {
     "@esco/ai-assistant": "workspace:*",
     "@esco/compare": "workspace:*",
+    "@esco/controller-comm": "workspace:*",
     "@esco/core": "workspace:*",
     "@esco/instructions": "workspace:*",
     "@esco/ladder": "workspace:*",

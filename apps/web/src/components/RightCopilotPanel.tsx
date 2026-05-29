@@ -2,6 +2,7 @@ import type { PlcProject } from "@esco/core";
 import { type ApplyResult, type AssistantPlan } from "@esco/ai-assistant";
 import type { ValidationFinding } from "@esco/validator";
 import type { ActivityEntry } from "../activity";
+import type { AiProvider } from "../ai-profile";
 import type { Selection } from "../selection";
 import type { TagValues } from "../simulation";
 import { CopilotLiveAgent } from "./CopilotLiveAgent";
@@ -20,6 +21,8 @@ interface Props {
   values: TagValues;
   findings: ValidationFinding[];
   selectedRoutineId?: string;
+  aiProvider?: AiProvider;
+  modelId?: string;
   apiKey?: string;
   onOpenSetup: () => void;
   onApplyPlan: (plan: AssistantPlan) => ApplyResult;
@@ -40,6 +43,8 @@ export function RightCopilotPanel({
   values,
   findings,
   selectedRoutineId,
+  aiProvider,
+  modelId,
   apiKey,
   onOpenSetup,
   onApplyPlan,
@@ -83,6 +88,8 @@ export function RightCopilotPanel({
               selectedRoutineId={selectedRoutineId}
               onApplyPlan={onApplyPlan}
               modelLabel={modelName}
+              aiProvider={aiProvider}
+              modelId={modelId}
               apiKey={apiKey ?? ""}
               onOpenSetup={onOpenSetup}
               empty={empty}

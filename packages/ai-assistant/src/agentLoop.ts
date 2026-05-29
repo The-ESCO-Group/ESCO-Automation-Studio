@@ -70,6 +70,7 @@ export interface RunAgentInput {
   caller: ModelCaller;
   project: PlcProject;
   prompt: string;
+  modelId?: string;
   selection?: AssistantSelection;
   maxIterations?: number;
   onProgress?: (entry: AgentTranscriptEntry) => void;
@@ -120,7 +121,7 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
   try {
     for (let i = 0; i < maxIterations; i++) {
       const reply = await input.caller({
-        model: AGENT_MODEL_ID,
+        model: input.modelId?.trim() || AGENT_MODEL_ID,
         max_tokens: AGENT_MAX_TOKENS,
         system: AGENT_SYSTEM_PROMPT,
         tools: ALL_AGENT_TOOLS,

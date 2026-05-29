@@ -6,6 +6,7 @@ import {
   type ApplyResult,
   type AssistantPlan,
 } from "@esco/ai-assistant";
+import type { AiProvider } from "../ai-profile";
 import { createModelCaller } from "../ai-online";
 import "./CopilotLiveAgent.css";
 
@@ -14,6 +15,8 @@ interface Props {
   selectedRoutineId?: string;
   onApplyPlan: (plan: AssistantPlan) => ApplyResult;
   modelLabel: string;
+  aiProvider?: AiProvider;
+  modelId?: string;
   apiKey: string;
   onOpenSetup: () => void;
   empty?: boolean;
@@ -32,6 +35,8 @@ export function CopilotLiveAgent({
   selectedRoutineId,
   onApplyPlan,
   modelLabel,
+  aiProvider,
+  modelId,
   apiKey,
   onOpenSetup,
   empty = false,
@@ -56,7 +61,7 @@ export function CopilotLiveAgent({
 
     let caller;
     try {
-      caller = createModelCaller({ mode: "browser-key", apiKey });
+      caller = createModelCaller({ mode: "browser-key", provider: aiProvider, modelId, apiKey });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Open Settings to finish AI setup.");
       return;
@@ -67,6 +72,7 @@ export function CopilotLiveAgent({
       caller,
       project,
       prompt: trimmed,
+      modelId,
       selection: selectedRoutineId ? { routineId: selectedRoutineId } : undefined,
       onProgress: (entry) => setTranscript((prev) => [...prev, entry]),
     });
@@ -89,7 +95,7 @@ export function CopilotLiveAgent({
 
   const hasActions = (plan?.actions.length ?? 0) > 0;
   const errorFindings = applied?.findings.filter((f) => f.severity === "error") ?? [];
-  const configured = apiKey.trim().length > 0;
+  const configured = apiKey.trim().length > 0 && !!modelId?.trim();
 
   return (
     <div className="esco-ai esco-copilot-live">

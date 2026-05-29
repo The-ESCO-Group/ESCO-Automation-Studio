@@ -10,11 +10,10 @@ import type { InstructionCategory, InstructionDefinition } from "./types";
  * validator never mistakes a keyword operand (e.g. GSV's class/attribute names)
  * for an undefined tag.
  *
- * NOTE: PID and PIDE are deliberately NOT registered here. The model-summary in
- * apps/web (Codex-owned) derives its "unsupported" list directly from
- * `registry.has(...)`, and tests there and in project-actions still use PID/PIDE
- * as the canonical unsupported example. Registering them is a coordinated change
- * across those owners — tracked as a follow-up.
+ * PID / PIDE and the rest of the process-control family now live in process.ts
+ * (registered model-only), and the GuardLogix safety family in safety.ts. The
+ * canonical "unknown unsupported" example used by tests and fixtures is the
+ * vendor token `XUNKNOWN`, which is intentionally never registered.
  */
 
 function modelOnly(

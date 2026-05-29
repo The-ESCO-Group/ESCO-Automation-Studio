@@ -1,14 +1,18 @@
 import { nowIso } from "@esco/shared";
 import type { PlcProject } from "@esco/core";
+import {
+  APP_VERSION,
+  MIGRATIONS,
+  PLCPROJ_FORMAT_NAME,
+  PLCPROJ_FORMAT_VERSION,
+  migrationFrom,
+} from "./migrations";
 
 /** Canonical file extension for ESCO Automation Studio project files. */
 export const PLCPROJ_EXTENSION = ".plcproj.json";
-/** Human-readable format identifier embedded in every saved file. */
-export const PLCPROJ_FORMAT_NAME = "ESCO Automation Studio Project";
-/** Current on-disk format version. Files below this are migrated on load. */
-export const PLCPROJ_FORMAT_VERSION = 2;
-/** App version stamped into saved files (informational). */
-export const APP_VERSION = "0.1.0";
+
+export { APP_VERSION, PLCPROJ_FORMAT_NAME, PLCPROJ_FORMAT_VERSION, MIGRATIONS };
+export type { Migration } from "./migrations";
 
 /** On-disk shape of a `.plcproj.json` file. */
 export interface PlcProjectFile {
@@ -67,28 +71,6 @@ export function isPlcProject(value: unknown): value is PlcProject {
   );
 }
 
-/** A single forward migration between two adjacent format versions. */
-interface Migration {
-  from: number;
-  to: number;
-  name: string;
-  migrate: (file: Record<string, unknown>) => Record<string, unknown>;
-}
-
-/**
- * Ordered forward migrations. v1 files predate the format metadata block, so the
- * v1→v2 migration simply stamps the name/app version; the project shape is
- * unchanged. Future structural migrations slot in here.
- */
-const MIGRATIONS: Migration[] = [
-  {
-    from: 1,
-    to: 2,
-    name: "v1->v2: add format metadata",
-    migrate: (file) => ({ ...file, formatName: PLCPROJ_FORMAT_NAME, appVersion: APP_VERSION }),
-  },
-];
-
 export interface LoadResult {
   project: PlcProject;
   /** Human-readable notes (e.g. migrations performed). */
@@ -126,7 +108,7 @@ export function deserializeProjectFile(json: string): LoadResult {
   const migrationsApplied: string[] = [];
   while ((file.formatVersion as number) < PLCPROJ_FORMAT_VERSION) {
     const version = file.formatVersion as number;
-    const migration = MIGRATIONS.find((candidate) => candidate.from === version);
+    const migration = migrationFrom(version);
     if (!migration) {
       throw new Error(`Cannot migrate project from format version ${version}: no migration path.`);
     }
@@ -154,4 +136,31 @@ export function deserializeProjectFile(json: string): LoadResult {
  */
 export function deserializeProject(json: string): PlcProject {
   return deserializeProjectFile(json).project;
+}
+
+/**
+ * Suggest a backup filename for the original project text before a migration
+ * overwrites it on disk. The host (desktop shell / UI) is responsible for
+ * actually writing the backup; this only derives a stable, sortable name so the
+ * pre-migration file is never silently lost. `at` is passed in so the function
+ * stays pure/testable.
+ */
+export function backupFileName(originalName: string, fromVersion: number, at = nowIso()): string {
+  const base = originalName.replace(new RegExp(`${PLCPROJ_EXTENSION.replace(".", "\\.")}$`), "");
+  const stamp = at.replace(/[:.]/g, "-");
+  return `${base}.v${fromVersion}.${stamp}.bak${PLCPROJ_EXTENSION}`;
+}
+
+/**
+ * Returns true when loading `json` would migrate it (i.e. its format version is
+ * older than the current one). Useful for the UI to offer a backup before the
+ * migrating open path rewrites the file.
+ */
+export function willMigrate(json: string): boolean {
+  try {
+    const parsed = JSON.parse(json) as { formatVersion?: unknown };
+    return typeof parsed.formatVersion === "number" && parsed.formatVersion < PLCPROJ_FORMAT_VERSION;
+  } catch {
+    return false;
+  }
 }

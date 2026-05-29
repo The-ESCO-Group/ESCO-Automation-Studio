@@ -1,7 +1,8 @@
 # Online AI Safety
 
-ESCO Automation Studio uses a live Copilot agent (Claude `claude-opus-4-7`) for
-engineers who want a model to help explain, diagnose, and propose ladder edits.
+ESCO Automation Studio uses a live Copilot agent with the engineer's saved
+Anthropic/Claude or OpenAI model for engineers who want help explaining,
+diagnosing, and proposing ladder edits.
 The UI keeps credential setup outside the chat panel and keeps all project
 changes review-only until the engineer clicks Apply.
 
@@ -9,8 +10,8 @@ changes review-only until the engineer clicks Apply.
 
 - The Copilot panel no longer asks for transport, online/offline mode, or API key
   details inline.
-- Settings opens the workstation setup dialog where the user saves a profile and
-  Opus 4.7 API key once.
+- Settings opens the workstation setup dialog where the user saves a profile,
+  provider, model id, and API key once.
 - The current web build stores that setup in local app storage. The Windows EXE
   shell should move the same profile contract to OS-backed secure storage
   (Windows Credential Manager or the Tauri stronghold/plugin equivalent).

@@ -103,13 +103,13 @@ provider (the UI uses this — see `DEFAULT_PROVIDER_MODE`).
 
 ## Live online agent
 
-There is an optional **online** agent powered by Claude (`claude-opus-4-7`),
-shown as the AI Copilot panel. See
+There is an optional **online** agent powered by the model/provider saved during
+workstation setup (Anthropic/Claude or OpenAI), shown as the AI Copilot panel. See
 [`online-ai-safety.md`](online-ai-safety.md) for the full safety posture.
 
-- **Model/provider config lives in one place:** `agentConfig.ts`
-  (`AGENT_MODEL_ID`, `AGENT_MODEL_LABEL`). Update the model id there only, copied
-  exactly from the provider's official docs.
+- **Model/provider defaults live in one place:** `agentConfig.ts`
+  (`AGENT_DEFAULT_MODELS`, `AGENT_DEFAULT_PROVIDER`). The actual footer label and
+  transport model come from the saved workstation profile.
 - **Credential setup is outside chat:** Settings opens a workstation setup dialog
   where the user saves their profile and API key once. The Copilot panel itself
   has no key, transport, or local/offline mode controls.

@@ -12,6 +12,7 @@ export default defineConfig({
     alias: {
       "@esco/ai-assistant": pkgSrc("ai-assistant"),
       "@esco/compare": pkgSrc("compare"),
+      "@esco/controller-comm": pkgSrc("controller-comm"),
       "@esco/core": pkgSrc("core"),
       "@esco/shared": pkgSrc("shared"),
       "@esco/ladder": pkgSrc("ladder"),
