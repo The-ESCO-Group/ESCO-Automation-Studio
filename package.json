@@ -11,8 +11,10 @@
   "scripts": {
     "dev": "corepack pnpm --filter @esco/web dev",
     "dev:web": "corepack pnpm --filter @esco/web dev",
+    "dev:desktop": "corepack pnpm --filter @esco/desktop dev",
     "dev:api": "corepack pnpm --filter @esco/api dev",
     "build": "corepack pnpm --filter @esco/web build",
+    "build:desktop": "corepack pnpm --filter @esco/desktop build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",

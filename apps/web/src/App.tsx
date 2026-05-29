@@ -49,6 +49,7 @@ import { RightCopilotPanel, type CopilotTab } from "./components/RightCopilotPan
 import { StatusBar } from "./components/StatusBar";
 import { FirstRunSetup } from "./components/FirstRunSetup";
 import { TagCsvPreviewDialog } from "./components/TagCsvPreviewDialog";
+import { DesktopStartup } from "./components/DesktopStartup";
 import type { Selection } from "./selection";
 import { createBlankRoutineProject, createInitialProject, findMainRoutine } from "./project-edit";
 import { searchProject } from "./search";
@@ -75,6 +76,8 @@ import {
   rememberRecentProject,
   type RecentProjectEntry,
 } from "./recent-projects";
+import { isDesktopStartupRequested } from "./desktop-runtime";
+import { isFirstRunComplete, markFirstRunComplete } from "./app-settings";
 
 const SCAN_INTERVAL_MS = 250;
 const TREND_BUFFER_LIMIT = 120;
@@ -106,6 +109,9 @@ export function App() {
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [aiProfile, setAiProfile] = useState<AiProfile | null>(() => loadAiProfile());
   const [setupOpen, setSetupOpen] = useState(false);
+  const [desktopStartupOpen, setDesktopStartupOpen] = useState(
+    () => isDesktopStartupRequested() && !isFirstRunComplete(),
+  );
   const [recentProjects, setRecentProjects] = useState<RecentProjectEntry[]>(() => loadRecentProjects());
   const [tagCsvPreview, setTagCsvPreview] = useState<{
     fileName: string;
@@ -351,13 +357,23 @@ export function App() {
   const selectedNodeId = selection?.kind === "instruction" ? selection.nodeId : undefined;
 
   // ---- File workflows ----
+  const confirmDiscardDirtyProject = (action: string) =>
+    !dirty || window.confirm(`${action}? Unsaved changes will be lost.`);
+
   const loadProject = (loaded: PlcProject) => {
     history.reset(loaded); // opening/importing a project is a fresh undo baseline
     setSavedProject(loaded); // freshly loaded = no unsaved changes
     setProjectOpen(true);
     setValues(zeroValues(loaded));
+    setForces({});
+    setTrace([]);
     setTrendSamples([]);
     setRunning(false);
+    setLastExportedAt(null);
+    setLastImport(null);
+    setComparison(null);
+    setClipboardRung(null);
+    setTagCsvPreview(null);
     setRecovery(null);
     clearAutosave(); // starting from a file supersedes any recovered autosave
     const main = findMainRoutine(loaded);
@@ -373,6 +389,7 @@ export function App() {
   };
 
   const handleCreateRoutineProject = () => {
+    if (!confirmDiscardDirtyProject("Create a new project")) return;
     const blank = createBlankRoutineProject();
     history.reset(blank);
     setSavedProject(initialProject);
@@ -382,6 +399,11 @@ export function App() {
     setTrace([]);
     setTrendSamples([]);
     setRunning(false);
+    setLastExportedAt(null);
+    setLastImport(null);
+    setComparison(null);
+    setClipboardRung(null);
+    setTagCsvPreview(null);
     setRecovery(null);
     const main = findMainRoutine(blank);
     if (main) {
@@ -403,6 +425,11 @@ export function App() {
     setTrace([]);
     setTrendSamples([]);
     setRunning(false);
+    setLastExportedAt(null);
+    setLastImport(null);
+    setComparison(null);
+    setClipboardRung(null);
+    setTagCsvPreview(null);
     setRecovery(null);
     setOpenRoutineId(undefined);
     setSelection(null);
@@ -414,12 +441,20 @@ export function App() {
   // ---- Autosave recovery ----
   const handleRestoreAutosave = () => {
     if (!recovery) return;
+    if (!confirmDiscardDirtyProject("Restore autosaved work")) return;
     history.reset(recovery.project);
     setProjectOpen(true);
     setValues(zeroValues(recovery.project));
+    setForces({});
+    setTrace([]);
     setTrendSamples([]);
     setSavedProject(initialProject); // recovered work is unsaved → stays dirty
     setRunning(false);
+    setLastExportedAt(null);
+    setLastImport(null);
+    setComparison(null);
+    setClipboardRung(null);
+    setTagCsvPreview(null);
     setRecovery(null);
     const main = findMainRoutine(recovery.project);
     if (main) {
@@ -432,6 +467,38 @@ export function App() {
   const handleDismissAutosave = () => {
     setRecovery(null);
     clearAutosave();
+  };
+  const completeDesktopStartup = () => {
+    markFirstRunComplete();
+    setDesktopStartupOpen(false);
+  };
+  const handleDesktopOpenProject = () => {
+    completeDesktopStartup();
+    setTimeout(() => handleImportClick(), 0);
+  };
+  const handleDesktopNewProject = () => {
+    completeDesktopStartup();
+    handleCreateRoutineProject();
+  };
+  const handleDesktopImportL5X = () => {
+    completeDesktopStartup();
+    setTimeout(() => handleImportL5XClick(), 0);
+  };
+  const handleDesktopRestoreBackup = () => {
+    if (!recovery) {
+      push("info", "No autosaved backup was found on this workstation.");
+      return;
+    }
+    completeDesktopStartup();
+    handleRestoreAutosave();
+  };
+  const handleDesktopContinueOffline = () => {
+    completeDesktopStartup();
+    push("info", "Workspace ready in Offline Simulation. No controller connection active.");
+  };
+  const handleDesktopSignIn = () => {
+    setSetupOpen(true);
+    push("info", "Microsoft SSO is not configured yet. Save a local AI profile or continue offline.");
   };
 
   const handleExport = () => {
@@ -496,6 +563,7 @@ export function App() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    if (!confirmDiscardDirtyProject("Open another project")) return;
     try {
       const result = importProjectFile(await readFileAsText(file));
       if (result.ok) {
@@ -515,6 +583,7 @@ export function App() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    if (!confirmDiscardDirtyProject("Import this L5X as the active project")) return;
     const LARGE_L5X_MB = 25;
     if (file.size > LARGE_L5X_MB * 1024 * 1024) {
       push("warning", `Large L5X (${Math.round(file.size / 1048576)} MB) — import may take a moment.`);
@@ -762,6 +831,17 @@ export function App() {
             onClose={() => setSetupOpen(false)}
             onSave={handleSaveAiProfile}
           />
+          {desktopStartupOpen ? (
+            <DesktopStartup
+              hasBackup={!!recovery}
+              onOpenProject={handleDesktopOpenProject}
+              onNewProject={handleDesktopNewProject}
+              onImportL5X={handleDesktopImportL5X}
+              onRestoreBackup={handleDesktopRestoreBackup}
+              onSignIn={handleDesktopSignIn}
+              onContinueOffline={handleDesktopContinueOffline}
+            />
+          ) : null}
           {tagCsvPreview ? (
             <TagCsvPreviewDialog
               fileName={tagCsvPreview.fileName}

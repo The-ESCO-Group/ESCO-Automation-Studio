@@ -1,100 +1,104 @@
-# Desktop packaging foundation (Tauri)
+# Desktop Packaging
 
-A desktop build is planned via **Tauri** (small, secure, uses the OS webview).
-This document is the foundation/plan; the `apps/desktop` shell is intentionally
-**not** scaffolded yet so the web app and CI stay green until a Rust toolchain is
-available in the build environment.
+ESCO Automation Studio now has a Tauri desktop scaffold in `apps/desktop`. It
+reuses the existing `apps/web` renderer and starts the desktop window with
+`?desktop-startup=1`, which shows the Figma-inspired first-run startup box. The
+regular browser dev URL, `http://localhost:5173`, keeps showing the IDE layout
+and does not show the startup box.
 
-## Why Tauri
+## Startup Experience
 
-- Reuses the existing `apps/web` build as the renderer — no UI rewrite.
-- Native file open/save dialogs and an app menu.
-- Small installer; offline by design.
+The desktop-only startup surface includes:
 
-## Planned layout
+- ESCO Automation Studio / PLC Engineering IDE app mark.
+- Scintilla ESCO GROUP wordmark styling in navy and gold.
+- Sign in with Microsoft.
+- Continue offline.
+- Open Project, New Project, Import L5X, Restore Backup.
+- Footer status: Workspace ready / No controller connection active.
 
-```
-apps/
-  web/        # existing renderer (unchanged)
-  desktop/    # Tauri shell
-    src-tauri/
-      tauri.conf.json
-      src/main.rs       # registers file open/save + menu commands
-    package.json        # "tauri dev" / "tauri build"
-```
+The Microsoft button does not fake authentication. Until Azure app registration,
+token handling, and secure user identity storage are implemented, it opens the
+local profile/API-key setup path. Continue offline enters the IDE in Offline
+Simulation.
 
-The desktop window loads the built `apps/web` bundle.
-
-## App menu (planned)
-
-- **File**: Open Project… · Save Project As… · Import L5X… · Export Compare
-  Report… · Recent Projects · Exit
-- **Edit**: Undo · Redo
-- **Help**: About (offline-only notice), Documentation
-
-## Recent projects
-
-Store recently opened/exported project paths in app config (Tauri store). This
-is the only place a native file *history* belongs — the browser build keeps using
-explicit open/export.
-
-## Safety rules for the desktop build
-
-- **No PLC communication**, no downloads/uploads, no online edits.
-- **No `.ACD` handling.**
-- **Explicit file open/save only.** Use **Save As** — never overwrite an
-  imported `.L5X` or the user's original file by default.
-- Store the user's Copilot API key in OS-backed secure storage, not in project
-  files and not in plain app config.
-- Network access is limited to the configured AI provider when the engineer sends
-  a Copilot prompt.
-
-## Build (once scaffolded)
+## Commands
 
 ```bash
-corepack pnpm --filter @esco/desktop tauri dev     # run the desktop shell
-corepack pnpm --filter @esco/desktop tauri build    # produce an installer
+corepack pnpm install
+corepack pnpm --filter @esco/desktop typecheck
+corepack pnpm --filter @esco/desktop dev
+corepack pnpm --filter @esco/desktop build
 ```
 
-Code signing is required for distributed company deployment (Windows). The
-portable build is acceptable for internal evaluation.
+Root aliases are also available:
 
-## Settings & API-key persistence (implemented)
+```bash
+corepack pnpm dev:desktop
+corepack pnpm build:desktop
+```
 
-The renderer now persists workstation settings through a storage abstraction so
-the desktop shell can swap the backend without touching call sites:
+## Tooling Requirement
 
-- `apps/web/src/settings.ts` — `SettingsStore` over a `StorageLike` interface,
-  with `browserStorage()` (localStorage) and `memoryStorage()` (tests / SSR)
-  implementations. Reads never throw; corrupt values fall back cleanly.
-- `apps/web/src/ai-profile.ts` — the AI profile (name/email/**API key**) is saved
-  once via `SettingsStore`; `hasAiProfile()` makes "ask once" work across
-  sessions, `clearAiProfile()` rotates/forgets it. The key is never written to a
-  project file and never sent to git.
-- `apps/web/src/app-settings.ts` — first-run completion flag and the preferred
-  controller-connection mode.
+Tauri requires Rust/Cargo, the MSVC linker from Visual Studio Build Tools, and
+Windows WebView2 runtime support. This workstation has been prepared with
+Rustup and Visual Studio Build Tools, so `tauri build` now produces both the
+portable application executable and installer bundles.
 
-**Desktop mapping:** implement a `StorageLike` over an **OS-backed secure store**
-(Windows Credential Manager / DPAPI via a Tauri command) and inject it into
-`SettingsStore` instead of `browserStorage()`. The API key then lives in the OS
-keychain, not localStorage. No other code changes are required.
+If another workstation needs the prerequisites, use:
 
-## Controller connection (implemented, offline-blocked)
+```powershell
+winget install --id Rustlang.Rustup -e
+rustup default stable
+winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override "--wait --quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
 
-`@esco/controller-comm` provides the connection state machine, transports, and the
-guarded upload/download/online-edit commands. The desktop shell does **not** relax
-any of this: there is no tested transport, so real controller I/O stays
-safety-blocked. A real transport would be a new `RealControllerTransport` subclass
-that flips `verified` to true only after hardware validation — out of scope for
-this repo.
+Run the build from a Visual Studio developer environment so Rust can find
+`link.exe`:
 
-## Status
+```powershell
+cmd /c "call ""C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat"" -arch=x64 && set PATH=%USERPROFILE%\.cargo\bin;%PATH% && corepack pnpm --filter @esco/desktop build"
+```
 
-- [x] Settings/API-key persistence abstraction (`SettingsStore`) — swappable for an
-      OS keychain in the packaged build.
-- [x] Controller connection state machine + guarded commands (`@esco/controller-comm`).
-- [ ] Scaffold `apps/desktop` with Tauri (requires Rust toolchain in CI/dev).
-- [ ] Native open/save dialogs wired to the existing import/export actions.
-- [ ] App menu + recent projects.
-- [ ] OS-keychain `StorageLike` implementation for the API key.
-- [ ] Installer / portable build + (optional) auto-update.
+Current build outputs are generated under
+`apps/desktop/src-tauri/target/release/` and are intentionally ignored by git.
+
+## Safety Boundaries
+
+- No PLC/controller communication is added by the desktop shell.
+- No upload/download/go-online behavior is added.
+- No online edits are added.
+- No `.ACD` handling is added.
+- File workflows remain explicit user actions.
+- L5X generation remains offline and review-before-use.
+
+## Settings And API-Key Persistence
+
+The web app already uses a `SettingsStore` abstraction. In the browser it falls
+back to `localStorage`; in desktop production it should be replaced with an
+OS-backed secure store such as Windows Credential Manager or DPAPI through a
+Tauri command/plugin.
+
+The current desktop Rust command surface reports:
+
+- `controller_connection: "offline-simulation"`
+- `online_edits: false`
+- `acd_access: false`
+- `secure_key_storage: "pending-os-keychain-adapter"`
+
+That keeps the executable scaffold honest: it does not claim secure keychain
+storage is complete until the adapter is implemented and tested.
+
+## Current Status
+
+- [x] `apps/desktop` Tauri scaffold.
+- [x] Desktop-only startup mode via `?desktop-startup=1`.
+- [x] Web localhost IDE startup remains unchanged.
+- [x] Desktop config preflight script.
+- [x] Rust/Cargo installed on the workstation.
+- [x] MSVC Build Tools installed on the workstation.
+- [x] Real `.exe`/installer artifact generated locally.
+- [ ] Native file dialog bridge.
+- [ ] OS-backed API-key secure storage adapter.
+- [ ] Microsoft Entra ID sign-in implementation.
+- [ ] Code signing for distributed Windows deployment.

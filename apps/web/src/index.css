@@ -5059,4 +5059,371 @@ body {
 }
 .esco-pill--blocked { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
 
+/* ---- Desktop-only startup screen ---- */
+.esco-desktop-startup {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 22px;
+  overflow: auto;
+  background: #fbfaf6;
+}
+
+.esco-desktop-startup__window {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(758px, 100%);
+  height: min(558px, calc(100vh - 2px));
+  min-height: 430px;
+  overflow: hidden;
+  border: 1px solid #e7dcc8;
+  border-radius: 7px;
+  background: #fbfaf6;
+  color: #15224a;
+  box-shadow: 0 24px 70px rgba(24, 32, 66, 0.12);
+}
+
+.esco-desktop-startup__header,
+.esco-desktop-startup__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 64px;
+  padding: 0 38px;
+}
+
+.esco-desktop-startup__header {
+  align-items: flex-start;
+  padding-top: 28px;
+}
+
+.esco-desktop-startup__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.esco-desktop-startup__app-mark {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 29px;
+  height: 29px;
+  border-radius: 6px;
+  background: #1e2a61;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.esco-desktop-startup__app-mark span,
+.esco-desktop-startup__app-mark::before,
+.esco-desktop-startup__app-mark::after {
+  content: "";
+  position: absolute;
+  display: block;
+  background: #e4a72e;
+}
+
+.esco-desktop-startup__app-mark span {
+  width: 6px;
+  height: 11px;
+  border-radius: 8px 8px 8px 2px;
+  transform: rotate(8deg);
+}
+
+.esco-desktop-startup__app-mark::before {
+  width: 5px;
+  height: 8px;
+  margin-top: 3px;
+  border-radius: 8px 8px 8px 2px;
+  opacity: 0.72;
+  transform: translateX(-2px) rotate(-16deg);
+}
+
+.esco-desktop-startup__app-mark::after {
+  width: 4px;
+  height: 6px;
+  margin-top: -4px;
+  border-radius: 8px 8px 8px 2px;
+  opacity: 0.86;
+  transform: translateX(3px) rotate(18deg);
+}
+
+.esco-desktop-startup__brand-text {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  color: #15224a;
+  line-height: 1.1;
+}
+
+.esco-desktop-startup__brand-text strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.esco-desktop-startup__brand-text span {
+  color: #667085;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.esco-desktop-startup__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 10px 38px 32px;
+  text-align: center;
+}
+
+.esco-desktop-startup__wordmark {
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+  margin: 0 0 26px;
+  color: #0f4266;
+}
+
+.esco-desktop-startup__flame {
+  position: relative;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 58px;
+  margin: 0 -2px 0 0;
+}
+
+.esco-desktop-startup__flame::before,
+.esco-desktop-startup__flame::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  display: block;
+  background: #dea32b;
+  transform-origin: bottom center;
+}
+
+.esco-desktop-startup__flame::before {
+  top: 1px;
+  width: 12px;
+  height: 36px;
+  border-radius: 70% 10% 65% 15%;
+  transform: rotate(16deg);
+}
+
+.esco-desktop-startup__flame::after {
+  top: 21px;
+  width: 10px;
+  height: 29px;
+  border-radius: 65% 10% 70% 15%;
+  opacity: 0.92;
+  transform: translateX(-7px) rotate(-21deg);
+}
+
+.esco-desktop-startup__mark-copy {
+  display: grid;
+  justify-items: start;
+  min-width: 0;
+}
+
+.esco-desktop-startup__scintilla {
+  color: #0f4266;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 31px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 0.92;
+}
+
+.esco-desktop-startup__mark-rule {
+  width: 216px;
+  height: 1px;
+  margin: 1px 0;
+  background: #d2aa57;
+}
+
+.esco-desktop-startup__esco {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700;
+  line-height: 0.82;
+}
+
+.esco-desktop-startup__esco span:first-child {
+  color: #0f4266;
+  font-size: 43px;
+}
+
+.esco-desktop-startup__esco span:last-child {
+  color: #d9a23a;
+  font-size: 29px;
+  margin-left: 1px;
+}
+
+.esco-desktop-startup__divider {
+  width: 55px;
+  height: 1px;
+  margin: 2px 0 81px;
+  background: #d2aa57;
+}
+
+.esco-desktop-startup__prompt {
+  margin: 0 0 15px;
+  color: #15224a;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.esco-desktop-startup__signin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: min(280px, 100%);
+  height: 39px;
+  border: 0;
+  border-radius: 5px;
+  background: #202a61;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(32, 42, 97, 0.12);
+}
+
+.esco-desktop-startup__signin:hover {
+  background: #182250;
+}
+
+.esco-desktop-startup__signin:focus-visible,
+.esco-desktop-startup__offline:focus-visible,
+.esco-desktop-startup__actions button:focus-visible {
+  outline: 2px solid #d2aa57;
+  outline-offset: 3px;
+}
+
+.esco-desktop-startup__ms-icon {
+  display: grid;
+  grid-template-columns: repeat(2, 5px);
+  grid-template-rows: repeat(2, 5px);
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.esco-desktop-startup__ms-icon span {
+  display: block;
+  background: #ffffff;
+}
+
+.esco-desktop-startup__offline {
+  margin: 9px 0 25px;
+  border: 0;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.esco-desktop-startup__offline:hover,
+.esco-desktop-startup__actions button:hover {
+  color: #0f4266;
+}
+
+.esco-desktop-startup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #c8ac73;
+}
+
+.esco-desktop-startup__actions button {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #15224a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.esco-desktop-startup__actions button.is-empty {
+  color: #243059;
+}
+
+.esco-desktop-startup__footer {
+  min-height: 40px;
+  border-top: 1px solid #e7dcc8;
+  color: #667085;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 10px;
+}
+
+@media (max-width: 760px) {
+  .esco-desktop-startup {
+    padding: 12px;
+  }
+
+  .esco-desktop-startup__window {
+    height: min(558px, calc(100vh - 24px));
+    min-height: 420px;
+  }
+
+  .esco-desktop-startup__header,
+  .esco-desktop-startup__footer {
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+
+  .esco-desktop-startup__body {
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+
+  .esco-desktop-startup__scintilla {
+    font-size: 25px;
+  }
+
+  .esco-desktop-startup__mark-rule {
+    width: 178px;
+  }
+
+  .esco-desktop-startup__esco span:first-child {
+    font-size: 35px;
+  }
+
+  .esco-desktop-startup__esco span:last-child {
+    font-size: 24px;
+  }
+
+  .esco-desktop-startup__divider {
+    margin-bottom: 45px;
+  }
+
+  .esco-desktop-startup__actions {
+    gap: 10px;
+  }
+
+  .esco-desktop-startup__footer {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+  }
+}
+
 .esco-controller__audit h4 { margin: 6px 0; font-size: 12px; }

@@ -1,0 +1,15 @@
+{
+  "name": "@esco/desktop",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "preflight": "node scripts/verify-desktop-config.mjs",
+    "typecheck": "node scripts/verify-desktop-config.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0"
+  }
+}
