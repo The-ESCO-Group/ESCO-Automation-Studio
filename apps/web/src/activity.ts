@@ -26,3 +26,30 @@ export function recordActivity(
   const entry: ActivityEntry = { id: nextId++, at: new Date().toISOString(), kind, message };
   return [entry, ...log].slice(0, ACTIVITY_LIMIT);
 }
+
+/** Max reviewed-action labels listed inline before the rest are summarized. */
+const AI_AUDIT_LABEL_LIMIT = 5;
+
+export interface AiApplyOutcome {
+  ok: boolean;
+  appliedCount: number;
+  /** Labels of the reviewed project-actions the AI proposed (in plan order). */
+  actionLabels: string[];
+  error?: string;
+}
+
+/**
+ * Build the audit-trail message for an applied (or blocked) AI plan. A blocked
+ * apply is recorded too, so the History tab is an honest record of what the AI
+ * changed — and of anything the reviewed action layer refused.
+ */
+export function aiApplyActivityMessage(planTitle: string, outcome: AiApplyOutcome): string {
+  if (!outcome.ok) {
+    return `AI apply blocked: ${outcome.error ?? "rejected by the reviewed action layer"}.`;
+  }
+  const shown = outcome.actionLabels.slice(0, AI_AUDIT_LABEL_LIMIT).join("; ");
+  const remaining = outcome.actionLabels.length - AI_AUDIT_LABEL_LIMIT;
+  const extra = remaining > 0 ? ` (+${remaining} more)` : "";
+  const detail = outcome.actionLabels.length ? `: ${shown}${extra}` : "";
+  return `Applied "${planTitle}" — ${outcome.appliedCount} action(s)${detail}.`;
+}

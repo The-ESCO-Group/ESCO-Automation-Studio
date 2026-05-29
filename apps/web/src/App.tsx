@@ -108,7 +108,7 @@ import { useToasts } from "./toasts";
 import { useControllerSession } from "./controller-session";
 import { useHistoryState } from "./history";
 import { clearAutosave, loadAutosave, saveAutosave, type AutosaveEntry } from "./autosave";
-import { recordActivity, type ActivityEntry, type ActivityKind } from "./activity";
+import { aiApplyActivityMessage, recordActivity, type ActivityEntry, type ActivityKind } from "./activity";
 import { aiProfileModelLabel, loadAiProfile, profileInitials, saveAiProfile, type AiProfile } from "./ai-profile";
 import {
   loadRecentProjects,
@@ -411,8 +411,18 @@ export function App() {
       setProject(result.project);
       setValues(zeroValues(result.project));
       setTrendSamples([]);
-      logActivity("ai", `Applied "${plan.title}" — ${result.applied.length} action(s).`);
     }
+    // Audit trail: record both applied plans (with the reviewed action labels) and
+    // applies the action layer blocked.
+    logActivity(
+      "ai",
+      aiApplyActivityMessage(plan.title, {
+        ok: result.ok,
+        appliedCount: result.applied.length,
+        actionLabels: plan.actions.map((action) => action.label),
+        error: result.error,
+      }),
+    );
     return result;
   };
   const selectedTagName =
