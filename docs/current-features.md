@@ -51,6 +51,21 @@ the registry
 - Multi-routine execution: JSR runs a sibling routine (same program) against the
   shared tag memory, RET returns early, with a 32-deep call guard.
 
+## Controller safety boundary
+
+- `@esco/controller-comm` owns the controller/session state machine and guarded
+  hardware-command policy.
+- Default state is **Offline Simulation**. Additional safe states distinguish
+  **Model-only Review**, **Disconnected**, **Connection Disabled**,
+  **Controller Link Unavailable**, **Faulted**, and **Safety Blocked**.
+- Hardware Go Online, upload, download, online edit, and live controller monitor
+  are represented as guarded commands. In this build they return blocked results
+  with explicit reasons and audit entries because no tested controller transport
+  is configured.
+- Ribbon and status UI must not claim a controller is connected unless the
+  session reports a verified real transport. The shipped transports do not do
+  that.
+
 ## Validation
 
 - Rule-based (`@esco/validator`): undefined tags (base-tag aware for member /

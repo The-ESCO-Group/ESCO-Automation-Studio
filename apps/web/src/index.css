@@ -3295,6 +3295,18 @@ body {
   color: #ffffff;
 }
 
+.esco-btn--blocked {
+  border-color: #fecdca;
+  background: #fff5f5;
+  color: #991b1b;
+}
+
+.esco-btn--blocked:hover {
+  border-color: #f97066;
+  background: #fff1f0;
+  color: #7f1d1d;
+}
+
 .esco-btn--danger:hover {
   border-color: #fecdca;
   color: var(--error);
@@ -5019,6 +5031,7 @@ body {
   color: #5d55a0;
 }
 .esco-conn-badge.is-connected { border-color: #86efac; background: #f0fdf4; color: #166534; }
+.esco-conn-badge.is-model-only { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
 .esco-conn-badge.is-blocked { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
 .esco-conn-badge.is-error { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
 .esco-conn-badge.is-connecting { border-color: #fcd34d; background: #fffbeb; color: #92400e; }

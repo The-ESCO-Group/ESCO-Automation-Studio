@@ -2,36 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ControllerSession,
   DOWNLOAD_COMMAND,
+  GO_ONLINE_COMMAND,
   ONLINE_EDIT_COMMAND,
   OfflineSimulationTransport,
-  ReadOnlyControllerTransport,
   UPLOAD_COMMAND,
+  UnavailableTransport,
   type CommandResult,
   type ConnectionAuditEvent,
   type ControllerCommand,
   type SessionSnapshot,
-  type TransportConnectResult,
 } from "@esco/controller-comm";
-
-/**
- * A demonstration read-only transport. It models what a real EtherNet/IP read-only
- * link *would* report, but it is deliberately UNVERIFIED (it inherits
- * `verified: false` from {@link ReadOnlyControllerTransport}). Because of the
- * safety gate, attempting to go online with it lands in "Safety Blocked" — never
- * "Connected" — which is exactly the honest behaviour for a build with no tested
- * controller transport.
- */
-class DemoReadOnlyTransport extends ReadOnlyControllerTransport {
-  readonly displayName = "Read-Only Controller Link (unverified)";
-  async connect(): Promise<TransportConnectResult> {
-    return {
-      ok: true,
-      reportedState: "connected-readonly",
-      message: "A read-only link was requested, but this transport is not verified against hardware.",
-    };
-  }
-  async disconnect(): Promise<void> {}
-}
 
 export interface ControllerSessionApi {
   snapshot: SessionSnapshot;
@@ -45,7 +25,7 @@ export interface ControllerSessionApi {
   runCommand: (command: ControllerCommand) => CommandResult;
 }
 
-const GUARDED = [UPLOAD_COMMAND, DOWNLOAD_COMMAND, ONLINE_EDIT_COMMAND];
+const GUARDED = [GO_ONLINE_COMMAND, UPLOAD_COMMAND, DOWNLOAD_COMMAND, ONLINE_EDIT_COMMAND];
 
 /**
  * React hook over a single {@link ControllerSession}. The session lives outside
@@ -76,7 +56,9 @@ export function useControllerSession(): ControllerSessionApi {
   }, [session, sync]);
 
   const requestRealReadonly = useCallback(() => {
-    session.selectTransport(new DemoReadOnlyTransport());
+    session.selectTransport(
+      new UnavailableTransport("No tested controller transport is configured. Hardware Go Online is unavailable."),
+    );
     void session.goOnline().then(sync);
     sync();
   }, [session, sync]);

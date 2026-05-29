@@ -7,8 +7,11 @@ interface Props {
 
 const STATE_CLASS: Record<string, string> = {
   "offline-simulation": "is-sim",
+  "model-only": "is-model-only",
   disconnected: "is-disconnected",
+  "connecting-disabled": "is-blocked",
   connecting: "is-connecting",
+  "connected-unavailable": "is-blocked",
   "connected-readonly": "is-connected",
   "connected-monitor": "is-connected",
   faulted: "is-error",
@@ -17,11 +20,11 @@ const STATE_CLASS: Record<string, string> = {
 
 /**
  * Controller connection panel. Surfaces the connection state machine and the
- * guarded upload/download/online-edit commands. Every real action is VISIBLE but
- * blocked: there is no tested controller transport in this build, so the safety
- * gate keeps the session in Offline Simulation / Disconnected / Safety Blocked and
- * the guarded commands are disabled with an honest explanation. Nothing here ever
- * writes to a controller.
+ * guarded upload/download/online-edit commands. Every real action is visible as
+ * a safe blocked placeholder: there is no tested controller transport in this
+ * build, so the safety gate keeps the session in Offline Simulation /
+ * Model-only / Unavailable / Safety Blocked. Nothing here ever writes to a
+ * controller.
  */
 export function ControllerPanel({ controller, onToast }: Props) {
   const { snapshot, audit, commands, goOnlineSimulation, requestRealReadonly, goOffline, monitor, runCommand } =
@@ -48,8 +51,8 @@ export function ControllerPanel({ controller, onToast }: Props) {
           <button type="button" className="esco-btn" onClick={goOnlineSimulation}>
             Go Online (Simulation)
           </button>
-          <button type="button" className="esco-btn" onClick={requestRealReadonly} title="Attempt a real read-only controller link">
-            Request Read-Only…
+          <button type="button" className="esco-btn" onClick={requestRealReadonly} title="Check whether a verified hardware link is available">
+            Check Hardware Link
           </button>
           <button type="button" className="esco-btn" onClick={monitor} disabled={!snapshot.connected}>
             Monitor
@@ -61,9 +64,9 @@ export function ControllerPanel({ controller, onToast }: Props) {
       </div>
 
       <p className="esco-controller__notice">
-        This build has <strong>no tested controller transport</strong>. Real upload, download, and online
-        edits are intentionally blocked — the connection can only reach Offline Simulation, Disconnected, or
-        Safety Blocked. No controller communication ever occurs.
+        This build has <strong>no tested controller transport</strong>. Hardware Go Online, upload, download,
+        and online edits are intentionally blocked. Offline Simulation and model-only review never communicate
+        with a controller.
       </p>
 
       <div className="esco-controller__commands">
@@ -77,12 +80,11 @@ export function ControllerPanel({ controller, onToast }: Props) {
             <div className="esco-controller__cmdfoot">
               <button
                 type="button"
-                className="esco-btn esco-btn--primary"
-                disabled={blocked}
+                className={`esco-btn${blocked ? " esco-btn--blocked" : " esco-btn--primary"}`}
                 title={explanation}
                 onClick={() => run(command)}
               >
-                {command.label}
+                {blocked ? "Show safety block" : command.label}
               </button>
               {blocked ? <span className="esco-controller__why">{explanation}</span> : null}
             </div>

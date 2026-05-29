@@ -6,6 +6,8 @@ interface Props {
   openRoutineName?: string;
   validationLabel: string;
   validationClass: string;
+  connectionLabel: string;
+  connected: boolean;
   userLabel: string;
   userInitials: string;
   onHome: () => void;
@@ -26,6 +28,8 @@ export function TopAppBar({
   openRoutineName,
   validationLabel,
   validationClass,
+  connectionLabel,
+  connected,
   userLabel,
   userInitials,
   onHome,
@@ -47,8 +51,11 @@ export function TopAppBar({
             <option value={projectName}>{projectName}</option>
           </select>
         </label>
-        <span className="esco-badge esco-badge--offline" title="No PLC/controller communication">
-          Disconnected
+        <span
+          className={`esco-badge esco-badge--offline${connected ? " is-connected" : ""}`}
+          title={connected ? "Verified controller session" : "No PLC/controller communication"}
+        >
+          {connectionLabel}
         </span>
         {projectOpen ? (
           <>

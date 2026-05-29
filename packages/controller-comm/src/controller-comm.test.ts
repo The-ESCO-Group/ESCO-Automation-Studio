@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   ControllerSession,
   DOWNLOAD_COMMAND,
+  GO_ONLINE_COMMAND,
+  ModelOnlyTransport,
+  MONITOR_COMMAND,
   ONLINE_EDIT_COMMAND,
   OfflineSimulationTransport,
   ReadOnlyControllerTransport,
@@ -97,11 +100,23 @@ describe("safety gate: fake/unavailable transports cannot reach a real Connected
     expect(isConnectedState(snap.state)).toBe(false);
   });
 
-  it("the unavailable transport stays disconnected", async () => {
+  it("the unavailable transport reports controller-link unavailable without saying Connected", async () => {
     const session = new ControllerSession(new UnavailableTransport());
     session.selectTransport(new UnavailableTransport());
     const snap = await session.goOnline();
-    expect(snap.state).toBe("disconnected");
+    expect(snap.state).toBe("connected-unavailable");
+    expect(snap.stateLabel).toBe("Controller Link Unavailable");
+    expect(snap.stateLabel).not.toMatch(/connected/i);
+    expect(snap.connected).toBe(false);
+  });
+
+  it("model-only review is distinct from offline simulation and is never Connected", async () => {
+    const session = new ControllerSession(new ModelOnlyTransport());
+    session.selectTransport(new ModelOnlyTransport());
+    const snap = await session.goOnline();
+    expect(snap.state).toBe("model-only");
+    expect(snap.stateLabel).toBe("Model-only Review");
+    expect(snap.connected).toBe(false);
   });
 
   it("an unverified REAL transport is routed to safety-blocked, not Connected", async () => {
@@ -164,8 +179,8 @@ describe("safety gate: fake/unavailable transports cannot reach a real Connected
   });
 });
 
-describe("guarded commands: upload/download/online-edit are blocked without a verified real transport", () => {
-  for (const command of [UPLOAD_COMMAND, DOWNLOAD_COMMAND, ONLINE_EDIT_COMMAND]) {
+describe("guarded commands: go-online/upload/download/online-edit are blocked without a verified real transport", () => {
+  for (const command of [GO_ONLINE_COMMAND, UPLOAD_COMMAND, DOWNLOAD_COMMAND, ONLINE_EDIT_COMMAND]) {
     it(`${command.kind} is blocked under offline simulation`, () => {
       const session = new ControllerSession(new OfflineSimulationTransport());
       const result = session.runCommand(command, { confirmed: true });
@@ -191,10 +206,21 @@ describe("guarded commands: upload/download/online-edit are blocked without a ve
 
   it("every blocked attempt is recorded in the audit log", () => {
     const session = new ControllerSession(new OfflineSimulationTransport());
+    session.runCommand(GO_ONLINE_COMMAND, { confirmed: true });
     session.runCommand(DOWNLOAD_COMMAND, { confirmed: true });
     session.runCommand(UPLOAD_COMMAND, { confirmed: true });
     const blocked = session.auditLog.filter((e) => e.type === "command-blocked");
-    expect(blocked.length).toBe(2);
+    expect(blocked.length).toBe(3);
+    expect(blocked.map((event) => event.details?.command)).toEqual(["go-online", "download", "upload"]);
+  });
+
+  it("model-only state blocks real commands with a specific reason", async () => {
+    const session = new ControllerSession(new ModelOnlyTransport());
+    session.selectTransport(new ModelOnlyTransport());
+    await session.goOnline();
+    const result = session.runCommand(GO_ONLINE_COMMAND, { confirmed: true });
+    expect(result.outcome).toBe("blocked");
+    expect(result.reason).toBe("model-only");
   });
 
   it("a write command still needs confirmation even on a verified transport", () => {
@@ -204,7 +230,14 @@ describe("guarded commands: upload/download/online-edit are blocked without a ve
     expect(session.evaluate(DOWNLOAD_COMMAND, true).reason).toBe("not-connected");
   });
 
-  it("availability is descriptive so the UI can show commands but disable them", () => {
+  it("monitor is also a real-controller command and cannot run offline", () => {
+    const session = new ControllerSession(new OfflineSimulationTransport());
+    const result = session.runCommand(MONITOR_COMMAND, { confirmed: true });
+    expect(result.outcome).toBe("blocked");
+    expect(result.reason).toBe("no-real-transport");
+  });
+
+  it("availability is descriptive so the UI can show commands but safely block them", () => {
     const session = new ControllerSession(new OfflineSimulationTransport());
     const availability = session.evaluate(DOWNLOAD_COMMAND, true);
     expect(availability.blocked).toBe(true);

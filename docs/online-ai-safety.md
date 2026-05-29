@@ -60,6 +60,21 @@ network beyond the configured AI provider, PLC/controller communication, online
 edit/download/upload, and `.ACD` access. These are not exposed as tools, so the
 model cannot reach them.
 
+## Controller safety boundary
+
+The AI layer must treat controller access as unavailable unless a future,
+separately verified communication layer exists. Hardware-like commands such as
+Go Online, upload, download, online edits, and live monitor are guarded by
+`@esco/controller-comm`.
+
+- Offline Simulation and Model-only Review are not controller sessions.
+- Controller Link Unavailable / Connection Disabled are explicit safe states,
+  not partial connections.
+- A command that resembles controller access must return a blocked result with a
+  user-facing reason and an audit event.
+- AI tools must never bypass the controller command guard or claim live PLC
+  state from simulated, imported, or model-only data.
+
 ## How edits are applied
 
 The online agent **proposes a plan**; it does not silently change anything.

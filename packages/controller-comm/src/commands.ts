@@ -25,6 +25,24 @@ export const UPLOAD_COMMAND: ControllerCommand = {
   requiresConfirmation: true,
 };
 
+export const GO_ONLINE_COMMAND: ControllerCommand = {
+  kind: "go-online",
+  label: "Go Online",
+  description: "Open a live session to a real controller. Requires a tested, verified transport.",
+  requiresRealIo: true,
+  isWrite: false,
+  requiresConfirmation: true,
+};
+
+export const MONITOR_COMMAND: ControllerCommand = {
+  kind: "monitor",
+  label: "Monitor Controller",
+  description: "Read live tag values from a connected controller without writing logic.",
+  requiresRealIo: true,
+  isWrite: false,
+  requiresConfirmation: false,
+};
+
 export const DOWNLOAD_COMMAND: ControllerCommand = {
   kind: "download",
   label: "Download to Controller",
@@ -44,9 +62,11 @@ export const ONLINE_EDIT_COMMAND: ControllerCommand = {
 };
 
 export const CONTROLLER_COMMANDS: Record<
-  Extract<ControllerCommandKind, "upload" | "download" | "online-edit">,
+  Extract<ControllerCommandKind, "go-online" | "monitor" | "upload" | "download" | "online-edit">,
   ControllerCommand
 > = {
+  "go-online": GO_ONLINE_COMMAND,
+  monitor: MONITOR_COMMAND,
   upload: UPLOAD_COMMAND,
   download: DOWNLOAD_COMMAND,
   "online-edit": ONLINE_EDIT_COMMAND,
@@ -60,8 +80,10 @@ export interface CommandContext {
 }
 
 const EXPLAIN: Record<NonNullable<BlockedReason>, string> = {
+  "model-only":
+    "The active controller context is model-only: preserved for review, not simulated, and not connected to hardware.",
   "no-real-transport":
-    "No tested controller transport is configured. Real upload/download/online-edit is unavailable in this build.",
+    "No tested controller transport is configured. Real go-online/upload/download/online-edit is unavailable in this build.",
   "not-connected": "Connect to a controller before running this command.",
   "safety-unverified":
     "The selected transport's controller link has not been validated against tested hardware. Blocked for safety.",
@@ -83,6 +105,8 @@ export function evaluateCommand(command: ControllerCommand, ctx: CommandContext)
     reason,
     explanation: EXPLAIN[reason],
   });
+
+  if (ctx.state === "model-only") return block("model-only");
 
   if (command.requiresRealIo) {
     // Hard safety gate: a real action needs a transport that can actually reach a

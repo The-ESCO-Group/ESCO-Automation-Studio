@@ -20,8 +20,11 @@
 /** The connection state surfaced to the UI status bar / controller panel. */
 export type ConnectionState =
   | "offline-simulation"
+  | "model-only"
   | "disconnected"
+  | "connecting-disabled"
   | "connecting"
+  | "connected-unavailable"
   | "connected-readonly"
   | "connected-monitor"
   | "faulted"
@@ -30,8 +33,11 @@ export type ConnectionState =
 /** Human-readable label for each connection state (matches the UI badges). */
 export const CONNECTION_STATE_LABELS: Record<ConnectionState, string> = {
   "offline-simulation": "Offline Simulation",
+  "model-only": "Model-only Review",
   disconnected: "Disconnected",
+  "connecting-disabled": "Connection Disabled",
   connecting: "Connecting…",
+  "connected-unavailable": "Controller Link Unavailable",
   "connected-readonly": "Connected — Read Only",
   "connected-monitor": "Connected — Monitor",
   faulted: "Faulted",
@@ -70,6 +76,7 @@ export interface TransportCapabilities {
 
 export type TransportKind =
   | "offline-sim"
+  | "model-only"
   | "readonly-monitor"
   | "real-controller"
   | "unavailable";
@@ -126,6 +133,7 @@ export interface ControllerCommand {
 /** Why a command is unavailable. `null` means it is available to run. */
 export type BlockedReason =
   | null
+  | "model-only"
   | "no-real-transport"
   | "not-connected"
   | "safety-unverified"

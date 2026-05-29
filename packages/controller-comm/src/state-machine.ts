@@ -8,7 +8,7 @@ import type { ConnectionState, TransportCapabilities, TransportConnectResult } f
 
 export type ConnectionEvent =
   | { type: "select-transport" }
-  | { type: "begin-connect" }
+  | { type: "begin-connect"; capabilities: TransportCapabilities }
   | { type: "connect-result"; result: TransportConnectResult; capabilities: TransportCapabilities }
   | { type: "enter-monitor" }
   | { type: "exit-monitor" }
@@ -17,20 +17,32 @@ export type ConnectionEvent =
 
 /** Legal source → target transitions, used to reject illegal jumps. */
 const ALLOWED: Record<ConnectionState, ConnectionState[]> = {
-  "offline-simulation": ["offline-simulation", "connecting", "disconnected"],
-  disconnected: ["disconnected", "connecting", "offline-simulation"],
+  "offline-simulation": [
+    "offline-simulation",
+    "model-only",
+    "connecting",
+    "connecting-disabled",
+    "connected-unavailable",
+    "disconnected",
+  ],
+  "model-only": ["model-only", "offline-simulation", "disconnected", "connecting-disabled"],
+  disconnected: ["disconnected", "connecting", "connecting-disabled", "connected-unavailable", "offline-simulation", "model-only"],
+  "connecting-disabled": ["connected-unavailable", "disconnected", "offline-simulation", "model-only", "faulted"],
   connecting: [
     "connected-readonly",
     "connected-monitor",
+    "connected-unavailable",
     "disconnected",
     "offline-simulation",
+    "model-only",
     "faulted",
     "safety-blocked",
   ],
+  "connected-unavailable": ["connected-unavailable", "disconnected", "offline-simulation", "model-only", "connecting-disabled"],
   "connected-readonly": ["connected-monitor", "connected-readonly", "faulted", "disconnected"],
   "connected-monitor": ["connected-readonly", "connected-monitor", "faulted", "disconnected"],
-  faulted: ["faulted", "disconnected", "offline-simulation"],
-  "safety-blocked": ["safety-blocked", "disconnected", "offline-simulation"],
+  faulted: ["faulted", "disconnected", "offline-simulation", "model-only"],
+  "safety-blocked": ["safety-blocked", "disconnected", "offline-simulation", "model-only"],
 };
 
 export function canTransition(from: ConnectionState, to: ConnectionState): boolean {
@@ -51,7 +63,11 @@ export function resolveConnectState(
   capabilities: TransportCapabilities,
 ): ConnectionState {
   if (!result.ok) {
-    return result.reportedState === "faulted" ? "faulted" : "disconnected";
+    if (result.reportedState === "faulted") return "faulted";
+    if (result.reportedState === "connected-unavailable") return "connected-unavailable";
+    if (result.reportedState === "connecting-disabled") return "connecting-disabled";
+    if (result.reportedState === "model-only") return "model-only";
+    return "disconnected";
   }
 
   const wantsConnected =
@@ -74,6 +90,12 @@ export function resolveConnectState(
   if (result.reportedState === "offline-simulation") {
     return capabilities.simulation ? "offline-simulation" : "disconnected";
   }
+  if (result.reportedState === "model-only") {
+    return capabilities.realControllerIo ? "disconnected" : "model-only";
+  }
+  if (result.reportedState === "connected-unavailable") {
+    return "connected-unavailable";
+  }
   return result.reportedState;
 }
 
@@ -84,6 +106,10 @@ export function reduceConnection(state: ConnectionState, event: ConnectionEvent)
       // Selecting a transport always returns to a safe, non-connected baseline.
       return state === "offline-simulation" ? "offline-simulation" : "disconnected";
     case "begin-connect":
+      if (event.capabilities.simulation) return "offline-simulation";
+      if (!event.capabilities.realControllerIo) {
+        return canTransition(state, "connecting-disabled") ? "connecting-disabled" : state;
+      }
       return canTransition(state, "connecting") ? "connecting" : state;
     case "connect-result": {
       const next = resolveConnectState(event.result, event.capabilities);

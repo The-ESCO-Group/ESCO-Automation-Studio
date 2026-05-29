@@ -13,6 +13,7 @@ interface Props {
   onTags: () => void;
   onCompare: () => void;
   onExport: () => void;
+  onSaveAs: () => void;
   onExportL5X: () => void;
   onExportTagsCsv: () => void;
   onImportProject: () => void;
@@ -49,7 +50,8 @@ interface RibbonButton {
   action: () => void;
 }
 
-const UNSAFE_ONLINE_MESSAGE = "Real PLC communication is not supported. Offline simulation only.";
+const UNSAFE_ONLINE_MESSAGE =
+  "Hardware Go Online, upload, download, and online edits are blocked because no tested controller transport is configured.";
 
 /** Studio-style command ribbon. Tabs expose real command sets, not inert placeholders. */
 export function RibbonToolbar({
@@ -64,6 +66,7 @@ export function RibbonToolbar({
   onTags,
   onCompare,
   onExport,
+  onSaveAs,
   onExportL5X,
   onExportTagsCsv,
   onImportProject,
@@ -98,7 +101,7 @@ export function RibbonToolbar({
     { label: "Open", icon: "□", group: "File", title: "Open .plcproj.json", action: onImportProject },
     { label: "Import L5X", icon: "L5X", group: "File", title: "Import an offline L5X export", action: onImportL5X },
     { label: "Save", icon: "▣", group: "File", title: "Export project JSON", action: onExport },
-    { label: "Save As", icon: "▤", group: "File", title: "Export project JSON with a filename", action: onExport },
+    { label: "Save As", icon: "▤", group: "File", title: "Save project JSON with a new filename", action: onSaveAs },
     { label: "Close", icon: "×", group: "File", disabled: !canClose, title: "Close the current project", action: onClose },
   ];
 

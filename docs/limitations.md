@@ -7,7 +7,15 @@ following are intentional boundaries and known gaps.
 
 - **No real PLC / controller communication.** It cannot connect to, browse, or
   exchange data with any controller.
-- **No online edits or downloads.** Nothing is ever sent to hardware.
+- **Offline Simulation is the default controller mode.** The controller-session
+  state machine distinguishes Offline Simulation, Model-only Review,
+  Disconnected, Connection Disabled, Controller Link Unavailable, Faulted, and
+  Safety Blocked states. The UI must not say "Connected" unless a future
+  verified real transport reports a supported live session.
+- **No online edits, uploads, downloads, or hardware Go Online.** Commands that
+  resemble controller access are routed through `@esco/controller-comm`,
+  return a blocked result with a reason, and record an audit event. Nothing is
+  ever sent to hardware in this build.
 - **No `.ACD` compile / decompile or editing.** The tool only reads `.L5X` (XML)
   and reads/writes its own `.plcproj.json`.
 - The AI assistant has **no hardware access** and changes the project **only**

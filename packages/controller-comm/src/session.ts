@@ -95,10 +95,15 @@ export class ControllerSession {
   /**
    * Attempt to go online with the active transport. The transport's reported
    * state passes through the safety gate, so a non-verified transport can only
-   * reach "offline-simulation", "disconnected", or "safety-blocked".
+   * reach offline/model-only/unavailable states or "safety-blocked".
    */
   async goOnline(): Promise<SessionSnapshot> {
-    this.setState(reduceConnection(this._state, { type: "begin-connect" }), "Connecting…");
+    this.setState(
+      reduceConnection(this._state, { type: "begin-connect", capabilities: this.transport.capabilities }),
+      this.transport.capabilities.realControllerIo || this.transport.capabilities.simulation
+        ? "Connecting…"
+        : "Connection disabled: no tested controller transport is configured.",
+    );
     this.record(connectionAudit("go-online", `Go Online requested via ${this.transport.displayName}.`, this._state, this.transport.kind));
     let next: ConnectionState;
     try {

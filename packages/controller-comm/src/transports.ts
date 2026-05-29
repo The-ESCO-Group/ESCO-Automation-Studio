@@ -68,7 +68,35 @@ export class UnavailableTransport implements ControllerTransport {
   constructor(private readonly note = "No tested controller transport is configured in this build.") {}
 
   async connect(): Promise<TransportConnectResult> {
-    return { ok: false, reportedState: "disconnected", message: this.note };
+    return { ok: false, reportedState: "connected-unavailable", message: this.note };
+  }
+
+  async disconnect(): Promise<void> {
+    /* nothing to tear down */
+  }
+}
+
+/**
+ * Model-only transport — used when imported hardware/device state is preserved
+ * for review but cannot be simulated or contacted. It is distinct from Offline
+ * Simulation: the project model is visible, but there is no executable scan and
+ * no controller communication.
+ */
+export class ModelOnlyTransport implements ControllerTransport {
+  readonly kind: TransportKind = "model-only";
+  readonly displayName = "Model-only Review";
+  readonly capabilities: TransportCapabilities = {
+    realControllerIo: false,
+    verified: false,
+    simulation: false,
+    canRead: false,
+    canWrite: false,
+  };
+
+  constructor(private readonly note = "Model-only content is preserved for review and is not simulated.") {}
+
+  async connect(): Promise<TransportConnectResult> {
+    return { ok: false, reportedState: "model-only", message: this.note };
   }
 
   async disconnect(): Promise<void> {

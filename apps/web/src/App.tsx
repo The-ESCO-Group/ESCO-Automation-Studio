@@ -780,6 +780,8 @@ export function App() {
           openRoutineName={openRoutine?.name}
           validationLabel={validationLabel}
           validationClass={validationClass}
+          connectionLabel={controllerSession.snapshot.stateLabel}
+          connected={controllerSession.snapshot.connected}
           userLabel={aiProfile?.displayName ?? "User"}
           userInitials={profileInitials(aiProfile)}
           onHome={() => setView("welcome")}
