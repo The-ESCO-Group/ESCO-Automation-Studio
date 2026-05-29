@@ -83,6 +83,11 @@ export interface CreateRoutineInput {
   language?: RoutineLanguage;
 }
 
+export interface SetStructuredTextInput {
+  routineId: string;
+  source: string;
+}
+
 export interface AddRungInput {
   routineId: string;
   comment?: string;

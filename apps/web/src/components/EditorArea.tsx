@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { arrayElementNames, isStructuredType, memberDefs, type PlcProject, type Routine } from "@esco/core";
 import {
   baseTagName,
@@ -47,6 +47,7 @@ interface Props {
   onAddBranchLeg: (rungId: string) => void;
   onRemoveBranchLeg: (rungId: string, branchId: string) => void;
   onAddToBranch: (rungId: string, branchId: string, instructionType: string) => void;
+  onSetStructuredTextSource: (routineId: string, source: string) => void;
   onOpenRoutine?: (routineId: string) => void;
 }
 
@@ -388,10 +389,20 @@ function GraphicalRoutineOutline({ source, query }: { source: string; query: str
   );
 }
 
-function NonLadderRoutineView({ routine }: { routine: Routine }) {
+function NonLadderRoutineView({
+  routine,
+  onSetStructuredTextSource,
+}: {
+  routine: Routine;
+  onSetStructuredTextSource: (routineId: string, source: string) => void;
+}) {
   const [query, setQuery] = useState("");
   const source = routineText(routine);
+  const [draftSource, setDraftSource] = useState(source);
+  const editable = routine.language === "structured-text";
   const lines = source ? source.split(/\r?\n/) : [];
+  const draftLines = draftSource ? draftSource.split(/\r?\n/).length : 0;
+  const dirty = editable && draftSource !== source;
   const term = query.trim().toLowerCase();
   const visible = term
     ? lines
@@ -399,8 +410,12 @@ function NonLadderRoutineView({ routine }: { routine: Routine }) {
         .filter((line) => line.text.toLowerCase().includes(term))
     : lines.map((text, index) => ({ text, index }));
   const copySource = () => {
-    void navigator.clipboard?.writeText(source);
+    void navigator.clipboard?.writeText(editable ? draftSource : source);
   };
+  useEffect(() => {
+    setDraftSource(source);
+    setQuery("");
+  }, [routine.id, source]);
 
   return (
     <div className="esco-nonladder">
@@ -408,39 +423,67 @@ function NonLadderRoutineView({ routine }: { routine: Routine }) {
         <div>
           <h1>{routine.name}</h1>
           <p>
-            {LANGUAGE_LABEL[routine.language]} imported routine is preserved read-only for review. It is not executed by Offline Simulation.
+            {editable
+              ? "Structured Text source is editable and exports with the project. It is not executed by Offline Simulation yet."
+              : `${LANGUAGE_LABEL[routine.language]} imported routine is preserved read-only for review. It is not executed by Offline Simulation.`}
           </p>
         </div>
         <div className="esco-nonladder__badges">
-          <span className="esco-detail__readonly">Read-only</span>
-          <span className="esco-detail__readonly">{lines.length} line{lines.length === 1 ? "" : "s"}</span>
-          {term ? <span className="esco-detail__readonly">{visible.length} match{visible.length === 1 ? "" : "es"}</span> : null}
+          <span className="esco-detail__readonly">{editable ? "Editable ST" : "Read-only"}</span>
+          <span className="esco-detail__readonly">
+            {editable ? draftLines : lines.length} line{(editable ? draftLines : lines.length) === 1 ? "" : "s"}
+          </span>
+          {dirty ? <span className="esco-detail__readonly">Unsaved ST edit</span> : null}
+          {!editable && term ? <span className="esco-detail__readonly">{visible.length} match{visible.length === 1 ? "" : "es"}</span> : null}
         </div>
       </header>
       <div className="esco-nonladder__toolbar">
-        <input
-          className="esco-tags__search"
-          value={query}
-          placeholder="Search source..."
-          spellCheck={false}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <button type="button" className="esco-btn" disabled={!source} onClick={copySource}>
+        {editable ? (
+          <span className="esco-nonladder__hint">Apply saves through project-actions; simulation continues to skip ST routines.</span>
+        ) : (
+          <input
+            className="esco-tags__search"
+            value={query}
+            placeholder="Search source..."
+            spellCheck={false}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        )}
+        <button type="button" className="esco-btn" disabled={editable ? !draftSource : !source} onClick={copySource}>
           Copy source
         </button>
+        {editable ? (
+          <>
+            <button
+              type="button"
+              className="esco-btn"
+              disabled={!dirty}
+              onClick={() => setDraftSource(source)}
+            >
+              Revert
+            </button>
+            <button
+              type="button"
+              className="esco-btn esco-btn--primary"
+              disabled={!dirty}
+              onClick={() => onSetStructuredTextSource(routine.id, draftSource)}
+            >
+              Apply ST
+            </button>
+          </>
+        ) : null}
       </div>
-      {source ? (
-        routine.language === "structured-text" ? (
-          <ol className="esco-st-viewer">
-            {visible.map((line) => (
-              <li key={line.index} value={line.index + 1}>
-                <code>{line.text || " "}</code>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <GraphicalRoutineOutline source={source} query={query} />
-        )
+      {editable ? (
+        <textarea
+          className="esco-st-editor"
+          value={draftSource}
+          spellCheck={false}
+          aria-label={`${routine.name} Structured Text source`}
+          placeholder="Enter Structured Text source..."
+          onChange={(event) => setDraftSource(event.target.value)}
+        />
+      ) : source ? (
+        <GraphicalRoutineOutline source={source} query={query} />
       ) : (
         <div className="esco-nonladder__empty">
           <p>Readonly imported routine. Editing/simulation not supported yet.</p>
@@ -543,6 +586,7 @@ export function EditorArea({
   onAddBranchLeg,
   onRemoveBranchLeg,
   onAddToBranch,
+  onSetStructuredTextSource,
   onOpenRoutine,
 }: Props) {
   const [showAllRungs, setShowAllRungs] = useState(false);
@@ -597,7 +641,7 @@ export function EditorArea({
           fallbackRoutineId={routine.id}
           onOpenRoutine={onOpenRoutine}
         />
-        <NonLadderRoutineView routine={routine} />
+        <NonLadderRoutineView routine={routine} onSetStructuredTextSource={onSetStructuredTextSource} />
       </div>
     );
   }

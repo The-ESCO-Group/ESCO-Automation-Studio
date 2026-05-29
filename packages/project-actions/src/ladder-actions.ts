@@ -36,6 +36,7 @@ import type {
   ProjectActionResult,
   RemoveBranchLegInput,
   RemoveInstructionInput,
+  SetStructuredTextInput,
   SetRungCommentInput,
   UpdateOperandInput,
 } from "./types";
@@ -47,7 +48,10 @@ function rungExists(project: PlcProject, routineId: string, rungId: string): boo
   return !!ladder?.rungs.some((rung) => rung.id === rungId);
 }
 
-/** Create a new (ladder) routine in a program. */
+const STRUCTURED_TEXT_SIM_WARNING =
+  "Structured Text is preserved and exported, but not executed by Offline Simulation.";
+
+/** Create a new routine in a program. */
 export function createRoutine(
   project: PlcProject,
   input: CreateRoutineInput,
@@ -67,10 +71,60 @@ export function createRoutine(
   if (!found) return fail(project, `Program "${input.programId}" not found.`);
   if (duplicate) return fail(project, `Routine "${name}" already exists in that program.`);
 
-  const routine = makeRoutine(input.programId, name, input.language ?? "ladder");
-  routine.ladder = createLadderRoutine();
+  const language = input.language ?? "ladder";
+  const routine = makeRoutine(input.programId, name, language);
+  if (language === "ladder") {
+    routine.ladder = createLadderRoutine();
+  } else if (language === "structured-text") {
+    routine.structuredText = "";
+  } else {
+    routine.sourceText = "";
+  }
   const next = withProgramRoutines(project, input.programId, (routines) => [...routines, routine]);
   return ok(next, { routineId: routine.id });
+}
+
+/** Replace the source of a Structured Text routine. ST is preserved/exported but not simulated. */
+export function setStructuredTextSource(
+  project: PlcProject,
+  input: SetStructuredTextInput,
+): ProjectActionResult<{ routineId: string }> {
+  const routineId = input.routineId?.trim();
+  if (!routineId) return fail(project, "Routine id is required.");
+  if (typeof input.source !== "string") {
+    return fail(project, "Structured Text source must be a string.");
+  }
+  if (input.source.includes("\0")) {
+    return fail(project, "Structured Text source cannot contain null characters.");
+  }
+
+  const routine = findRoutine(project, routineId);
+  if (!routine) return fail(project, `Routine "${routineId}" not found.`);
+  if (routine.language !== "structured-text") {
+    return fail(project, `Routine "${routine.name}" is ${routine.language}, not Structured Text.`);
+  }
+
+  const source = input.source;
+  const next = {
+    ...project,
+    controllers: project.controllers.map((controller) => ({
+      ...controller,
+      programs: controller.programs.map((program) => ({
+        ...program,
+        routines: program.routines.map((candidate) =>
+          candidate.id === routineId
+            ? { ...candidate, ladder: undefined, structuredText: source, sourceText: undefined }
+            : candidate,
+        ),
+      })),
+    })),
+  };
+
+  return ok(
+    next,
+    { routineId },
+    [STRUCTURED_TEXT_SIM_WARNING],
+  );
 }
 
 /** Append an empty rung to a routine. */

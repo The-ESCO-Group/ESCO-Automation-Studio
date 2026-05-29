@@ -4767,8 +4767,18 @@ body {
   flex: 1 1 auto;
 }
 
+.esco-nonladder__hint {
+  flex: 1 1 auto;
+  align-self: center;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .esco-st-viewer,
-.esco-graphical-source {
+.esco-graphical-source,
+.esco-st-editor {
   flex: 1 1 auto;
   min-height: 0;
   margin: 0;
@@ -4785,6 +4795,17 @@ body {
   font-family: "Cascadia Code", "Consolas", monospace;
   font-size: 12px;
   line-height: 1.55;
+}
+
+.esco-st-editor {
+  width: 100%;
+  resize: none;
+  outline: none;
+}
+
+.esco-st-editor:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.12);
 }
 
 .esco-st-viewer {
