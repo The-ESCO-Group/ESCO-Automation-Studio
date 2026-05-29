@@ -99,6 +99,8 @@
 
 .esco-hmi-nav,
 .esco-hmi-properties {
+  position: relative;
+  z-index: 1; /* keep the editable side panels above the positioned canvas */
   min-width: 0;
   min-height: 0;
   overflow: auto;
@@ -208,6 +210,7 @@
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
+  overflow: hidden; /* the canvas surface must not bleed over adjacent columns */
 }
 
 .esco-hmi-toolbox {
@@ -461,6 +464,120 @@
   color: #4f46e5;
   font-style: normal;
   font-weight: 800;
+}
+
+/* ---- Editable inspector controls ---- */
+.esco-hmi-edit__row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+  font-size: 12px;
+  color: #667085;
+}
+
+.esco-hmi-edit__row--check {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.esco-hmi-edit__row input,
+.esco-hmi-edit__row select,
+.esco-hmi-edit__cell input,
+.esco-hmi-edit__form input,
+.esco-hmi-edit__form select {
+  min-width: 0;
+  border: 1px solid #d9def2;
+  border-radius: 7px;
+  padding: 6px 7px;
+  color: #111827;
+  font: inherit;
+  font-size: 12px;
+}
+
+.esco-hmi-edit__row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  justify-self: end;
+}
+
+.esco-hmi-edit__row input[type="color"] {
+  height: 30px;
+  padding: 2px;
+}
+
+.esco-hmi-edit__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.esco-hmi-edit__cell {
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  color: #667085;
+  text-transform: uppercase;
+}
+
+.esco-hmi-edit__list {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.esco-hmi-edit__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #eef1f8;
+  padding: 6px 0;
+}
+
+.esco-hmi-edit__list-main {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.esco-hmi-edit__list-main strong {
+  color: #111827;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.esco-hmi-edit__list-main span {
+  color: #667085;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.esco-hmi-edit__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border: 1px dashed #d9def2;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.esco-hmi-edit__form input {
+  flex: 1 1 100%;
+}
+
+.esco-hmi-edit__form select {
+  flex: 1 1 auto;
+}
+
+.esco-btn--xs {
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.esco-hmi-properties .esco-btn--danger {
+  margin-top: 12px;
 }
 
 @media (max-width: 1200px) {

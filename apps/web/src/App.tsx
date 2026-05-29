@@ -7,13 +7,24 @@ import {
   addParallelBranch,
   addRung,
   addHmiElement,
+  addHmiEventCommand,
   createTag,
   createHmiPopup as createHmiPopupAction,
   createHmiScreen as createHmiScreenAction,
+  deleteHmiElement,
+  deleteHmiPopup,
+  deleteHmiScreen,
   deleteRung,
   deleteTag,
   duplicateRung,
   ensureHmiProject,
+  removeHmiElementBinding,
+  removeHmiEventCommand,
+  renameHmiSurface,
+  setHmiElementBinding,
+  setHmiHomeScreen,
+  updateHmiElement,
+  updateHmiElementGeometry,
   exportProjectJson,
   exportProjectL5X,
   exportTagsCsv,
@@ -36,7 +47,7 @@ import {
   type TagCsvImportPreview,
 } from "@esco/project-actions";
 import { PLCPROJ_EXTENSION } from "@esco/project-store";
-import { getHmiProject, type HmiSurfaceKind } from "@esco/hmi-model";
+import { getHmiProject, type HmiGraphicElement, type HmiSurfaceKind } from "@esco/hmi-model";
 import type { LadderBranch } from "@esco/ladder";
 import type { ImportSummary } from "@esco/parser-l5x";
 import { applyPlan, type ApplyResult, type AssistantPlan } from "@esco/ai-assistant";
@@ -58,7 +69,7 @@ import { FirstRunSetup } from "./components/FirstRunSetup";
 import { TagCsvPreviewDialog } from "./components/TagCsvPreviewDialog";
 import { DesktopStartup } from "./components/DesktopStartup";
 import { ProjectPropertiesDialog } from "./components/ProjectPropertiesDialog";
-import { HmiDesigner } from "./components/hmi/HmiDesigner";
+import { HmiDesigner, type BindingDraft, type ElementPatch } from "./components/hmi/HmiDesigner";
 import type { Selection } from "./selection";
 import { createBlankRoutineProject, createInitialProject, findMainRoutine } from "./project-edit";
 import { searchProject } from "./search";
@@ -469,6 +480,103 @@ export function App() {
     setProject(result.project);
     push("success", `Added ${typeId.replace(/^[^.]+\./, "")} to the HMI surface.`);
     showHmiWarnings(result);
+  };
+  const applyHmiEdit = (result: ProjectActionResult, successMessage?: string): boolean => {
+    if (!result.ok) {
+      push("error", result.error ?? "HMI edit failed.");
+      return false;
+    }
+    setProject(result.project);
+    if (successMessage) push("success", successMessage);
+    showHmiWarnings(result);
+    return true;
+  };
+  // Stable-enough ids for UI-created bindings/commands (unique within an element).
+  const hmiLocalId = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+  const handleUpdateHmiElement = (
+    surfaceKind: HmiSurfaceKind,
+    surfaceId: string,
+    elementId: string,
+    patch: ElementPatch,
+  ) => applyHmiEdit(updateHmiElement(project, { surfaceKind, surfaceId, elementId, ...patch }));
+  const handleUpdateHmiElementGeometry = (
+    surfaceKind: HmiSurfaceKind,
+    surfaceId: string,
+    elementId: string,
+    geometry: HmiGraphicElement["geometry"],
+  ) => applyHmiEdit(updateHmiElementGeometry(project, { surfaceKind, surfaceId, elementId, geometry }));
+  const handleDeleteHmiElement = (surfaceKind: HmiSurfaceKind, surfaceId: string, elementId: string) =>
+    applyHmiEdit(deleteHmiElement(project, { surfaceKind, surfaceId, elementId }), "Removed HMI element.");
+  const handleSetHmiBinding = (
+    surfaceKind: HmiSurfaceKind,
+    surfaceId: string,
+    elementId: string,
+    binding: BindingDraft,
+  ) =>
+    applyHmiEdit(
+      setHmiElementBinding(project, {
+        surfaceKind,
+        surfaceId,
+        elementId,
+        binding: { ...binding, id: binding.id ?? hmiLocalId("hmibind") },
+      }),
+      "Updated HMI binding.",
+    );
+  const handleRemoveHmiBinding = (
+    surfaceKind: HmiSurfaceKind,
+    surfaceId: string,
+    elementId: string,
+    bindingId: string,
+  ) =>
+    applyHmiEdit(
+      removeHmiElementBinding(project, { surfaceKind, surfaceId, elementId, bindingId }),
+      "Removed HMI binding.",
+    );
+  const handleAddHmiNavigation = (
+    surfaceKind: HmiSurfaceKind,
+    surfaceId: string,
+    elementId: string,
+    targetScreenId: string,
+    eventType: "press" | "release",
+  ) =>
+    applyHmiEdit(
+      addHmiEventCommand(project, {
+        surfaceKind,
+        surfaceId,
+        elementId,
+        eventType,
+        command: {
+          id: hmiLocalId("hmicmd"),
+          type: "navigate",
+          safety: "runtime-preview",
+          args: { screenId: targetScreenId },
+        },
+      }),
+      "Added navigation event.",
+    );
+  const handleRemoveHmiEventCommand = (
+    surfaceKind: HmiSurfaceKind,
+    surfaceId: string,
+    elementId: string,
+    eventId: string,
+    commandId: string,
+  ) =>
+    applyHmiEdit(
+      removeHmiEventCommand(project, { surfaceKind, surfaceId, elementId, eventId, commandId }),
+      "Removed event command.",
+    );
+  const handleSetHmiHomeScreen = (screenId: string) =>
+    applyHmiEdit(setHmiHomeScreen(project, { screenId }), "Set HMI home screen.");
+  const handleRenameHmiSurface = (surfaceKind: "screen" | "popup", surfaceId: string, name: string) =>
+    applyHmiEdit(renameHmiSurface(project, { surfaceKind, surfaceId, name }), "Renamed HMI surface.");
+  const handleDeleteHmiSurface = (surfaceKind: "screen" | "popup", surfaceId: string) => {
+    const result =
+      surfaceKind === "screen"
+        ? deleteHmiScreen(project, { screenId: surfaceId })
+        : deleteHmiPopup(project, { popupId: surfaceId });
+    if (applyHmiEdit(result, `Deleted HMI ${surfaceKind}.`)) {
+      setSelection({ kind: "hmi", id: hmiProject?.id ?? "hmi" });
+    }
   };
 
   const selectedRungId =
@@ -1234,6 +1342,16 @@ export function App() {
               else if (surface.kind === "popup") setSelection({ kind: "hmi-popup", id: surface.id });
               else setSelection({ kind: "hmi-banner", id: surface.id });
             }}
+            onUpdateElement={handleUpdateHmiElement}
+            onUpdateElementGeometry={handleUpdateHmiElementGeometry}
+            onDeleteElement={handleDeleteHmiElement}
+            onSetBinding={handleSetHmiBinding}
+            onRemoveBinding={handleRemoveHmiBinding}
+            onAddNavigationEvent={handleAddHmiNavigation}
+            onRemoveEventCommand={handleRemoveHmiEventCommand}
+            onSetHomeScreen={handleSetHmiHomeScreen}
+            onRenameSurface={handleRenameHmiSurface}
+            onDeleteSurface={handleDeleteHmiSurface}
           />
         ) : view === "compare" ? (
           <CompareView

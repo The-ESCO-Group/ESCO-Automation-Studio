@@ -13,6 +13,7 @@ import {
   type HmiGraphicElement,
   type HmiProject,
   type HmiPropertyBinding,
+  type HmiStyle,
   type HmiSurfaceKind,
 } from "@esco/hmi-model";
 import { fail, getAllTags, ok } from "./helpers";
@@ -306,4 +307,282 @@ export function addHmiEventCommand(
   if (!next) return fail(project, `HMI ${surfaceLabel(input.surfaceKind)} was not found.`);
   if (!updated) return fail(project, "HMI element was not found or is read-only unsupported content.");
   return commitHmi(project, next, { elementId: input.elementId, commandId: input.command.id });
+}
+
+export interface UpdateHmiElementInput {
+  surfaceKind: HmiSurfaceKind;
+  surfaceId: string;
+  elementId: string;
+  /** New element name (trimmed; must be non-empty when provided). */
+  name?: string;
+  /** Properties merged shallowly over the element's current properties. */
+  properties?: Record<string, unknown>;
+  /** Style merged shallowly over the element's current style. */
+  style?: HmiStyle;
+  visible?: boolean;
+  locked?: boolean;
+  zIndex?: number;
+}
+
+/** Update a registered element's name, properties, style, visibility, lock, or z-order. */
+export function updateHmiElement(
+  project: PlcProject,
+  input: UpdateHmiElementInput,
+): ProjectActionResult<{ elementId: string }> {
+  const hmi = getHmiProject(project);
+  if (!hmi) return fail(project, "No HMI project is configured.");
+  if (input.name !== undefined && !input.name.trim()) {
+    return fail(project, "HMI element name cannot be blank.");
+  }
+  if (input.zIndex !== undefined && (!Number.isFinite(input.zIndex) || input.zIndex < 0)) {
+    return fail(project, "HMI element z-order must be a non-negative number.");
+  }
+
+  let updated = false;
+  let readOnly = false;
+  const next = mapSurfaceElements(hmi, input.surfaceKind, input.surfaceId, (elements) =>
+    elements.map((element) => {
+      if (element.id !== input.elementId) return element;
+      if (element.unsupported) {
+        readOnly = true;
+        return element;
+      }
+      updated = true;
+      return {
+        ...element,
+        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+        ...(input.properties ? { properties: { ...element.properties, ...input.properties } } : {}),
+        ...(input.style ? { style: { ...element.style, ...input.style } } : {}),
+        ...(input.visible !== undefined ? { visible: input.visible } : {}),
+        ...(input.locked !== undefined ? { locked: input.locked } : {}),
+        ...(input.zIndex !== undefined ? { zIndex: input.zIndex } : {}),
+      };
+    }),
+  );
+  if (!next) return fail(project, `HMI ${surfaceLabel(input.surfaceKind)} was not found.`);
+  if (readOnly) return fail(project, "Read-only unsupported HMI element cannot be edited.");
+  if (!updated) return fail(project, "HMI element was not found.");
+  return commitHmi(project, next, { elementId: input.elementId });
+}
+
+export interface DeleteHmiElementInput {
+  surfaceKind: HmiSurfaceKind;
+  surfaceId: string;
+  elementId: string;
+}
+
+/** Remove an element (supported or unsupported) from a surface. */
+export function deleteHmiElement(
+  project: PlcProject,
+  input: DeleteHmiElementInput,
+): ProjectActionResult<{ elementId: string }> {
+  const hmi = getHmiProject(project);
+  if (!hmi) return fail(project, "No HMI project is configured.");
+
+  let removed = false;
+  const next = mapSurfaceElements(hmi, input.surfaceKind, input.surfaceId, (elements) => {
+    const kept = elements.filter((element) => {
+      if (element.id === input.elementId) {
+        removed = true;
+        return false;
+      }
+      return true;
+    });
+    return kept;
+  });
+  if (!next) return fail(project, `HMI ${surfaceLabel(input.surfaceKind)} was not found.`);
+  if (!removed) return fail(project, "HMI element was not found.");
+  return commitHmi(project, next, { elementId: input.elementId });
+}
+
+export interface RemoveHmiElementBindingInput {
+  surfaceKind: HmiSurfaceKind;
+  surfaceId: string;
+  elementId: string;
+  bindingId: string;
+}
+
+/** Remove one property binding from an element. */
+export function removeHmiElementBinding(
+  project: PlcProject,
+  input: RemoveHmiElementBindingInput,
+): ProjectActionResult<{ elementId: string; bindingId: string }> {
+  const hmi = getHmiProject(project);
+  if (!hmi) return fail(project, "No HMI project is configured.");
+
+  let removed = false;
+  const next = mapSurfaceElements(hmi, input.surfaceKind, input.surfaceId, (elements) =>
+    elements.map((element) => {
+      if (element.id !== input.elementId) return element;
+      const bindings = element.bindings.filter((binding) => {
+        if (binding.id === input.bindingId) {
+          removed = true;
+          return false;
+        }
+        return true;
+      });
+      return { ...element, bindings };
+    }),
+  );
+  if (!next) return fail(project, `HMI ${surfaceLabel(input.surfaceKind)} was not found.`);
+  if (!removed) return fail(project, "HMI binding was not found.");
+  return commitHmi(project, next, { elementId: input.elementId, bindingId: input.bindingId });
+}
+
+export interface RemoveHmiEventCommandInput {
+  surfaceKind: HmiSurfaceKind;
+  surfaceId: string;
+  elementId: string;
+  eventId: string;
+  commandId: string;
+}
+
+/** Remove one command from an event handler; drops the handler if it becomes empty. */
+export function removeHmiEventCommand(
+  project: PlcProject,
+  input: RemoveHmiEventCommandInput,
+): ProjectActionResult<{ elementId: string; commandId: string }> {
+  const hmi = getHmiProject(project);
+  if (!hmi) return fail(project, "No HMI project is configured.");
+
+  let removed = false;
+  const next = mapSurfaceElements(hmi, input.surfaceKind, input.surfaceId, (elements) =>
+    elements.map((element) => {
+      if (element.id !== input.elementId) return element;
+      const events = element.events
+        .map((event) => {
+          if (event.id !== input.eventId) return event;
+          const commands = event.commands.filter((command) => {
+            if (command.id === input.commandId) {
+              removed = true;
+              return false;
+            }
+            return true;
+          });
+          return { ...event, commands };
+        })
+        .filter((event) => event.commands.length > 0);
+      return { ...element, events };
+    }),
+  );
+  if (!next) return fail(project, `HMI ${surfaceLabel(input.surfaceKind)} was not found.`);
+  if (!removed) return fail(project, "HMI event command was not found.");
+  return commitHmi(project, next, { elementId: input.elementId, commandId: input.commandId });
+}
+
+export interface SetHmiHomeScreenInput {
+  /** Screen id to mark as home, or null/blank to clear the home screen. */
+  screenId: string | null;
+}
+
+/** Set (or clear) the project's home screen. */
+export function setHmiHomeScreen(
+  project: PlcProject,
+  input: SetHmiHomeScreenInput,
+): ProjectActionResult<{ homeScreenId?: string }> {
+  const hmi = getHmiProject(project);
+  if (!hmi) return fail(project, "No HMI project is configured.");
+  const screenId = input.screenId?.trim() || undefined;
+  if (screenId && !hmi.screens.some((screen) => screen.id === screenId)) {
+    return fail(project, `HMI screen "${screenId}" was not found.`);
+  }
+  const next: HmiProject = { ...hmi, homeScreenId: screenId };
+  return commitHmi(project, next, { homeScreenId: screenId });
+}
+
+export interface RenameHmiSurfaceInput {
+  surfaceKind: "screen" | "popup";
+  surfaceId: string;
+  name: string;
+}
+
+/** Rename a screen or popup (rejects duplicate names within that surface kind). */
+export function renameHmiSurface(
+  project: PlcProject,
+  input: RenameHmiSurfaceInput,
+): ProjectActionResult<{ surfaceId: string; name: string }> {
+  const hmi = getHmiProject(project);
+  if (!hmi) return fail(project, "No HMI project is configured.");
+  const name = input.name?.trim();
+  if (!name) return fail(project, "HMI surface name is required.");
+
+  if (input.surfaceKind === "screen") {
+    const target = hmi.screens.find((screen) => screen.id === input.surfaceId);
+    if (!target) return fail(project, "HMI screen was not found.");
+    if (hmi.screens.some((screen) => screen.id !== input.surfaceId && screen.name.toLowerCase() === name.toLowerCase())) {
+      return fail(project, `HMI screen "${name}" already exists.`);
+    }
+    const next: HmiProject = {
+      ...hmi,
+      screens: hmi.screens.map((screen) =>
+        screen.id === input.surfaceId ? { ...screen, name } : screen,
+      ),
+    };
+    return commitHmi(project, next, { surfaceId: input.surfaceId, name });
+  }
+
+  const target = hmi.popups.find((popup) => popup.id === input.surfaceId);
+  if (!target) return fail(project, "HMI popup was not found.");
+  if (hmi.popups.some((popup) => popup.id !== input.surfaceId && popup.name.toLowerCase() === name.toLowerCase())) {
+    return fail(project, `HMI popup "${name}" already exists.`);
+  }
+  const next: HmiProject = {
+    ...hmi,
+    popups: hmi.popups.map((popup) =>
+      popup.id === input.surfaceId ? { ...popup, name, caption: popup.caption === target.name ? name : popup.caption } : popup,
+    ),
+  };
+  return commitHmi(project, next, { surfaceId: input.surfaceId, name });
+}
+
+export interface DeleteHmiScreenInput {
+  screenId: string;
+}
+
+/**
+ * Delete a screen. Reassigns the home screen to the first remaining screen (or
+ * clears it) and drops shortcuts that targeted the deleted screen. Navigation
+ * commands pointing at it are left intact so HMI validation honestly flags them.
+ */
+export function deleteHmiScreen(
+  project: PlcProject,
+  input: DeleteHmiScreenInput,
+): ProjectActionResult<{ screenId: string }> {
+  const hmi = getHmiProject(project);
+  if (!hmi) return fail(project, "No HMI project is configured.");
+  if (!hmi.screens.some((screen) => screen.id === input.screenId)) {
+    return fail(project, "HMI screen was not found.");
+  }
+
+  const screens = hmi.screens.filter((screen) => screen.id !== input.screenId);
+  const homeScreenId =
+    hmi.homeScreenId === input.screenId ? screens[0]?.id : hmi.homeScreenId;
+  const shortcuts = hmi.shortcuts.filter(
+    (shortcut) => !(shortcut.targetKind === "screen" && shortcut.targetId === input.screenId),
+  );
+  const next: HmiProject = { ...hmi, screens, homeScreenId, shortcuts };
+  return commitHmi(project, next, { screenId: input.screenId });
+}
+
+export interface DeleteHmiPopupInput {
+  popupId: string;
+}
+
+/** Delete a popup and drop shortcuts that targeted it. */
+export function deleteHmiPopup(
+  project: PlcProject,
+  input: DeleteHmiPopupInput,
+): ProjectActionResult<{ popupId: string }> {
+  const hmi = getHmiProject(project);
+  if (!hmi) return fail(project, "No HMI project is configured.");
+  if (!hmi.popups.some((popup) => popup.id === input.popupId)) {
+    return fail(project, "HMI popup was not found.");
+  }
+
+  const popups = hmi.popups.filter((popup) => popup.id !== input.popupId);
+  const shortcuts = hmi.shortcuts.filter(
+    (shortcut) => !(shortcut.targetKind === "popup" && shortcut.targetId === input.popupId),
+  );
+  const next: HmiProject = { ...hmi, popups, shortcuts };
+  return commitHmi(project, next, { popupId: input.popupId });
 }
