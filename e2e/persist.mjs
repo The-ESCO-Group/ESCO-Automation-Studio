@@ -1,7 +1,7 @@
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { URL, importStarterProject, openMainRoutine, ribbonButton } from "./helpers.mjs";
+import { URL, addPaletteInstruction, importStarterProject, openMainRoutine, ribbonButton } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const shot = (n) => join(here, n);
@@ -14,7 +14,6 @@ function check(label, cond, detail = "") {
 }
 const rungCount = (page) => page.locator(".esco-lad__rung").count();
 const lampRows = (page) => page.locator('.esco-watch tr:has-text("Lamp")').count();
-const palette = (page, type) => page.locator(".esco-palette").getByRole("button", { name: type, exact: true });
 async function operandValues(scope) {
   return scope.locator("input.esco-lad__operand").evaluateAll((els) => els.map((e) => e.value));
 }
@@ -49,8 +48,8 @@ try {
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung").length === 2);
   const newRung = page.locator(".esco-lad__rung").nth(1);
   // New rung is auto-selected on Add; grouped palette targets the selected rung.
-  await palette(page, "XIC").click();
-  await palette(page, "OTE").click();
+  await addPaletteInstruction(page, "XIC");
+  await addPaletteInstruction(page, "OTE");
   await page.waitForFunction(
     () => document.querySelectorAll(".esco-lad__rung")[1].querySelectorAll("input.esco-lad__operand").length === 2,
   );

@@ -1,8 +1,8 @@
 import { chromium } from "playwright-core";
-import { URL, createBlankProject } from "./helpers.mjs";
+import { URL, addPaletteInstruction, createBlankProject, paletteButton } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
-const palette = (page, type) => page.locator(".esco-palette").getByRole("button", { name: type, exact: true });
+const palette = paletteButton;
 const selOperands = (page) => page.locator(".esco-lad__rung.is-selected input.esco-lad__operand");
 const setOperand = async (input, text) => { await input.click(); await input.fill(""); await input.pressSequentially(text); };
 const watchText = (page, tag) => page.locator(`.esco-watch tr:has-text("${tag}")`).first().innerText();
@@ -21,9 +21,9 @@ try {
 
   // Build a one-shot counter rung: XIC(Btn) ONS(OneShot) CTU(Counter1, 5)
   await page.locator('button:has-text("Add Rung")').click();
-  await palette(page, "XIC").click();
-  await palette(page, "ONS").click();
-  await palette(page, "CTU").click();
+  await addPaletteInstruction(page, "XIC");
+  await addPaletteInstruction(page, "ONS");
+  await addPaletteInstruction(page, "CTU");
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung.is-selected .esco-lad__operand").length === 4);
   const ins = selOperands(page);
   await setOperand(ins.nth(0), "Btn");

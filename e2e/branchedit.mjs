@@ -1,8 +1,7 @@
 import { chromium } from "playwright-core";
-import { URL, createBlankProject } from "./helpers.mjs";
+import { URL, addPaletteInstruction, createBlankProject } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
-const palette = (page, type) => page.locator(".esco-palette").getByRole("button", { name: type, exact: true });
 const selOperands = (page) => page.locator(".esco-lad__rung.is-selected input.esco-lad__operand");
 const setOperand = async (input, text) => { await input.click(); await input.fill(""); await input.pressSequentially(text); };
 const watchText = (page, tag) => page.locator(`.esco-watch tr:has-text("${tag}")`).first().innerText();
@@ -30,8 +29,8 @@ try {
   await leg(page, 0).locator('button:has-text("XIC")').click();
   await leg(page, 1).locator('button:has-text("XIC")').click();
   // Downstream after the merge: XIO(StopPB) OTE(MotorRun) via the main palette.
-  await palette(page, "XIO").click();
-  await palette(page, "OTE").click();
+  await addPaletteInstruction(page, "XIO");
+  await addPaletteInstruction(page, "OTE");
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung.is-selected .esco-lad__operand").length === 4);
 
   const ins = selOperands(page);

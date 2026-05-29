@@ -1,13 +1,12 @@
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { URL, importStarterProject } from "./helpers.mjs";
+import { URL, addPaletteInstruction, importStarterProject } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const results = [];
 const check = (label, cond, detail = "") => { results.push(!!cond); console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? "  — " + detail : ""}`); };
 const rungCount = (page) => page.locator(".esco-lad__rung").count();
-const palette = (page, type) => page.locator(".esco-palette").getByRole("button", { name: type, exact: true });
 const setOperand = async (input, text) => { await input.click(); await input.fill(""); await input.pressSequentially(text); };
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
@@ -28,9 +27,9 @@ try {
   check("Delete Rung removes the seal-in rung", (await rungCount(page)) === 1);
 
   // Build XIC(StartPB) XIO(StopPB) OTE(MotorRun) via the grouped palette (targets selected rung).
-  await palette(page, "XIC").click();
-  await palette(page, "XIO").click();
-  await palette(page, "OTE").click();
+  await addPaletteInstruction(page, "XIC");
+  await addPaletteInstruction(page, "XIO");
+  await addPaletteInstruction(page, "OTE");
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__operand").length === 3);
   const inputs = page.locator(".esco-lad__operand");
   await setOperand(inputs.nth(0), "StartPB");

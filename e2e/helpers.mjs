@@ -25,6 +25,17 @@ export const STARTER_L5X = `<?xml version="1.0" encoding="UTF-8"?>
 export const ribbonButton = (page, label) =>
   page.locator(`.esco-ribbon__button:has-text("${label}")`).first();
 
+export const paletteButton = (page, type) =>
+  page.locator(`.esco-palette__menu button[aria-label="${type}"]`).first();
+
+export async function addPaletteInstruction(page, type) {
+  const group = page.locator(".esco-palette__group").filter({
+    has: page.locator(`button[aria-label="${type}"]`),
+  }).first();
+  await group.locator(".esco-palette__summary").click();
+  await paletteButton(page, type).click();
+}
+
 export const l5xInput = (page) =>
   page.locator('input[type="file"][accept*=".l5x"]').first();
 

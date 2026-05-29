@@ -229,6 +229,84 @@ function buildInstructionGroups(): InstructionGroup[] {
 /** Instruction palette follows the registry so backend instruction additions appear automatically. */
 const INSTRUCTION_GROUPS = buildInstructionGroups();
 
+function InstructionButton({
+  definition,
+  disabled,
+  onAdd,
+}: {
+  definition: InstructionDefinition;
+  disabled: boolean;
+  onAdd: (instructionType: string) => void;
+}) {
+  return (
+    <button
+      key={definition.type}
+      type="button"
+      className={`esco-btn esco-btn--instr${definition.modelOnly ? " esco-btn--model-only" : ""}`}
+      disabled={disabled}
+      aria-label={definition.type}
+      title={
+        disabled
+          ? "Select a rung first"
+          : `Add ${definition.displayName}${definition.modelOnly ? " (model-only)" : ""} to the selected rung`
+      }
+      onClick={(event) => {
+        if (!disabled) onAdd(definition.type);
+        event.currentTarget.closest("details.esco-palette__group")?.removeAttribute("open");
+      }}
+    >
+      <span>{definition.type}</span>
+      {definition.modelOnly ? <span className="esco-palette__model" aria-hidden="true">M</span> : null}
+    </button>
+  );
+}
+
+function InstructionPalette({
+  selectedRungId,
+  onAddInstruction,
+}: {
+  selectedRungId?: string;
+  onAddInstruction: (rungId: string, instructionType: string) => void;
+}) {
+  const disabled = !selectedRungId;
+  const add = (instructionType: string) => {
+    if (selectedRungId) onAddInstruction(selectedRungId, instructionType);
+  };
+  const closeSiblings = (current: HTMLDetailsElement) => {
+    if (!current.open) return;
+    current.parentElement
+      ?.querySelectorAll<HTMLDetailsElement>("details.esco-palette__group[open]")
+      .forEach((details) => {
+        if (details !== current) details.removeAttribute("open");
+      });
+  };
+
+  return (
+    <div className="esco-palette" aria-label="Instruction palette">
+      {INSTRUCTION_GROUPS.map((group) => (
+        <details className="esco-palette__group" key={group.label} onToggle={(event) => closeSiblings(event.currentTarget)}>
+          <summary
+            className="esco-palette__summary"
+            title={disabled ? "Select a rung first" : `${group.label} instructions (${group.definitions.length})`}
+          >
+            <span>{group.label}</span>
+          </summary>
+          <div className="esco-palette__menu" role="menu" aria-label={`${group.label} instructions`}>
+            {group.definitions.map((definition) => (
+              <InstructionButton
+                key={definition.type}
+                definition={definition}
+                disabled={disabled}
+                onAdd={add}
+              />
+            ))}
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
 const LANGUAGE_LABEL: Record<Routine["language"], string> = {
   ladder: "Ladder",
   "structured-text": "Structured Text",
@@ -550,31 +628,7 @@ export function EditorArea({
           >
             Paste Rung
           </button>
-          <div className="esco-palette">
-            {INSTRUCTION_GROUPS.map((group) => (
-              <div className="esco-palette__group" key={group.label}>
-                <span className="esco-palette__label">{group.label}</span>
-                {group.definitions.map((definition) => (
-                  <button
-                    key={definition.type}
-                    type="button"
-                    className={`esco-btn esco-btn--instr${definition.modelOnly ? " esco-btn--model-only" : ""}`}
-                    disabled={!selectedRungId}
-                    aria-label={definition.type}
-                    title={
-                      selectedRungId
-                        ? `Add ${definition.displayName}${definition.modelOnly ? " (model-only)" : ""} to the selected rung`
-                        : "Select a rung first"
-                    }
-                    onClick={() => selectedRungId && onAddInstruction(selectedRungId, definition.type)}
-                  >
-                    <span>{definition.type}</span>
-                    {definition.modelOnly ? <span className="esco-palette__model" aria-hidden="true">M</span> : null}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </div>
+          <InstructionPalette selectedRungId={selectedRungId} onAddInstruction={onAddInstruction} />
         </div>
 
         {ladder.rungs.length === 0 ? (
