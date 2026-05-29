@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { PlcProject } from "@esco/core";
 import { collectTagReferences } from "@esco/project-actions";
 import type { ValidationFinding } from "@esco/validator";
@@ -177,7 +178,15 @@ export function BottomPanel({
   controller,
   onToast,
 }: Props) {
-  const setTab = onTabChange;
+  const [expanded, setExpanded] = useState(true);
+  const setTab = (next: DockTab) => {
+    if (next === tab) {
+      setExpanded(true);
+      return;
+    }
+    onTabChange(next);
+    setExpanded(true);
+  };
   const xrefCount = selectedTagName ? collectTagReferences(project, selectedTagName).length : 0;
   const forceCount = Object.keys(forces).length;
   const forcedRows = tags.filter((row) => row.name in forces);
@@ -208,74 +217,28 @@ export function BottomPanel({
 
   if (empty) {
     return (
-      <div className="esco-empty-dock">
-        <section className="esco-empty-dock__pane esco-empty-dock__pane--diagnostics">
-          <div className="esco-dock__tabs">
-            {["Diagnostics", "Search Results", "References", "Build", "Watch", "Trend"].map((label, index) => (
-              <button
-                key={label}
-                type="button"
-                className={`esco-dock__tab${index === 0 ? " is-active" : ""}`}
-                disabled={index !== 0}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="esco-empty-diagnostics">
-            <table className="esco-diagnostics__table">
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Source</th>
-                  <th>Message</th>
-                  <th>Location</th>
-                  <th>Time</th>
-                </tr>
-              </thead>
-            </table>
-            <div className="esco-empty-diagnostics__message">
-              <span className="esco-empty-diagnostics__check">✓</span>
-              <strong>No diagnostics</strong>
-              <span>Build and runtime messages will appear here.</span>
-            </div>
-          </div>
-        </section>
-        <section className="esco-empty-dock__pane esco-empty-dock__pane--watch">
-          <div className="esco-dock__tabs">
-            <button type="button" className="esco-dock__tab is-active" disabled>Watch</button>
-            <button type="button" className="esco-dock__tab" disabled>Add Watch</button>
-            <button type="button" className="esco-dock__tab esco-dock__tab--icon" disabled>+</button>
-          </div>
-          <div className="esco-empty-watch">
-            <table className="esco-watch">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Value</th>
-                  <th>Type</th>
-                  <th>Force</th>
-                  <th>Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <tr key={index}>
-                    {Array.from({ length: 5 }).map((__, cell) => (
-                      <td key={cell}><span className="esco-skeleton" /></td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+      <div className="esco-dock is-collapsed">
+        <div className="esco-dock__tabs">
+          {["Diagnostics", "Search Results", "References", "Build", "Watch", "Trend"].map((label, index) => (
+            <button
+              key={label}
+              type="button"
+              className={`esco-dock__tab${index === 0 ? " is-active" : ""}`}
+              disabled
+            >
+              {label}
+            </button>
+          ))}
+          <button type="button" className="esco-dock__tab esco-dock__tab--collapse" disabled>
+            Dock collapsed
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="esco-dock">
+    <div className={`esco-dock${expanded ? " is-expanded" : " is-collapsed"}`}>
       <div className="esco-dock__tabs">
         <button
           type="button"
@@ -353,6 +316,13 @@ export function BottomPanel({
           onClick={() => setTab("controller")}
         >
           Controller
+        </button>
+        <button
+          type="button"
+          className="esco-dock__tab esco-dock__tab--collapse"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? "Dock expanded" : "Dock collapsed"}
         </button>
       </div>
 

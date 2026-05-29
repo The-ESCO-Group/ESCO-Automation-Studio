@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, type MouseEvent } from "react";
 import { createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
 import type { LadderBranch, LadderNode, LadderRung } from "@esco/ladder";
 
@@ -13,6 +13,7 @@ export interface LadderEditingHandlers {
   operandSuggestions?: string[];
   selectedNodeId?: string;
   onSelectNode?: (rungId: string, nodeId: string) => void;
+  onOpenInstructionMenu?: (event: MouseEvent<HTMLElement>, rungId: string, node: LadderNode) => void;
 }
 
 interface EditingContextValue extends LadderEditingHandlers {
@@ -107,6 +108,12 @@ function ContactGlyph({ node }: { node: LadderNode }) {
         event.stopPropagation();
         editing.onSelectNode?.(editing.rungId, node.id);
       }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        editing.onSelectNode?.(editing.rungId, node.id);
+        editing.onOpenInstructionMenu?.(event, editing.rungId, node);
+      }}
     >
       <span className="esco-lad__bracket">{lhs}</span>
       <OperandInput editing={editing} nodeId={node.id} index={0} value={value} placeholder="tag" />
@@ -146,6 +153,12 @@ function BoxGlyph({ node }: { node: LadderNode }) {
       onClick={(event) => {
         event.stopPropagation();
         editing.onSelectNode?.(editing.rungId, node.id);
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        editing.onSelectNode?.(editing.rungId, node.id);
+        editing.onOpenInstructionMenu?.(event, editing.rungId, node);
       }}
     >
       <span className="esco-lad__box-name">{node.instructionType}</span>

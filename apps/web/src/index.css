@@ -5543,3 +5543,193 @@ body {
 }
 
 .esco-controller__audit h4 { margin: 6px 0; font-size: 12px; }
+
+/* Integration polish: stable IDE shell, dock, copilot drawer, and context menu. */
+.esco-body.is-right-open {
+  grid-template-columns: 40px 254px minmax(520px, 1fr) minmax(300px, 360px) 32px;
+}
+
+.esco-right.is-open {
+  position: static;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+}
+
+.esco-right__chrome {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.esco-right__close {
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+}
+
+.esco-right__content {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.esco-inspector-handle {
+  display: grid;
+  min-height: 0;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  background: #fbfcff;
+  color: var(--accent-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.esco-inspector-handle:hover,
+.esco-inspector-handle.is-open {
+  background: #eef0ff;
+}
+
+.esco-dock {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+}
+
+.esco-dock__body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.esco-dock.is-collapsed .esco-dock__body {
+  display: none;
+}
+
+.esco-dock.is-expanded .esco-dock__body {
+  display: block;
+}
+
+.esco-dock__tab--collapse {
+  margin-left: auto;
+}
+
+.esco-lad__rung-head {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: 36px;
+  height: auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+
+.esco-lad__diagram {
+  position: relative;
+  z-index: 1;
+}
+
+.esco-context-menu {
+  position: fixed;
+  z-index: 120;
+  width: 240px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(16, 24, 40, 0.18);
+}
+
+.esco-context-menu__title {
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.esco-context-menu__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+.esco-context-menu__item:hover {
+  background: #f4f5ff;
+}
+
+.esco-context-menu__item:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.esco-context-menu__item--danger {
+  color: var(--error);
+}
+
+.esco-context-menu__icon {
+  width: 18px;
+  color: var(--accent-strong);
+  text-align: center;
+}
+
+.esco-context-menu__shortcut {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.esco-context-menu__sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
+}
+
+.esco-statusbar__run {
+  color: var(--text-dim);
+}
+
+.esco-statusbar__run.is-running {
+  color: var(--live);
+  font-weight: 800;
+}
+
+.esco-statusbar__issues,
+.esco-statusbar__mode,
+.esco-statusbar__position,
+.esco-statusbar__zoom {
+  color: var(--text-dim);
+}
+
+@media (max-width: 1180px) {
+  .esco-body.is-right-open {
+    grid-template-columns: 40px 236px minmax(420px, 1fr) minmax(280px, 340px) 32px;
+  }
+}

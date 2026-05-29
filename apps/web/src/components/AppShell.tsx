@@ -17,6 +17,8 @@ interface Props {
   left: ReactNode;
   center: ReactNode;
   right: ReactNode;
+  rightOpen?: boolean;
+  onRightOpenChange?: (open: boolean) => void;
   bottomDock: ReactNode;
   statusBar: ReactNode;
 }
@@ -31,6 +33,8 @@ export function AppShell({
   left,
   center,
   right,
+  rightOpen = false,
+  onRightOpenChange,
   bottomDock,
   statusBar,
 }: Props) {
@@ -40,7 +44,7 @@ export function AppShell({
       {ribbon}
       {toasts}
       {recovery}
-      <div className="esco-body">
+      <div className={`esco-body${rightOpen ? " is-right-open" : ""}`}>
         <nav className="esco-activity-rail" aria-label="Workspace views">
           {activityItems.map((item) => (
             <button
@@ -60,7 +64,32 @@ export function AppShell({
           <main className="esco-center">{center}</main>
           <footer className="esco-bottom">{bottomDock}</footer>
         </div>
-        <aside className="esco-right">{right}</aside>
+        {rightOpen ? (
+          <aside className="esco-right is-open" aria-label="AI Copilot and inspector">
+            <div className="esco-right__chrome">
+              <span>AI Copilot</span>
+              <button
+                type="button"
+                className="esco-right__close"
+                onClick={() => onRightOpenChange?.(false)}
+                aria-label="Close AI Copilot"
+                title="Close AI Copilot"
+              >
+                ×
+              </button>
+            </div>
+            <div className="esco-right__content">{right}</div>
+          </aside>
+        ) : null}
+        <button
+          type="button"
+          className={`esco-inspector-handle${rightOpen ? " is-open" : ""}`}
+          title={rightOpen ? "Hide AI Copilot" : "Show AI Copilot"}
+          aria-label={rightOpen ? "Hide AI Copilot" : "Show AI Copilot"}
+          onClick={() => onRightOpenChange?.(!rightOpen)}
+        >
+          AI
+        </button>
       </div>
       {statusBar}
     </div>

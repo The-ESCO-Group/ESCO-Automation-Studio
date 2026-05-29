@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { arrayElementNames, isStructuredType, memberDefs, type PlcProject, type Routine } from "@esco/core";
 import {
   baseTagName,
@@ -7,7 +7,7 @@ import {
   type InstructionCategory,
   type InstructionDefinition,
 } from "@esco/instructions";
-import { routineNodes, type LadderBranch, type LadderRung, type LadderRoutine } from "@esco/ladder";
+import { routineNodes, type LadderBranch, type LadderNode, type LadderRung, type LadderRoutine } from "@esco/ladder";
 import type { ValidationFinding } from "@esco/validator";
 import { tagExists } from "../project-edit";
 import { capList } from "../windowing";
@@ -169,6 +169,24 @@ interface InstructionGroup {
   label: string;
   definitions: InstructionDefinition[];
 }
+
+type LadderContextMenu =
+  | {
+      kind: "instruction";
+      x: number;
+      y: number;
+      rungId: string;
+      nodeId: string;
+      instructionType: string;
+      operand: string;
+    }
+  | {
+      kind: "rung";
+      x: number;
+      y: number;
+      rungId: string;
+      rungNumber: number;
+    };
 
 const CATEGORY_LABELS: Partial<Record<InstructionCategory, string>> = {
   bit: "Bit",
@@ -560,6 +578,10 @@ function findUndefinedTags(ladder: LadderRoutine, project: PlcProject): Undefine
   return [...found].map(([name, inferredType]) => ({ name, inferredType }));
 }
 
+function ContextShortcut({ children }: { children: string }) {
+  return <span className="esco-context-menu__shortcut">{children}</span>;
+}
+
 export function EditorArea({
   project,
   routine,
@@ -590,6 +612,7 @@ export function EditorArea({
   onOpenRoutine,
 }: Props) {
   const [showAllRungs, setShowAllRungs] = useState(false);
+  const [contextMenu, setContextMenu] = useState<LadderContextMenu | null>(null);
   const suggestions = useMemo(() => operandSuggestions(project), [project]);
   const routineFindings = useMemo(
     () => (routine ? findings.filter((finding) => findingForRoutine(finding, routine)) : []),
@@ -615,11 +638,36 @@ export function EditorArea({
     onSelectNode,
     selectedNodeId,
     operandSuggestions: suggestions,
+    onOpenInstructionMenu: (event: MouseEvent<HTMLElement>, rungId: string, node: LadderNode) => {
+      setContextMenu({
+        kind: "instruction",
+        x: event.clientX,
+        y: event.clientY,
+        rungId,
+        nodeId: node.id,
+        instructionType: node.instructionType,
+        operand: node.operands[0]?.value ?? "",
+      });
+    },
     isUndefinedTag: (value: string) => {
       const base = baseTagName(value);
       return base !== "" && !tagExists(project, base);
     },
   };
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu]);
 
   if (!routine) {
     return (
@@ -708,6 +756,17 @@ export function EditorArea({
                 rungFindings.length ? " has-finding" : ""
               }`}
               onClick={() => onSelectRung(rung.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                onSelectRung(rung.id);
+                setContextMenu({
+                  kind: "rung",
+                  x: event.clientX,
+                  y: event.clientY,
+                  rungId: rung.id,
+                  rungNumber: rung.number,
+                });
+              }}
             >
               <div className="esco-lad__rung-head">
                 <span className="esco-lad__rung-no">{rung.number}</span>
@@ -799,6 +858,129 @@ export function EditorArea({
           </div>
         ) : null}
       </div>
+      {contextMenu ? (
+        <div
+          className="esco-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="esco-context-menu__title">
+            {contextMenu.kind === "instruction"
+              ? `${contextMenu.instructionType} ${contextMenu.operand}`.trim()
+              : `Rung ${String(contextMenu.rungNumber).padStart(3, "0")}`}
+          </div>
+          {contextMenu.kind === "instruction" ? (
+            <>
+              <button type="button" className="esco-context-menu__item" onClick={() => setContextMenu(null)}>
+                <span className="esco-context-menu__icon">✎</span>
+                Edit Operand
+                <ContextShortcut>Enter</ContextShortcut>
+              </button>
+              <button type="button" className="esco-context-menu__item" disabled>
+                <span className="esco-context-menu__icon">◉</span>
+                Toggle XIC / XIO
+                <ContextShortcut>T</ContextShortcut>
+              </button>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                onClick={() => {
+                  onAddParallelBranch(contextMenu.rungId);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon">⑂</span>
+                Add Parallel Branch
+                <ContextShortcut>›</ContextShortcut>
+              </button>
+              <button type="button" className="esco-context-menu__item" disabled>
+                <span className="esco-context-menu__icon">{"{}"}</span>
+                Replace Instruction
+                <ContextShortcut>Ctrl+R ›</ContextShortcut>
+              </button>
+              <div className="esco-context-menu__sep" />
+              <button type="button" className="esco-context-menu__item" disabled>
+                <span className="esco-context-menu__icon">◌</span>
+                Watch Tag
+                <ContextShortcut>Ctrl+W</ContextShortcut>
+              </button>
+              <button type="button" className="esco-context-menu__item" disabled>
+                <span className="esco-context-menu__icon">⌕</span>
+                Cross Reference Tag
+                <ContextShortcut>Shift+F12</ContextShortcut>
+              </button>
+              <button type="button" className="esco-context-menu__item" disabled>
+                <span className="esco-context-menu__icon">⚙</span>
+                Force Value
+              </button>
+              <div className="esco-context-menu__sep" />
+              <button
+                type="button"
+                className="esco-context-menu__item esco-context-menu__item--danger"
+                onClick={() => {
+                  onRemoveInstruction(contextMenu.rungId, contextMenu.nodeId);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon">⌫</span>
+                Delete Instruction
+                <ContextShortcut>Del</ContextShortcut>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                onClick={() => {
+                  onAddRung();
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon">+</span>
+                Add Rung Below
+                <ContextShortcut>Ctrl+I</ContextShortcut>
+              </button>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                onClick={() => {
+                  onDuplicateRung(contextMenu.rungId);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon">⧉</span>
+                Duplicate Rung
+                <ContextShortcut>Ctrl+D</ContextShortcut>
+              </button>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                onClick={() => {
+                  onCopyRung(contextMenu.rungId);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon">□</span>
+                Copy Rung
+              </button>
+              <div className="esco-context-menu__sep" />
+              <button
+                type="button"
+                className="esco-context-menu__item esco-context-menu__item--danger"
+                onClick={() => {
+                  onDeleteRung(contextMenu.rungId);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon">⌫</span>
+                Delete Rung
+                <ContextShortcut>Del</ContextShortcut>
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
