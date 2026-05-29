@@ -9,6 +9,7 @@ import {
   type Routine,
   type Tag,
 } from "@esco/core";
+import { createDefaultHmiProject } from "@esco/hmi-model";
 import { createLadderRoutine, type LadderRoutine } from "@esco/ladder";
 
 /**
@@ -39,7 +40,8 @@ export function createBlankRoutineProject(): PlcProject {
   controller.programs.push(program);
   project.controllers.push(controller);
 
-  return project;
+  const projectWithHmi = { ...project, hmi: createDefaultHmiProject("Untitled HMI") };
+  return projectWithHmi;
 }
 
 export function findMainRoutine(project: PlcProject): Routine | undefined {

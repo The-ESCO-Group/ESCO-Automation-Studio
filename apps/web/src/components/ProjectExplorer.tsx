@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Panel } from "@esco/ui";
 import type { PlcProject } from "@esco/core";
+import { getHmiProject } from "@esco/hmi-model";
 import type { Selection } from "../selection";
 
 interface Props {
@@ -11,10 +12,14 @@ interface Props {
 }
 
 export function ProjectExplorer({ project, selection, onSelect, empty = false }: Props) {
-  const [tab, setTab] = useState<"controllers" | "assets" | "library">("controllers");
+  const [tab, setTab] = useState<"controllers" | "hmi" | "assets" | "library">("controllers");
+  const [filter, setFilter] = useState("");
+  const filterText = filter.trim().toLowerCase();
+  const matchesFilter = (value: string) => !filterText || value.toLowerCase().includes(filterText);
   const isSelected = (kind: string, id: string) =>
     !!selection && selection.kind === kind && "id" in selection && selection.id === id;
   const controller = project.controllers[0];
+  const hmi = getHmiProject(project);
 
   return (
     <Panel title="Project Explorer">
@@ -58,9 +63,19 @@ export function ProjectExplorer({ project, selection, onSelect, empty = false }:
         </ul>
       ) : (
       <>
+      <div className="esco-explorer__filter">
+        <span aria-hidden="true">⌕</span>
+        <input
+          value={filter}
+          placeholder="Filter project"
+          spellCheck={false}
+          onChange={(event) => setFilter(event.target.value)}
+        />
+      </div>
       <div className="esco-explorer__tabs">
         {[
           ["controllers", "Controllers"],
+          ["hmi", "HMI"],
           ["assets", "Assets"],
           ["library", "Library"],
         ].map(([id, label]) => (
@@ -111,7 +126,7 @@ export function ProjectExplorer({ project, selection, onSelect, empty = false }:
                         Controller Tags ({controller.controllerTags.length})
                       </span>
                       <ul className="esco-tree esco-tree--nested">
-                        {controller.controllerTags.map((tag) => (
+                        {controller.controllerTags.filter((tag) => matchesFilter(tag.name)).map((tag) => (
                           <li key={tag.id}>
                             <button
                               type="button"
@@ -172,7 +187,7 @@ export function ProjectExplorer({ project, selection, onSelect, empty = false }:
                               <li>
                                 <span className="esco-tree__group">Routines ({program.routines.length})</span>
                                 <ul className="esco-tree esco-tree--nested">
-                                  {program.routines.map((routine) => (
+                                  {program.routines.filter((routine) => matchesFilter(routine.name)).map((routine) => (
                                     <li key={routine.id}>
                                       <button
                                         type="button"
@@ -285,6 +300,111 @@ export function ProjectExplorer({ project, selection, onSelect, empty = false }:
                 </li>
               ))}
             </ul>
+          </li>
+        </ul>
+      ) : tab === "hmi" ? (
+        <ul className="esco-tree">
+          <li>
+            <button
+              type="button"
+              className={`esco-tree__root esco-tree__root--button${
+                isSelected("hmi", hmi?.id ?? project.id) ? " is-selected" : ""
+              }`}
+              onClick={() => onSelect({ kind: "hmi", id: hmi?.id ?? project.id })}
+            >
+              <span className="esco-tree__icon" aria-hidden="true">▾</span>
+              HMI Project
+              <span className="esco-tree__meta">{hmi?.name ?? "not configured"}</span>
+            </button>
+            {hmi ? (
+              <ul className="esco-tree esco-tree--nested">
+                <li>
+                  <span className="esco-tree__group">
+                    <span className="esco-tree__icon" aria-hidden="true">▾</span>
+                    HMI Device
+                  </span>
+                  <ul className="esco-tree esco-tree--nested">
+                    <li>
+                      <span className="esco-tree__leaf">
+                        {hmi.targetDevice.name}
+                        <span className="esco-tree__meta">{hmi.targetDevice.width}x{hmi.targetDevice.height}</span>
+                      </span>
+                    </li>
+                  </ul>
+                </li>
+                <li>
+                  <span className="esco-tree__group">
+                    <span className="esco-tree__icon" aria-hidden="true">▾</span>
+                    Screens ({hmi.screens.length})
+                  </span>
+                  <ul className="esco-tree esco-tree--nested">
+                    {hmi.screens.length ? (
+                      hmi.screens.map((screen) => (
+                        <li key={screen.id}>
+                          <button
+                            type="button"
+                            className={`esco-tree__node esco-tree__node--routine${
+                              isSelected("hmi-screen", screen.id) ? " is-selected" : ""
+                            }`}
+                            onClick={() => onSelect({ kind: "hmi-screen", id: screen.id })}
+                          >
+                            <span className="esco-tree__icon" aria-hidden="true">HMI</span>
+                            {screen.name}
+                            {hmi.homeScreenId === screen.id ? <span className="esco-tree__meta">home</span> : null}
+                          </button>
+                        </li>
+                      ))
+                    ) : (
+                      <li><span className="esco-tree__leaf">No screens created</span></li>
+                    )}
+                  </ul>
+                </li>
+                <li>
+                  <span className="esco-tree__group">Popups ({hmi.popups.length})</span>
+                  <ul className="esco-tree esco-tree--nested">
+                    {hmi.popups.length ? (
+                      hmi.popups.map((popup) => (
+                        <li key={popup.id}>
+                          <button
+                            type="button"
+                            className={`esco-tree__node${isSelected("hmi-popup", popup.id) ? " is-selected" : ""}`}
+                            onClick={() => onSelect({ kind: "hmi-popup", id: popup.id })}
+                          >
+                            {popup.name}
+                            <span className="esco-tree__meta">{popup.width}x{popup.height}</span>
+                          </button>
+                        </li>
+                      ))
+                    ) : (
+                      <li><span className="esco-tree__leaf">No popups created</span></li>
+                    )}
+                  </ul>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={`esco-tree__group esco-tree__group--button${
+                      isSelected("hmi-banner", hmi.systemBanner.id) ? " is-selected" : ""
+                    }`}
+                    onClick={() => onSelect({ kind: "hmi-banner", id: hmi.systemBanner.id })}
+                  >
+                    System Banner
+                  </button>
+                </li>
+                <li><span className="esco-tree__group">Alarm Views ({hmi.alarmViews.length})</span></li>
+                <li><span className="esco-tree__group">Diagnostics Views ({hmi.diagnosticsViews.length})</span></li>
+                <li><span className="esco-tree__group">Trends ({hmi.trends.length})</span></li>
+                <li><span className="esco-tree__group">Data Logs ({hmi.dataLogs.length})</span></li>
+                <li><span className="esco-tree__group">Security ({hmi.security.roles.length} roles)</span></li>
+                <li><span className="esco-tree__group">Language Packs ({hmi.languagePacks.length})</span></li>
+                <li><span className="esco-tree__group">Images / PDFs ({hmi.assets.length})</span></li>
+                <li><span className="esco-tree__group">Unsupported Preserved Content ({hmi.unsupportedContent.length})</span></li>
+              </ul>
+            ) : (
+              <ul className="esco-tree esco-tree--nested">
+                <li><span className="esco-tree__leaf">Open the HMI Designer to create the project model.</span></li>
+              </ul>
+            )}
           </li>
         </ul>
       ) : tab === "assets" ? (

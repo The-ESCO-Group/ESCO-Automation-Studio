@@ -58,6 +58,7 @@ export default defineConfig({
       "@esco/compare": pkgSrc("compare"),
       "@esco/controller-comm": pkgSrc("controller-comm"),
       "@esco/core": pkgSrc("core"),
+      "@esco/hmi-model": pkgSrc("hmi-model"),
       "@esco/shared": pkgSrc("shared"),
       "@esco/ladder": pkgSrc("ladder"),
       "@esco/instructions": pkgSrc("instructions"),

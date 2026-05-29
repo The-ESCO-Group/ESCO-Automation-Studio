@@ -10,4 +10,8 @@ export type Selection =
   | { kind: "aoi"; id: string }
   | { kind: "udt"; id: string }
   | { kind: "io"; controllerId: string; moduleId?: string }
+  | { kind: "hmi"; id: string }
+  | { kind: "hmi-screen"; id: string }
+  | { kind: "hmi-popup"; id: string }
+  | { kind: "hmi-banner"; id: string }
   | null;

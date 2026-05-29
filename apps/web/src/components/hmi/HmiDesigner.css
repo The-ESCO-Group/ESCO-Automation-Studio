@@ -1,0 +1,474 @@
+.esco-hmi {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+  background: #f7f8fc;
+  color: #111827;
+}
+
+.esco-hmi--empty {
+  place-items: center;
+  padding: 28px;
+}
+
+.esco-hmi-empty-card {
+  width: min(520px, 100%);
+  border: 1px solid #e4e7f2;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 50px rgba(31, 41, 55, 0.08);
+  padding: 28px;
+  text-align: center;
+}
+
+.esco-hmi-empty-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-weight: 800;
+}
+
+.esco-hmi-empty-card h1 {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+
+.esco-hmi-empty-card p {
+  margin: 0 0 18px;
+  color: #667085;
+  line-height: 1.55;
+}
+
+.esco-hmi__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e4e7f2;
+  background: #ffffff;
+}
+
+.esco-hmi__header h1 {
+  margin: 2px 0 0;
+  font-size: 18px;
+}
+
+.esco-kicker {
+  margin: 0;
+  color: #4f46e5;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.esco-hmi__device {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.esco-hmi__device strong,
+.esco-hmi__device em {
+  border: 1px solid #e4e7f2;
+  border-radius: 999px;
+  background: #f8faff;
+  color: #344054;
+  font-style: normal;
+  padding: 5px 9px;
+}
+
+.esco-hmi__device em {
+  color: #12b76a;
+}
+
+.esco-hmi__workspace {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.72fr) minmax(280px, 1.55fr) minmax(170px, 0.78fr);
+  min-height: 0;
+}
+
+.esco-hmi-nav,
+.esco-hmi-properties {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid #e4e7f2;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.esco-hmi-properties {
+  border-right: 0;
+  border-left: 1px solid #e4e7f2;
+}
+
+.esco-hmi-nav section + section,
+.esco-hmi-properties section {
+  margin-top: 16px;
+}
+
+.esco-hmi-nav h2,
+.esco-hmi-properties h2,
+.esco-hmi-toolbox__group h3,
+.esco-hmi-properties h3 {
+  margin: 0 0 8px;
+  color: #1f2a44;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.esco-hmi-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.esco-hmi-create input {
+  min-width: 0;
+  border: 1px solid #d9def2;
+  border-radius: 8px;
+  padding: 7px 8px;
+  color: #111827;
+  font: inherit;
+}
+
+.esco-hmi-create button,
+.esco-hmi-nav button,
+.esco-hmi-toolbox__buttons button {
+  border: 1px solid #d9def2;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #18214d;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.esco-hmi-create button {
+  padding: 0 10px;
+}
+
+.esco-hmi-nav ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.esco-hmi-nav li + li {
+  margin-top: 5px;
+}
+
+.esco-hmi-nav button,
+.esco-hmi-nav__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 8px;
+  text-align: left;
+}
+
+.esco-hmi-nav button.is-active,
+.esco-hmi-toolbox__buttons button:hover,
+.esco-hmi-create button:hover {
+  border-color: #b9c0ff;
+  background: #f1f3ff;
+  color: #4f46e5;
+}
+
+.esco-hmi-nav em,
+.esco-hmi-toolbox__buttons em {
+  color: #667085;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.esco-hmi-nav__empty {
+  padding: 8px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.esco-hmi-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.esco-hmi-toolbox {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(106px, 1fr));
+  gap: 8px;
+  max-height: 180px;
+  overflow: auto;
+  padding: 10px;
+  border-bottom: 1px solid #e4e7f2;
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+}
+
+.esco-hmi-toolbox__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.esco-hmi-toolbox__buttons button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 8px;
+}
+
+.esco-hmi-toolbox__buttons button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.esco-hmi-canvas {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  padding: 12px;
+}
+
+.esco-hmi-canvas__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  border: 1px solid #e4e7f2;
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  background: #ffffff;
+  padding: 0 12px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.esco-hmi-canvas__toolbar strong {
+  color: #111827;
+}
+
+.esco-hmi-canvas__toolbar em {
+  margin-left: auto;
+  color: #12b76a;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.esco-hmi-canvas__surface {
+  position: relative;
+  min-height: 280px;
+  overflow: hidden;
+  border: 1px solid #e4e7f2;
+  border-radius: 0 0 10px 10px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+.esco-hmi-canvas__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(79, 70, 229, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(79, 70, 229, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+.esco-hmi-canvas__empty,
+.esco-hmi-canvas__placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  color: #667085;
+  text-align: center;
+}
+
+.esco-hmi-canvas__empty strong {
+  color: #1f2a44;
+}
+
+.esco-hmi-element {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  border: 1px solid #c8d0e6;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(31, 41, 55, 0.07);
+  text-align: center;
+  white-space: normal;
+}
+
+.esco-hmi-element.is-selected {
+  outline: 2px solid #635bff;
+  outline-offset: 2px;
+}
+
+.esco-hmi-element.is-model-only {
+  border-style: dashed;
+}
+
+.esco-hmi-element.is-unsupported {
+  border-color: #f04438;
+  background: #fff7f5;
+}
+
+.esco-hmi-element span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.esco-hmi-element__gridline {
+  display: block;
+  width: 78%;
+  height: 38px;
+  border-bottom: 2px solid #635bff;
+  background:
+    linear-gradient(to right, transparent 23%, rgba(99, 91, 255, 0.14) 24%, transparent 25%),
+    linear-gradient(to top, transparent 48%, rgba(99, 91, 255, 0.14) 50%, transparent 52%);
+}
+
+.esco-hmi-properties__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.esco-hmi-properties dl {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.esco-hmi-properties dt {
+  color: #667085;
+}
+
+.esco-hmi-properties dd {
+  min-width: 0;
+  margin: 0;
+  color: #111827;
+  overflow-wrap: anywhere;
+}
+
+.esco-hmi-properties ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.esco-hmi-properties li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #eef1f8;
+  padding: 6px 0;
+  color: #667085;
+  font-size: 12px;
+}
+
+.esco-hmi-properties li strong {
+  color: #111827;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.esco-hmi-badge {
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4f46e5;
+  padding: 3px 7px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.esco-hmi-badge--warn {
+  background: #fff4ed;
+  color: #f04438;
+}
+
+.esco-hmi-note {
+  border: 1px solid #ffd6c9;
+  border-radius: 8px;
+  background: #fff7f5;
+  color: #9f2d20;
+  padding: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.esco-hmi-diagnostics {
+  display: grid;
+  grid-template-columns: auto auto auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  border-top: 1px solid #e4e7f2;
+  background: #ffffff;
+  padding: 8px 12px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.esco-hmi-diagnostics strong {
+  color: #111827;
+}
+
+.esco-hmi-diagnostics div {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.esco-hmi-diagnostics p {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.esco-hmi-diagnostics em {
+  margin-right: 5px;
+  color: #4f46e5;
+  font-style: normal;
+  font-weight: 800;
+}
+
+@media (max-width: 1200px) {
+  .esco-hmi__workspace {
+    grid-template-columns: minmax(140px, 0.72fr) minmax(240px, 1.45fr) minmax(150px, 0.72fr);
+  }
+
+  .esco-hmi-toolbox {
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  }
+}

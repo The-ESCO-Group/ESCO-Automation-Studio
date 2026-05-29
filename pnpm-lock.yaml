@@ -47,6 +47,9 @@ importers:
       '@esco/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@esco/hmi-model':
+        specifier: workspace:*
+        version: link:../../packages/hmi-model
       '@esco/instructions':
         specifier: workspace:*
         version: link:../../packages/instructions
@@ -164,6 +167,19 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/hmi-model:
+    dependencies:
+      '@esco/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@22.19.19)
+
   packages/instructions:
     dependencies:
       '@esco/ladder':
@@ -226,6 +242,9 @@ importers:
       '@esco/core':
         specifier: workspace:*
         version: link:../core
+      '@esco/hmi-model':
+        specifier: workspace:*
+        version: link:../hmi-model
       '@esco/instructions':
         specifier: workspace:*
         version: link:../instructions

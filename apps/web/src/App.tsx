@@ -6,10 +6,14 @@ import {
   addInstructionToBranch,
   addParallelBranch,
   addRung,
+  addHmiElement,
   createTag,
+  createHmiPopup as createHmiPopupAction,
+  createHmiScreen as createHmiScreenAction,
   deleteRung,
   deleteTag,
   duplicateRung,
+  ensureHmiProject,
   exportProjectJson,
   exportProjectL5X,
   exportTagsCsv,
@@ -25,12 +29,14 @@ import {
   renameTag,
   setProjectProperties,
   setRungComment,
+  setStructuredTextSource,
   setTagDescription,
   updateInstructionOperand,
   type ProjectActionResult,
   type TagCsvImportPreview,
 } from "@esco/project-actions";
 import { PLCPROJ_EXTENSION } from "@esco/project-store";
+import { getHmiProject, type HmiSurfaceKind } from "@esco/hmi-model";
 import type { LadderBranch } from "@esco/ladder";
 import type { ImportSummary } from "@esco/parser-l5x";
 import { applyPlan, type ApplyResult, type AssistantPlan } from "@esco/ai-assistant";
@@ -52,6 +58,7 @@ import { FirstRunSetup } from "./components/FirstRunSetup";
 import { TagCsvPreviewDialog } from "./components/TagCsvPreviewDialog";
 import { DesktopStartup } from "./components/DesktopStartup";
 import { ProjectPropertiesDialog } from "./components/ProjectPropertiesDialog";
+import { HmiDesigner } from "./components/hmi/HmiDesigner";
 import type { Selection } from "./selection";
 import { createBlankRoutineProject, createInitialProject, findMainRoutine } from "./project-edit";
 import { searchProject } from "./search";
@@ -98,7 +105,7 @@ import {
 
 const SCAN_INTERVAL_MS = 250;
 const TREND_BUFFER_LIMIT = 120;
-type CenterView = "welcome" | "routine" | "tags" | "compare" | "structure";
+type CenterView = "welcome" | "routine" | "tags" | "compare" | "structure" | "hmi";
 
 export function App() {
   const [initialProject] = useState(createInitialProject);
@@ -123,6 +130,7 @@ export function App() {
   const [openRoutineId, setOpenRoutineId] = useState<string | undefined>(undefined);
   const [dockTab, setDockTab] = useState<DockTab>("watch");
   const [copilotTab, setCopilotTab] = useState<CopilotTab>("chat");
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [aiProfile, setAiProfile] = useState<AiProfile | null>(() => loadAiProfile());
   const [setupOpen, setSetupOpen] = useState(false);
@@ -137,6 +145,11 @@ export function App() {
     csv: string;
     preview: TagCsvImportPreview;
   } | null>(null);
+
+  const openCopilotPanel = (tab: CopilotTab = "chat") => {
+    setCopilotTab(tab);
+    setRightPanelOpen(true);
+  };
   const logActivity = (kind: ActivityKind, message: string) =>
     setActivity((log) => recordActivity(log, kind, message));
   const rememberProject = (entry: RecentProjectInput) =>
@@ -154,6 +167,15 @@ export function App() {
 
   const findings = useMemo(() => createDefaultEngine().run(project), [project]);
   const rows = useMemo(() => watchRows(project, values), [project, values]);
+  const hmiProject = getHmiProject(project);
+  const hmiKnownTagPaths = useMemo(
+    () =>
+      project.controllers.flatMap((controller) => [
+        ...controller.controllerTags.map((tag) => tag.name),
+        ...controller.programs.flatMap((program) => program.programTags.map((tag) => tag.name)),
+      ]),
+    [project],
+  );
   const openRoutine = openRoutineId ? findRoutine(project, openRoutineId) : undefined;
   const openLadder = getLadder(openRoutine);
   const activeContext = useMemo(() => {
@@ -177,6 +199,14 @@ export function App() {
     if (sel?.kind === "routine") {
       setOpenRoutineId(sel.id);
       setView("routine");
+    } else if (
+      sel?.kind === "hmi" ||
+      sel?.kind === "hmi-screen" ||
+      sel?.kind === "hmi-popup" ||
+      sel?.kind === "hmi-banner"
+    ) {
+      setView("hmi");
+      setCopilotTab("history");
     } else if (
       sel?.kind === "project" ||
       sel?.kind === "controller" ||
@@ -269,6 +299,16 @@ export function App() {
     applyAction((p) =>
       addInstructionToBranch(p, { routineId: targetRoutineId(p), rungId, branchId, instructionType: type }),
     );
+  const handleSetStructuredTextSource = (routineId: string, source: string) => {
+    const result = setStructuredTextSource(project, { routineId, source });
+    if (!result.ok) {
+      push("error", result.error ?? "Failed to update Structured Text.");
+      return;
+    }
+    setProject(result.project);
+    for (const warning of result.warnings?.slice(0, 1) ?? []) push("warning", warning);
+    push("success", "Structured Text source updated.");
+  };
 
   // ---- Tag table editor (toast on failure; reset values when the tag set changes) ----
   const runTagAction = (result: ProjectActionResult, successMsg?: string, resyncValues = true) => {
@@ -379,13 +419,75 @@ export function App() {
     }
     handleSelect({ kind: "controller", id: controller.id });
   };
+  const showHmiWarnings = (result: ProjectActionResult) => {
+    for (const warning of result.warnings?.slice(0, 2) ?? []) {
+      push("warning", warning);
+    }
+  };
+  const handleEnableHmiProject = () => {
+    const result = ensureHmiProject(project);
+    if (!result.ok || !result.data) {
+      push("error", result.error ?? "Failed to enable the HMI project.");
+      return;
+    }
+    setProject(result.project);
+    setSelection({ kind: "hmi", id: result.data.hmiProjectId });
+    setView("hmi");
+    push("success", "Enabled an empty HMI project model.");
+    showHmiWarnings(result);
+  };
+  const handleCreateHmiScreen = (name: string) => {
+    const result = createHmiScreenAction(project, { name });
+    if (!result.ok || !result.data) {
+      push("error", result.error ?? "Failed to create HMI screen.");
+      return;
+    }
+    setProject(result.project);
+    setSelection({ kind: "hmi-screen", id: result.data.screenId });
+    setView("hmi");
+    push("success", `Created HMI screen "${name.trim()}".`);
+    showHmiWarnings(result);
+  };
+  const handleCreateHmiPopup = (name: string) => {
+    const result = createHmiPopupAction(project, { name });
+    if (!result.ok || !result.data) {
+      push("error", result.error ?? "Failed to create HMI popup.");
+      return;
+    }
+    setProject(result.project);
+    setSelection({ kind: "hmi-popup", id: result.data.popupId });
+    setView("hmi");
+    push("success", `Created HMI popup "${name.trim()}".`);
+    showHmiWarnings(result);
+  };
+  const handleAddHmiElement = (surfaceKind: HmiSurfaceKind, surfaceId: string, typeId: string) => {
+    const result = addHmiElement(project, { surfaceKind, surfaceId, typeId });
+    if (!result.ok) {
+      push("error", result.error ?? "Failed to add HMI element.");
+      return;
+    }
+    setProject(result.project);
+    push("success", `Added ${typeId.replace(/^[^.]+\./, "")} to the HMI surface.`);
+    showHmiWarnings(result);
+  };
 
   const selectedRungId =
     selection?.kind === "rung" || selection?.kind === "instruction" ? selection.rungId : undefined;
+  const selectedRungLabel = selectedRungId
+    ? `Rung ${String(openLadder?.rungs.find((rung) => rung.id === selectedRungId)?.number ?? "--").padStart(3, "0")}`
+    : "Rung --";
 
   const [searchQuery, setSearchQuery] = useState("");
   const searchHits = useMemo(() => searchProject(project, searchQuery), [project, searchQuery]);
   const selectedNodeId = selection?.kind === "instruction" ? selection.nodeId : undefined;
+  const selectedHmiSurface =
+    selection?.kind === "hmi-screen"
+      ? ({ kind: "screen", id: selection.id } as const)
+      : selection?.kind === "hmi-popup"
+        ? ({ kind: "popup", id: selection.id } as const)
+        : selection?.kind === "hmi-banner"
+          ? ({ kind: "system-banner", id: selection.id } as const)
+          : undefined;
 
   // ---- File workflows ----
   const confirmDiscardDirtyProject = (action: string) =>
@@ -447,7 +549,6 @@ export function App() {
       setView("routine");
     }
     rememberProject({ projectId: blank.id, name: blank.name, source: "created", storage: "metadata" });
-    push("success", "Created a blank routine.");
   };
 
   const handleCloseProject = () => {
@@ -542,7 +643,7 @@ export function App() {
   };
 
   const finishSavedProject = (fileName: string, savedFile: DesktopSavedFile | null) => {
-    setSavedProject(project); // saving/exporting is the save point - mark clean
+    setSavedProject(project); // saving/exporting is the save point — mark clean
     setLastExportedAt(new Date().toISOString());
     setProjectFile(savedFile);
     clearAutosave();
@@ -573,8 +674,8 @@ export function App() {
       }
       if (saved) {
         finishSavedProject(saved.fileName, saved);
-        logActivity("export", `Saved "${project.name}" -> ${saved.path}`);
-        push("success", `Saved "${project.name}" -> ${saved.fileName}`);
+        logActivity("export", `Saved "${project.name}" → ${saved.path}`);
+        push("success", `Saved "${project.name}" → ${saved.fileName}`);
         return;
       }
     } catch (error) {
@@ -584,8 +685,8 @@ export function App() {
 
     downloadTextFile(filename, result.data.text);
     finishSavedProject(filename, null);
-    logActivity("export", `Exported "${project.name}" -> ${filename}`);
-    push("success", `Exported "${project.name}" -> ${filename}`);
+    logActivity("export", `Exported "${project.name}" → ${filename}`);
+    push("success", `Exported "${project.name}" → ${filename}`);
   };
   const handleExport = () => void handleSaveProject(false);
   const handleExportAs = () => void handleSaveProject(true);
@@ -708,6 +809,10 @@ export function App() {
       if (file === undefined) {
         push("info", "Recent file paths are available in the desktop app. Choose the project file to reopen it.");
         void handleImportClick();
+        return;
+      }
+      if (file === null) {
+        push("info", "Open canceled.");
         return;
       }
       openProjectText(file.text, file.fileName, file, "opened");
@@ -955,10 +1060,10 @@ export function App() {
           onCut={() => selectedRungId && handleCutRung(selectedRungId)}
           onPaste={handlePasteRung}
           onFind={() => requireProject(() => setDockTab("search"))}
-          onProperties={() => setCopilotTab("history")}
+          onProperties={() => openCopilotPanel("history")}
           onProjectProperties={() => requireProject(handleProjectProperties)}
           onControllerProperties={() => requireProject(handleControllerProperties)}
-          onOpenCopilot={() => setCopilotTab("chat")}
+          onOpenCopilot={() => openCopilotPanel("chat")}
           onDockTab={setDockTab}
           onToast={(message) => push("info", message)}
           onVerify={handleVerify}
@@ -1056,6 +1161,13 @@ export function App() {
           onClick: () => requireProject(() => setView("tags")),
         },
         {
+          id: "hmi",
+          label: "HMI Designer",
+          icon: "HMI",
+          active: view === "hmi",
+          onClick: () => requireProject(() => setView("hmi")),
+        },
+        {
           id: "compare",
           label: "Compare",
           icon: "◇",
@@ -1074,7 +1186,7 @@ export function App() {
           label: "AI Copilot",
           icon: "✦",
           active: false,
-          onClick: () => setCopilotTab("chat"),
+          onClick: () => openCopilotPanel("chat"),
         },
       ]}
       recovery={
@@ -1107,6 +1219,21 @@ export function App() {
             onEditDescription={handleEditDescription}
             onExportCsv={handleExportTagsCsv}
             onImportCsv={handleImportTagsCsvClick}
+          />
+        ) : view === "hmi" ? (
+          <HmiDesigner
+            hmi={hmiProject}
+            knownTagPaths={hmiKnownTagPaths}
+            selectedSurface={selectedHmiSurface}
+            onEnableProject={handleEnableHmiProject}
+            onCreateScreen={handleCreateHmiScreen}
+            onCreatePopup={handleCreateHmiPopup}
+            onAddElement={handleAddHmiElement}
+            onSelectSurface={(surface) => {
+              if (surface.kind === "screen") setSelection({ kind: "hmi-screen", id: surface.id });
+              else if (surface.kind === "popup") setSelection({ kind: "hmi-popup", id: surface.id });
+              else setSelection({ kind: "hmi-banner", id: surface.id });
+            }}
           />
         ) : view === "compare" ? (
           <CompareView
@@ -1143,6 +1270,7 @@ export function App() {
             onAddBranchLeg={handleAddBranchLeg}
             onRemoveBranchLeg={handleRemoveBranchLeg}
             onAddToBranch={handleAddToBranch}
+            onSetStructuredTextSource={handleSetStructuredTextSource}
             onOpenRoutine={handleOpenRoutine}
           />
         ) : (
@@ -1151,7 +1279,7 @@ export function App() {
             onImportProject={handleImportClick}
             onImportL5X={handleImportL5XClick}
             onExport={() => requireProject(handleExport)}
-            onOpenAi={() => setCopilotTab("chat")}
+            onOpenAi={() => openCopilotPanel("chat")}
             onOpenCrossRef={() => setDockTab("references")}
             onOpenWatch={() => setDockTab("watch")}
             onOpenTags={() => requireProject(() => setView("tags"))}
@@ -1185,6 +1313,8 @@ export function App() {
           activity={activity}
         />
       }
+      rightOpen={rightPanelOpen}
+      onRightOpenChange={setRightPanelOpen}
       bottomDock={
         <BottomPanel
           tab={dockTab}
@@ -1225,6 +1355,10 @@ export function App() {
           routineName={openRoutine?.name}
           verificationLabel={validationLabel}
           verificationClass={validationClass}
+          errorCount={errorCount}
+          warningCount={warnCount}
+          running={running}
+          selectedRungLabel={selectedRungLabel}
           connectionLabel={controllerSession.snapshot.stateLabel}
           connected={controllerSession.snapshot.connected}
         />
