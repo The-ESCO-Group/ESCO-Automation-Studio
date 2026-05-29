@@ -12,9 +12,14 @@ changes review-only until the engineer clicks Apply.
   details inline.
 - Settings opens the workstation setup dialog where the user saves a profile,
   provider, model id, and API key once.
-- The current web build stores that setup in local app storage. The Windows EXE
-  shell should move the same profile contract to OS-backed secure storage
-  (Windows Credential Manager or the Tauri stronghold/plugin equivalent).
+- The current web build stores provider/model/profile metadata separately from
+  the API key under workstation-level app settings. Project files and exports do
+  not contain AI profile data.
+- The Windows EXE shell should back the same profile contract with OS credential
+  storage where available (Windows Credential Manager or the Tauri
+  stronghold/plugin equivalent).
+- Unknown or corrupt provider configuration fails closed; Copilot shows a
+  setup-required state and does not send project context.
 - Nothing is sent anywhere until the user submits a prompt to Copilot.
 
 ## What is sent, and to where
@@ -30,6 +35,8 @@ whole.
 - **No API key is ever bundled or committed.** `.gitignore` excludes `.env*`.
 - The chat panel never displays or requests the key.
 - The key is never logged or shown back in the UI.
+- The public profile shape deliberately omits `apiKey`; only the transport layer
+  receives the key, and only as the provider authorization header.
 - For the current web build, the saved workstation profile is local to the
   browser profile. For the Windows desktop build, use OS credential storage
   instead of browser local storage.

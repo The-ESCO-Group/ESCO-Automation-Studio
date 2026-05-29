@@ -3078,6 +3078,13 @@ body {
   background: #eef0ff;
   font-size: 10px;
   font-weight: 800;
+  white-space: nowrap;
+}
+
+.esco-copilot__badge.is-setup {
+  border-color: #fed7aa;
+  color: #b45309;
+  background: #fffbeb;
 }
 
 .esco-copilot__tabs {
@@ -4364,10 +4371,7 @@ body {
 
 .esco-copilot__badge {
   flex: 0 0 auto;
-  max-width: 72px;
   padding: 2px 7px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

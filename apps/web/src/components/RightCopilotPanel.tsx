@@ -53,14 +53,19 @@ export function RightCopilotPanel({
   dirty,
   activity,
 }: Props) {
+  const configured = !!aiProvider && !!modelId?.trim() && !!apiKey?.trim();
+  const badgeLabel = configured ? "ONLINE" : "SETUP REQUIRED";
+
   return (
     <section className="esco-copilot">
       <header className="esco-copilot__header">
         <div>
           <h2 className="esco-copilot__title">AI Copilot</h2>
-          <span className="esco-copilot__subtitle">Reviewed ladder actions only</span>
+          <span className="esco-copilot__subtitle">
+            {configured ? "Reviewed ladder actions only" : "Choose provider and model in setup"}
+          </span>
         </div>
-        <span className="esco-copilot__badge">ONLINE</span>
+        <span className={`esco-copilot__badge${configured ? "" : " is-setup"}`}>{badgeLabel}</span>
       </header>
 
       <nav className="esco-copilot__tabs" aria-label="AI Copilot tabs">

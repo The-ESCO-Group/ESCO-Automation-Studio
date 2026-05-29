@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { SettingsStore, memoryStorage } from "./settings";
-import { aiProfileModelLabel, clearAiProfile, hasAiProfile, loadAiProfile, saveAiProfile } from "./ai-profile";
+import { exportProjectJson } from "@esco/project-actions";
+import { createBlankRoutineProject } from "./project-edit";
+import {
+  aiProfileModelLabel,
+  clearAiProfile,
+  hasAiProfile,
+  loadAiProfile,
+  publicAiProfile,
+  saveAiProfile,
+} from "./ai-profile";
 import {
   isFirstRunComplete,
   loadConnectionMode,
@@ -38,12 +47,34 @@ describe("AI profile persistence (ask once)", () => {
   it("persists a valid profile and never asks again", () => {
     const store = new SettingsStore(memoryStorage(), "esco");
     expect(hasAiProfile(store)).toBe(false);
-    const saved = saveAiProfile({ displayName: "Eng", email: "e@x.com", apiKey: "sk-ant-123" }, store);
+    const saved = saveAiProfile({
+      displayName: "Eng",
+      email: "e@x.com",
+      provider: "anthropic",
+      apiKey: "sk-ant-123",
+    }, store);
     expect(saved).not.toBeNull();
     // A fresh read (new session simulated) still has it — no re-prompt needed.
     expect(hasAiProfile(store)).toBe(true);
     expect(loadAiProfile(store)?.apiKey).toBe("sk-ant-123");
     expect(loadAiProfile(store)?.provider).toBe("anthropic");
+  });
+
+  it("stores public profile metadata separately from the workstation secret", () => {
+    const storage = memoryStorage();
+    const store = new SettingsStore(storage, "esco");
+    const saved = saveAiProfile({
+      displayName: "Eng",
+      provider: "openai",
+      modelId: "gpt-4.1",
+      apiKey: "sk-secret-openai",
+    }, store);
+
+    expect(saved?.apiKey).toBe("sk-secret-openai");
+    expect(String(storage.getItem("esco.ai.profile.v2"))).not.toContain("sk-secret-openai");
+    expect(storage.getItem("esco.ai.profile.secret.v1")).toBe('"sk-secret-openai"');
+    expect(publicAiProfile(saved)?.keySaved).toBe(true);
+    expect(JSON.stringify(publicAiProfile(saved))).not.toContain("sk-secret-openai");
   });
 
   it("persists the selected provider and model for the Copilot footer/transport", () => {
@@ -61,15 +92,59 @@ describe("AI profile persistence (ask once)", () => {
 
   it("rejects an incomplete profile (no API key)", () => {
     const store = new SettingsStore(memoryStorage(), "esco");
-    expect(saveAiProfile({ displayName: "Eng", apiKey: "" }, store)).toBeNull();
+    expect(saveAiProfile({ displayName: "Eng", provider: "anthropic", apiKey: "" }, store)).toBeNull();
     expect(hasAiProfile(store)).toBe(false);
+  });
+
+  it("fails closed when the saved provider is unknown or unconfigured", () => {
+    const store = new SettingsStore(memoryStorage(), "esco");
+    expect(saveAiProfile({
+      displayName: "Eng",
+      provider: "vendorx" as never,
+      modelId: "vendor-model",
+      apiKey: "sk-vendor",
+    }, store)).toBeNull();
+    expect(loadAiProfile(store)).toBeNull();
+  });
+
+  it("keeps AI secrets out of project export JSON", () => {
+    const store = new SettingsStore(memoryStorage(), "esco");
+    saveAiProfile({
+      displayName: "Eng",
+      provider: "openai",
+      modelId: "gpt-4.1",
+      apiKey: "sk-project-export-secret",
+    }, store);
+
+    const exported = exportProjectJson(createBlankRoutineProject()).data?.text ?? "";
+    expect(exported).not.toContain("sk-project-export-secret");
+    expect(exported).not.toContain("ai.profile");
   });
 
   it("can clear the saved profile (rotate key / sign out)", () => {
     const store = new SettingsStore(memoryStorage(), "esco");
-    saveAiProfile({ displayName: "Eng", apiKey: "sk-ant-123" }, store);
+    saveAiProfile({ displayName: "Eng", provider: "anthropic", apiKey: "sk-ant-123" }, store);
     clearAiProfile(store);
     expect(hasAiProfile(store)).toBe(false);
+  });
+
+  it("migrates legacy v1 profiles into split metadata plus secret storage", () => {
+    const storage = memoryStorage({
+      "esco.ai.profile.v1": JSON.stringify({
+        displayName: "Legacy Eng",
+        apiKey: "sk-ant-legacy",
+        savedAt: "2026-01-01T00:00:00.000Z",
+      }),
+    });
+    const store = new SettingsStore(storage, "esco");
+
+    const profile = loadAiProfile(store);
+
+    expect(profile?.provider).toBe("anthropic");
+    expect(profile?.apiKey).toBe("sk-ant-legacy");
+    expect(storage.getItem("esco.ai.profile.v1")).toBeNull();
+    expect(String(storage.getItem("esco.ai.profile.v2"))).not.toContain("sk-ant-legacy");
+    expect(storage.getItem("esco.ai.profile.secret.v1")).toBe('"sk-ant-legacy"');
   });
 });
 

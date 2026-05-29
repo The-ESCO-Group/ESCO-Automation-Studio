@@ -1,13 +1,17 @@
 # AI Assistant (`@esco/ai-assistant`)
 
-A safe, **offline, rule-based** assistant that explains PLC logic and proposes
-changes. It is the foundation for a future LLM-backed assistant — the apply
-path and safety model are already in place.
+A safe assistant surface for explaining PLC logic and proposing changes. ESCO
+ships with an offline rule-based provider plus an optional workstation-configured
+OpenAI or Anthropic/Claude live agent. Both paths share the same propose/review/
+apply safety model.
 
 ## Current implementation
 
-- **Local only.** No network, no API key. Intent matching is simple substring
-  matching in `planner.ts`.
+- **Offline fallback.** The local provider uses deterministic intent matching in
+  `planner.ts`; it needs no network or API key.
+- **Configurable live agent.** Workstation setup stores the selected provider,
+  model id, and key once. The Copilot footer shows the saved provider/model
+  rather than a hardcoded model.
 - **Propose, don't mutate.** The assistant produces an `AssistantResult` with an
   optional `AssistantPlan` (a list of `ProposedProjectAction`s). It never
   changes the project itself.
@@ -51,7 +55,7 @@ interface AssistantResult { ok; message; plan?; error? }
 interface ApplyResult { ok; project; applied: string[]; findings; error? }
 ```
 
-## Provider interface (LLM-ready, no API key)
+## Provider interface
 
 The assistant runs behind a small provider seam so a real LLM can be added later
 without touching the UI or the safety model:
@@ -111,8 +115,10 @@ workstation setup (Anthropic/Claude or OpenAI), shown as the AI Copilot panel. S
   (`AGENT_DEFAULT_MODELS`, `AGENT_DEFAULT_PROVIDER`). The actual footer label and
   transport model come from the saved workstation profile.
 - **Credential setup is outside chat:** Settings opens a workstation setup dialog
-  where the user saves their profile and API key once. The Copilot panel itself
-  has no key, transport, or local/offline mode controls.
+  where the user saves their profile and API key once. Profile metadata and the
+  secret are stored under separate workstation settings keys; the Copilot panel
+  itself has no key, transport, or local/offline mode controls. Unknown provider
+  values fail closed and return the panel to the setup-required state.
 - **Agentic, but propose-only.** The loop (`agentLoop.ts`) lets the model call a
   **whitelisted** tool set (`agentTools.ts`): read tools run live; write tools are
   recorded as a previewable **plan**. The real project is never mutated during the

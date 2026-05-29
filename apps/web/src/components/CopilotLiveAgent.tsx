@@ -61,6 +61,7 @@ export function CopilotLiveAgent({
 
     let caller;
     try {
+      if (!aiProvider) throw new Error("Open Settings to choose an AI provider and model.");
       caller = createModelCaller({ mode: "browser-key", provider: aiProvider, modelId, apiKey });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Open Settings to finish AI setup.");
@@ -95,7 +96,7 @@ export function CopilotLiveAgent({
 
   const hasActions = (plan?.actions.length ?? 0) > 0;
   const errorFindings = applied?.findings.filter((f) => f.severity === "error") ?? [];
-  const configured = apiKey.trim().length > 0 && !!modelId?.trim();
+  const configured = !!aiProvider && apiKey.trim().length > 0 && !!modelId?.trim();
 
   return (
     <div className="esco-ai esco-copilot-live">
