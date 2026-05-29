@@ -15,11 +15,11 @@
         "label": "main",
         "title": "ESCO Automation Studio",
         "url": "index.html?desktop-startup=1",
-        "width": 1280,
-        "height": 800,
-        "minWidth": 1024,
-        "minHeight": 700,
-        "resizable": true,
+        "width": 758,
+        "height": 558,
+        "minWidth": 758,
+        "minHeight": 558,
+        "resizable": false,
         "fullscreen": false
       }
     ],
