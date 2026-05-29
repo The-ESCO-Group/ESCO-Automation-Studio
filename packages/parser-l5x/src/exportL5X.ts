@@ -204,16 +204,21 @@ function writeRoutine(
       }
       xml.close("RLLContent");
     }
-  } else if (routine.language === "structured-text" && routine.structuredText) {
-    // Preserve the source so it is not silently dropped from the generated file.
-    // Note: the current importer does not re-read STContent (see caveats).
-    const lines = routine.structuredText.split(/\r?\n/);
-    xml.open("STContent");
-    lines.forEach((line, index) => xml.cdataEl("Line", line, { Number: index }));
-    xml.close("STContent");
-    warnings.push(
-      `${where}: ${ROUTINE_LABEL[routine.language]} source preserved as read-only imported text.`,
-    );
+  } else if (routine.language === "structured-text") {
+    // Preserve the source line-by-line so it round-trips through re-import (the
+    // importer re-reads STContent <Line> elements). An empty ST routine still
+    // emits <STContent/> and stays ST — it is never downgraded to a stub.
+    if (routine.structuredText) {
+      const lines = routine.structuredText.split(/\r?\n/);
+      xml.open("STContent");
+      lines.forEach((line, index) => xml.cdataEl("Line", line, { Number: index }));
+      xml.close("STContent");
+      warnings.push(
+        `${where}: ${ROUTINE_LABEL[routine.language]} source preserved as read-only imported text.`,
+      );
+    } else {
+      xml.leaf("STContent");
+    }
   } else if (routine.language !== "ladder") {
     const contentTag = GRAPHICAL_CONTENT_TAG[routine.language];
     if (contentTag && hasGraphicalContentRoot(routine.sourceText, contentTag)) {

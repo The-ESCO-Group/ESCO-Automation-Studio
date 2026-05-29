@@ -3,7 +3,8 @@ import { ONS, OTE, OTL, OTU, XIC, XIO } from "./bit";
 import { CTD, CTU, RES, RTO, TOF, TON } from "./timer-counter";
 import { EQU, GEQ, GRT, LEQ, LES, MOV, NEQ } from "./move-compare";
 import { ADD, DIV, MUL, SUB } from "./math";
-import { ABS, AND, CLR, CPT, LIM, MEQ, MOD, NEG, NOT, OR, SQR, XOR } from "./compute";
+import { ABS, AND, CLR, CMP, CPT, LIM, MEQ, MOD, NEG, NOT, OR, SQR, XOR } from "./compute";
+import { MATH_EXTENDED_INSTRUCTIONS } from "./math-extended";
 import { COP, CPS, FLL, MVM } from "./data-movement";
 import { BRK, BTD, FOR, FRD, JMP, LBL, MCR, SWPB, TND, TOD } from "./conversion-control";
 import { ADVANCED_MODEL_ONLY } from "./advanced";
@@ -17,11 +18,13 @@ import { JSR, RET, SBR } from "./routine-control";
 export * from "./types";
 export * from "./registry";
 export * from "./operands";
+export * from "./expression";
 export * from "./bit";
 export * from "./timer-counter";
 export * from "./move-compare";
 export * from "./math";
 export * from "./compute";
+export * from "./math-extended";
 export * from "./data-movement";
 export * from "./conversion-control";
 export * from "./advanced";
@@ -40,7 +43,8 @@ export function createDefaultRegistry(): InstructionRegistry {
     TON, TOF, RTO, CTU, CTD, RES,
     MOV, EQU, GRT, LES, NEQ, LEQ, GEQ,
     ADD, SUB, MUL, DIV,
-    AND, OR, XOR, NOT, MOD, SQR, NEG, ABS, CPT, CLR, LIM, MEQ,
+    AND, OR, XOR, NOT, MOD, SQR, NEG, ABS, CPT, CMP, CLR, LIM, MEQ,
+    ...MATH_EXTENDED_INSTRUCTIONS,
     COP, CPS, FLL, MVM,
     TOD, FRD, BTD, SWPB,
     JSR, SBR, RET,

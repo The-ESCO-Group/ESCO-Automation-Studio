@@ -30,6 +30,13 @@ export interface InstructionOperandDefinition {
   isRoutineRef?: boolean;
   /** True when the operand names a rung label or keyword (e.g. JMP/LBL), not a tag — skips tag validation. */
   isLabelRef?: boolean;
+  /**
+   * True when the operand is a CPT/CMP-style numeric/comparison expression rather
+   * than a single tag. The validator extracts and checks every tag the expression
+   * references (skipping literals and functions) instead of treating the whole
+   * string as one tag path.
+   */
+  isExpression?: boolean;
 }
 
 /** Read/write access an instruction needs against the tag memory during a scan. */

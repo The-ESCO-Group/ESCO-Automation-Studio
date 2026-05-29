@@ -39,3 +39,30 @@ describe("CPT - Compute instruction metadata", () => {
     );
   });
 });
+
+const cmpNode = (expression: string) =>
+  createNode("CMP", [tagOperand("expression", expression)]);
+
+describe("CMP - Compare instruction metadata", () => {
+  it("registers CMP as an executable compare instruction", () => {
+    const cmp = registry.get("CMP");
+    expect(cmp).toBeDefined();
+    expect(cmp?.category).toBe("compare");
+    expect(cmp?.modelOnly).toBeUndefined();
+    expect(supportLevel(cmp)).toBe("executable");
+    expect(cmp?.render.style).toBe("function");
+  });
+
+  it("validates a required, syntactically valid comparison expression", () => {
+    const cmp = registry.get("CMP")!;
+    expect(cmp.validate(cmpNode("Level >= 100 AND Pump.DN"))).toEqual([]);
+    expect(cmp.validate(cmpNode("ABS(A - B) < Tolerance"))).toEqual([]);
+    expect(cmp.validate(createNode("CMP", []))).toEqual(["Operand 'expression' is required."]);
+    expect(cmp.validate(cmpNode("Level >= "))).toContain(
+      "Operand 'expression' must be a safe comparison expression.",
+    );
+    expect(cmp.validate(cmpNode("Math.max(A, 1)"))).toContain(
+      "Operand 'expression' must be a safe comparison expression.",
+    );
+  });
+});

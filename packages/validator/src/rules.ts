@@ -1,5 +1,12 @@
 import { STRUCTURED_TYPES, memberDefs, parseArrayIndex } from "@esco/core";
-import { baseTagName, createDefaultRegistry, isNumericLiteral, isPlainTag } from "@esco/instructions";
+import {
+  baseTagName,
+  createDefaultRegistry,
+  isNumericLiteral,
+  isPlainTag,
+  referencedPaths,
+  type InstructionOperandDefinition,
+} from "@esco/instructions";
 import { routineNodes, type LadderRoutine } from "@esco/ladder";
 import type { ValidationFinding, ValidationRule } from "./types";
 
@@ -152,42 +159,13 @@ export const ladderOperands: ValidationRule = {
               continue;
             }
 
-            definition.operands.forEach((operandDef, index) => {
-              const value = node.operands[index]?.value?.trim() ?? "";
-
-              if (value === "") {
-                if (operandDef.required) {
-                  findings.push({
-                    ruleId: "missing-operand",
-                    severity: "warning",
-                    message: `${node.instructionType} is missing required operand "${operandDef.name}".`,
-                    target,
-                  });
-                }
-                return;
-              }
-
-              if (isNumericLiteral(value)) return; // a constant, not a tag reference
-
-              // A rung label or keyword (e.g. JMP/LBL) is not a tag — skip validation.
-              if (operandDef.isLabelRef) return;
-
-              // A routine reference (e.g. JSR) is not a tag — check it resolves instead.
-              if (operandDef.isRoutineRef) {
-                if (!routineNames.has(value)) {
-                  findings.push({
-                    ruleId: "unknown-routine",
-                    severity: "warning",
-                    message: `${node.instructionType} references unknown routine "${value}".`,
-                    target,
-                  });
-                }
-                return;
-              }
-
+            // Validate a single tag/member/array reference (undefined tag, array
+            // bounds, member path, and type). Reused for a plain operand and for
+            // each tag a CPT/CMP expression references.
+            const checkTagReference = (value: string, operandDef: InstructionOperandDefinition): void => {
               // Resolve the base tag of a member/array path (e.g. Timer1.DN -> Timer1).
               const base = baseTagName(value);
-              if (base === "") return; // unparseable (expression) — skip
+              if (base === "") return; // unparseable (literal/expression fragment) — skip
 
               // A name is "known" if it is a tag or an alias (even if the alias
               // target is missing — alias-target-missing reports that separately).
@@ -248,6 +226,49 @@ export const ladderOperands: ValidationRule = {
                   target,
                 });
               }
+            };
+
+            definition.operands.forEach((operandDef, index) => {
+              const value = node.operands[index]?.value?.trim() ?? "";
+
+              if (value === "") {
+                if (operandDef.required) {
+                  findings.push({
+                    ruleId: "missing-operand",
+                    severity: "warning",
+                    message: `${node.instructionType} is missing required operand "${operandDef.name}".`,
+                    target,
+                  });
+                }
+                return;
+              }
+
+              if (isNumericLiteral(value)) return; // a constant, not a tag reference
+
+              // A rung label or keyword (e.g. JMP/LBL) is not a tag — skip validation.
+              if (operandDef.isLabelRef) return;
+
+              // A routine reference (e.g. JSR) is not a tag — check it resolves instead.
+              if (operandDef.isRoutineRef) {
+                if (!routineNames.has(value)) {
+                  findings.push({
+                    ruleId: "unknown-routine",
+                    severity: "warning",
+                    message: `${node.instructionType} references unknown routine "${value}".`,
+                    target,
+                  });
+                }
+                return;
+              }
+
+              // A CPT/CMP expression: check every tag it references (literals and
+              // functions are skipped), not the whole string as one tag path.
+              if (operandDef.isExpression) {
+                for (const path of referencedPaths(value)) checkTagReference(path, operandDef);
+                return;
+              }
+
+              checkTagReference(value, operandDef);
             });
           }
         }

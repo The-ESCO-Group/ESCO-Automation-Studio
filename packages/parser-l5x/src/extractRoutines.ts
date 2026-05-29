@@ -3,6 +3,10 @@ import type { InstructionRegistry } from "@esco/instructions";
 import { createLadderRoutine, createRung } from "@esco/ladder";
 import { attr, child, text, toArray, type L5XNode } from "./parseL5X";
 import { parseRungText } from "./parseRungText";
+import { analyzeStructuredText } from "./structuredText";
+
+/** Cap on Structured Text syntax warnings per routine, so a badly-broken file can't flood the import log. */
+const MAX_ST_SYNTAX_WARNINGS = 20;
 
 export interface ExtractedRoutines {
   routines: Routine[];
@@ -151,7 +155,18 @@ export function extractRoutines(
         }
       } else if (language === "structured-text") {
         const source = extractStructuredText(routineNode);
-        if (source) routine.structuredText = source;
+        if (source) {
+          routine.structuredText = source;
+          // Structural syntax check only — ST is never executed (preserved read-only).
+          const syntax = analyzeStructuredText(source).findings;
+          for (const finding of syntax.slice(0, MAX_ST_SYNTAX_WARNINGS)) {
+            const at = finding.line ? ` (line ${finding.line})` : "";
+            warnings.push(`${where}: Structured Text syntax${at}: ${finding.message}`);
+          }
+          if (syntax.length > MAX_ST_SYNTAX_WARNINGS) {
+            warnings.push(`${where}: Structured Text syntax: and ${syntax.length - MAX_ST_SYNTAX_WARNINGS} more issue(s).`);
+          }
+        }
         warnings.push(`${where}: Structured Text routine imported read-only (source preserved, not simulated).`);
       } else {
         const source = extractGraphicalSource(routineNode, CONTENT_TAG[language]);

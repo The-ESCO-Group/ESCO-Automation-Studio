@@ -1,5 +1,6 @@
 import type { InstructionDefinition } from "./types";
 import { operandValue } from "./operands";
+import { evaluateExpression, isValidExpression } from "./expression";
 
 const NUMERIC = ["DINT", "REAL"];
 
@@ -8,207 +9,6 @@ function requireOperands(names: string[]) {
     names.flatMap((name, index) =>
       node.operands[index]?.value ? [] : [`Operand '${name}' is required.`],
     );
-}
-
-type ExprToken =
-  | { kind: "number"; value: number }
-  | { kind: "path"; value: string }
-  | { kind: "op"; value: "+" | "-" | "*" | "/" | "%" }
-  | { kind: "lparen" }
-  | { kind: "rparen" };
-
-type ExprResult = { ok: true; value: number } | { ok: false };
-
-const isIdentStart = (char: string): boolean => /[A-Za-z_]/.test(char);
-const isIdentChar = (char: string): boolean => /[A-Za-z0-9_]/.test(char);
-const isHexishChar = (char: string): boolean => /[0-9A-Fa-f]/.test(char);
-
-function parseRadixLiteral(radixText: string, digits: string): number | undefined {
-  const radix = Number(radixText);
-  if (!Number.isInteger(radix) || radix < 2 || radix > 16 || digits.length === 0) return undefined;
-
-  let value = 0;
-  for (const char of digits) {
-    const digit = Number.parseInt(char, 16);
-    if (!Number.isInteger(digit) || digit >= radix) return undefined;
-    value = value * radix + digit;
-  }
-  return value;
-}
-
-function tokenizeExpression(expression: string): ExprToken[] | undefined {
-  const tokens: ExprToken[] = [];
-  let i = 0;
-
-  while (i < expression.length) {
-    const char = expression[i]!;
-    if (/\s/.test(char)) {
-      i++;
-      continue;
-    }
-
-    if (char === "(") {
-      tokens.push({ kind: "lparen" });
-      i++;
-      continue;
-    }
-    if (char === ")") {
-      tokens.push({ kind: "rparen" });
-      i++;
-      continue;
-    }
-    if (char === "+" || char === "-" || char === "*" || char === "/" || char === "%") {
-      tokens.push({ kind: "op", value: char });
-      i++;
-      continue;
-    }
-
-    if (/\d/.test(char) || (char === "." && /\d/.test(expression[i + 1] ?? ""))) {
-      const start = i;
-      if (char === ".") {
-        i++;
-        while (/\d/.test(expression[i] ?? "")) i++;
-      } else {
-        while (/\d/.test(expression[i] ?? "")) i++;
-        if (expression[i] === "#") {
-          const radixText = expression.slice(start, i);
-          i++;
-          const digitsStart = i;
-          while (isHexishChar(expression[i] ?? "")) i++;
-          const value = parseRadixLiteral(radixText, expression.slice(digitsStart, i));
-          if (value === undefined) return undefined;
-          tokens.push({ kind: "number", value });
-          continue;
-        }
-        if (expression[i] === ".") {
-          i++;
-          while (/\d/.test(expression[i] ?? "")) i++;
-        }
-      }
-
-      const value = Number(expression.slice(start, i));
-      if (!Number.isFinite(value)) return undefined;
-      tokens.push({ kind: "number", value });
-      continue;
-    }
-
-    if (isIdentStart(char)) {
-      const start = i;
-      i++;
-      while (i < expression.length) {
-        if (isIdentChar(expression[i] ?? "")) {
-          i++;
-        } else if (expression[i] === ".") {
-          const memberStart = i + 1;
-          if (!isIdentStart(expression[memberStart] ?? "")) return undefined;
-          i = memberStart + 1;
-          while (isIdentChar(expression[i] ?? "")) i++;
-        } else if (expression[i] === "[") {
-          i++;
-          while (i < expression.length && expression[i] !== "]") i++;
-          if (expression[i] !== "]") return undefined;
-          i++;
-        } else {
-          break;
-        }
-      }
-      tokens.push({ kind: "path", value: expression.slice(start, i) });
-      continue;
-    }
-
-    return undefined;
-  }
-
-  return tokens;
-}
-
-class ArithmeticParser {
-  private cursor = 0;
-
-  constructor(
-    private readonly tokens: ExprToken[],
-    private readonly numeric: (operand: string) => number,
-  ) {}
-
-  parse(): ExprResult {
-    const value = this.expression();
-    if (value === undefined || this.cursor !== this.tokens.length || !Number.isFinite(value)) return { ok: false };
-    return { ok: true, value };
-  }
-
-  private peek(): ExprToken | undefined {
-    return this.tokens[this.cursor];
-  }
-
-  private take(): ExprToken | undefined {
-    return this.tokens[this.cursor++];
-  }
-
-  private expression(): number | undefined {
-    let left = this.term();
-    if (left === undefined) return undefined;
-
-    while (this.peek()?.kind === "op" && (this.peek() as { value: string }).value.match(/[+-]/)) {
-      const op = (this.take() as Extract<ExprToken, { kind: "op" }>).value;
-      const right = this.term();
-      if (right === undefined) return undefined;
-      left = op === "+" ? left + right : left - right;
-      if (!Number.isFinite(left)) return undefined;
-    }
-
-    return left;
-  }
-
-  private term(): number | undefined {
-    let left = this.factor();
-    if (left === undefined) return undefined;
-
-    while (this.peek()?.kind === "op" && (this.peek() as { value: string }).value.match(/[*/%]/)) {
-      const op = (this.take() as Extract<ExprToken, { kind: "op" }>).value;
-      const right = this.factor();
-      if (right === undefined) return undefined;
-      if (op === "*") left *= right;
-      else if (op === "/") left = right === 0 ? 0 : left / right;
-      else left = right === 0 ? 0 : left % right;
-      if (!Number.isFinite(left)) return undefined;
-    }
-
-    return left;
-  }
-
-  private factor(): number | undefined {
-    const token = this.take();
-    if (!token) return undefined;
-
-    if (token.kind === "op" && token.value === "-") {
-      const value = this.factor();
-      return value === undefined ? undefined : -value;
-    }
-    if (token.kind === "op" && token.value === "+") {
-      return this.factor();
-    }
-    if (token.kind === "number") return token.value;
-    if (token.kind === "path") {
-      const value = this.numeric(token.value);
-      return Number.isFinite(value) ? value : undefined;
-    }
-    if (token.kind === "lparen") {
-      const value = this.expression();
-      if (value === undefined || this.take()?.kind !== "rparen") return undefined;
-      return value;
-    }
-
-    return undefined;
-  }
-}
-
-function evaluateNumericExpression(
-  expression: string,
-  numeric: (operand: string) => number,
-): ExprResult {
-  const tokens = tokenizeExpression(expression);
-  if (!tokens || tokens.length === 0) return { ok: false };
-  return new ArithmeticParser(tokens, numeric).parse();
 }
 
 /** Truncate to a 32-bit signed integer for bitwise/masked operations. */
@@ -291,27 +91,54 @@ export const CPT: InstructionDefinition = {
   description: "Dest = Expression when the rung is true.",
   operands: [
     { name: "dest", label: "Dest", required: true, allowedTypes: NUMERIC, direction: "write" },
-    { name: "expression", label: "Expression", required: true, direction: "read" },
+    { name: "expression", label: "Expression", required: true, direction: "read", isExpression: true },
   ],
   validate: (node) => {
     const missing = requireOperands(["dest", "expression"])(node);
     const expression = operandValue(node, 1);
     if (!expression) return missing;
-    const parsed = evaluateNumericExpression(expression, () => 0);
-    return parsed.ok ? missing : [...missing, "Operand 'expression' must be a safe numeric expression."];
+    return isValidExpression(expression)
+      ? missing
+      : [...missing, "Operand 'expression' must be a safe numeric expression."];
   },
   execute: (node, ctx) => {
     if (ctx.rungIn) {
       const dest = operandValue(node, 0);
       const expression = operandValue(node, 1);
       if (dest && expression) {
-        const result = evaluateNumericExpression(expression, (operand) => ctx.numeric(operand));
-        if (result.ok) ctx.writeNumber(dest, result.value);
+        const result = evaluateExpression(expression, (operand) => ctx.numeric(operand));
+        // A syntactically valid expression always writes; a domain error
+        // (e.g. LN(0)) yields a non-finite value, guarded to 0 offline.
+        if (result.ok) ctx.writeNumber(dest, Number.isFinite(result.value) ? result.value : 0);
       }
     }
     return ctx.rungIn;
   },
   render: { symbol: "CPT", style: "box" },
+};
+
+/**
+ * CMP - Compare. Passes the rung when the expression evaluates true (non-zero),
+ * using the same grammar as CPT (relational and logical operators included, e.g.
+ * `Level >= 100 AND Pump.DN`). A syntax error or a non-finite result is false.
+ */
+export const CMP: InstructionDefinition = {
+  type: "CMP",
+  displayName: "Compare",
+  category: "compare",
+  description: "Passes when the comparison Expression is true (non-zero).",
+  operands: [{ name: "expression", label: "Expression", required: true, direction: "read", isExpression: true }],
+  validate: (node) => {
+    const expression = operandValue(node, 0);
+    if (!expression) return ["Operand 'expression' is required."];
+    return isValidExpression(expression) ? [] : ["Operand 'expression' must be a safe comparison expression."];
+  },
+  execute: (node, ctx) => {
+    if (!ctx.rungIn) return false;
+    const result = evaluateExpression(operandValue(node, 0), (operand) => ctx.numeric(operand));
+    return result.ok && Number.isFinite(result.value) && result.value !== 0;
+  },
+  render: { symbol: "CMP", style: "function" },
 };
 
 /** CLR - Clear. Sets Dest to 0 while the rung is true. */

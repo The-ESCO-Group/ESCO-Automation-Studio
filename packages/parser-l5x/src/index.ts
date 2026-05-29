@@ -7,6 +7,7 @@ export * from "./parseRungText";
 export * from "./extractController";
 export * from "./extractTags";
 export * from "./extractRoutines";
+export * from "./structuredText";
 export * from "./extractPrograms";
 export * from "./extractStructure";
 export * from "./toDomainProject";
