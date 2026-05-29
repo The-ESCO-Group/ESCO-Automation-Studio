@@ -32,6 +32,18 @@ try {
   await page.waitForFunction((n) => document.querySelectorAll(".esco-tags__table tbody tr").length === n, initial, { timeout: 5000 });
   check("delete removes the row", (await rows(page).count()) === initial);
 
+  // Alias editing: point StopPB at StartPB, then re-mount the view (switch away and
+  // back) so the uncontrolled alias input re-seeds from the model and proves it persisted.
+  await page.locator('input[aria-label="Alias target for StopPB"]').fill("StartPB");
+  await page.keyboard.press("Tab");
+  await page.locator('.esco-activity-rail__button[aria-label="HMI Designer"]').click();
+  await page.locator('.esco-activity-rail__button[aria-label="Tags"]').click();
+  await page.locator(".esco-tags").waitFor({ timeout: 5000 });
+  check(
+    "tag alias edit persists through the action layer",
+    (await page.locator('input[aria-label="Alias target for StopPB"]').inputValue()) === "StartPB",
+  );
+
   // Search filter.
   await page.locator(".esco-tags__search").fill("Start");
   check("search filters rows", (await rows(page).count()) === 1);

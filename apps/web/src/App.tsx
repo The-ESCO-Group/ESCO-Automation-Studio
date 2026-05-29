@@ -41,6 +41,7 @@ import {
   setProjectProperties,
   setRungComment,
   setStructuredTextSource,
+  setTagAlias,
   setTagDescription,
   updateInstructionOperand,
   type ProjectActionResult,
@@ -342,6 +343,12 @@ export function App() {
     runTagAction(deleteTag(project, { name }), `Deleted tag ${name}.`);
   const handleEditDescription = (name: string, description: string) =>
     runTagAction(setTagDescription(project, { name, description }), undefined, false);
+  const handleSetTagAlias = (name: string, aliasFor: string) =>
+    runTagAction(
+      setTagAlias(project, { name, aliasFor: aliasFor.trim() || undefined }),
+      aliasFor.trim() ? `${name} now aliases ${aliasFor.trim()}.` : `Cleared alias on ${name}.`,
+      false,
+    );
 
   // ---- Undo / redo (reverts project edits; simulation values resync) ----
   const handleUndo = () => {
@@ -1325,6 +1332,7 @@ export function App() {
             onRenameTag={handleRenameTag}
             onDeleteTag={handleDeleteTag}
             onEditDescription={handleEditDescription}
+            onSetAlias={handleSetTagAlias}
             onExportCsv={handleExportTagsCsv}
             onImportCsv={handleImportTagsCsvClick}
           />

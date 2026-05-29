@@ -16,6 +16,7 @@ interface Props {
   onRenameTag: (from: string, to: string) => void;
   onDeleteTag: (name: string) => void;
   onEditDescription: (name: string, description: string) => void;
+  onSetAlias: (name: string, aliasFor: string) => void;
   onExportCsv: () => void;
   onImportCsv: () => void;
 }
@@ -50,6 +51,7 @@ export function TagsView({
   onRenameTag,
   onDeleteTag,
   onEditDescription,
+  onSetAlias,
   onExportCsv,
   onImportCsv,
 }: Props) {
@@ -149,6 +151,7 @@ export function TagsView({
               <th>Type</th>
               <th>Scope</th>
               <th>Description</th>
+              <th>Alias of</th>
               <th>Value</th>
               <th>Role</th>
               <th>Refs</th>
@@ -173,10 +176,7 @@ export function TagsView({
                     }}
                   />
                 </td>
-                <td>
-                  {tag.dimension ? `${tag.dataType}[${tag.dimension}]` : tag.dataType}
-                  {tag.aliasFor ? <span className="esco-tags__alias"> → {tag.aliasFor}</span> : null}
-                </td>
+                <td>{tag.dimension ? `${tag.dataType}[${tag.dimension}]` : tag.dataType}</td>
                 <td>{tag.scope}</td>
                 <td>
                   <input
@@ -186,6 +186,23 @@ export function TagsView({
                     spellCheck={false}
                     onBlur={(e) => {
                       if (e.target.value !== (tag.description ?? "")) onEditDescription(tag.name, e.target.value);
+                    }}
+                  />
+                </td>
+                <td>
+                  <input
+                    className="esco-tags__cell-input esco-tags__cell-input--alias"
+                    list="esco-tag-names"
+                    defaultValue={tag.aliasFor ?? ""}
+                    placeholder="—"
+                    spellCheck={false}
+                    aria-label={`Alias target for ${tag.name}`}
+                    title="Base tag this tag aliases (commits on blur; blank clears)"
+                    onBlur={(e) => {
+                      if (e.target.value.trim() !== (tag.aliasFor ?? "")) onSetAlias(tag.name, e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
                     }}
                   />
                 </td>
@@ -215,6 +232,11 @@ export function TagsView({
           Showing first {windowed.items.length} of {visible.length} tags — search to narrow down.
         </p>
       ) : null}
+      <datalist id="esco-tag-names">
+        {rows.map((row) => (
+          <option key={row.tag.id} value={row.tag.name} />
+        ))}
+      </datalist>
     </div>
   );
 }

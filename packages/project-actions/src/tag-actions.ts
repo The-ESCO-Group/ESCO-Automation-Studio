@@ -3,6 +3,7 @@ import { baseTagName } from "@esco/instructions";
 import { mapRoutineNodes, routineNodes } from "@esco/ladder";
 import {
   fail,
+  getAllTags,
   getLadder,
   mapAllLadders,
   mapAllTags,
@@ -15,6 +16,7 @@ import type {
   DeleteTagInput,
   ProjectActionResult,
   RenameTagInput,
+  SetTagAliasInput,
   SetTagDescriptionInput,
 } from "./types";
 
@@ -72,6 +74,53 @@ export function setTagDescription(
       tag.name === name ? { ...tag, description: input.description } : tag,
     ),
     { name },
+  );
+}
+
+/**
+ * Set or clear a tag's alias target. An alias points at a base tag (or a
+ * member/element path of one, e.g. "Motor.Run" or "Pumps[2]"). Validates that
+ * the referenced base tag exists, the tag is not aliased to itself, and the
+ * alias chain does not form a cycle. Pass a blank `aliasFor` to clear the alias.
+ */
+export function setTagAlias(
+  project: PlcProject,
+  input: SetTagAliasInput,
+): ProjectActionResult<{ name: string; aliasFor?: string }> {
+  const name = input.name?.trim();
+  if (!name) return fail(project, "Tag name is required.");
+  if (!tagExists(project, name)) return fail(project, `Tag "${name}" does not exist.`);
+
+  const aliasFor = input.aliasFor?.trim();
+  if (!aliasFor) {
+    return ok(
+      mapAllTags(project, (tag) => (tag.name === name ? { ...tag, aliasFor: undefined } : tag)),
+      { name },
+    );
+  }
+
+  const base = baseTagName(aliasFor);
+  if (!base) return fail(project, "Alias target is invalid.");
+  if (base === name) return fail(project, `Tag "${name}" cannot alias itself.`);
+  if (!tagExists(project, base)) return fail(project, `Alias target "${base}" does not exist.`);
+
+  // Walk the alias chain from the base; reaching `name` again means a cycle.
+  const tagsByName = new Map(getAllTags(project).map((tag) => [tag.name, tag] as const));
+  const seen = new Set<string>();
+  let cursor: string | undefined = base;
+  while (cursor) {
+    if (cursor === name) {
+      return fail(project, `Aliasing "${name}" to "${aliasFor}" would create an alias cycle.`);
+    }
+    if (seen.has(cursor)) break; // a pre-existing cycle elsewhere — stop walking
+    seen.add(cursor);
+    const next: string | undefined = tagsByName.get(cursor)?.aliasFor;
+    cursor = next ? baseTagName(next) : undefined;
+  }
+
+  return ok(
+    mapAllTags(project, (tag) => (tag.name === name ? { ...tag, aliasFor } : tag)),
+    { name, aliasFor },
   );
 }
 

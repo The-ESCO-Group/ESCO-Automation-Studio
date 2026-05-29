@@ -40,6 +40,12 @@ export interface SetTagDescriptionInput {
   description: string;
 }
 
+export interface SetTagAliasInput {
+  name: string;
+  /** Base tag, or a member/element path of one (e.g. "Motor.Run"); blank clears the alias. */
+  aliasFor?: string;
+}
+
 export interface SetProjectPropertiesInput {
   name: string;
   description?: string;
