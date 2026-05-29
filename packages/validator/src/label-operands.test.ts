@@ -39,6 +39,13 @@ describe("label/keyword operands are not validated as tags", () => {
     expect(unsupported.some((f) => /JMP|LBL|MCR/.test(f.message))).toBe(false);
   });
 
+  it("reports registered flow controls as model-only instead of executable", () => {
+    const modelOnly = findings.filter((f) => f.ruleId === "model-only-instruction");
+    expect(modelOnly.some((f) => f.message.includes('"JMP"'))).toBe(true);
+    expect(modelOnly.some((f) => f.message.includes('"LBL"'))).toBe(true);
+    expect(modelOnly.some((f) => f.message.includes('"MCR"'))).toBe(true);
+  });
+
   it("still validates real tag operands (Enable is defined → no undefined-tag)", () => {
     expect(findings.some((f) => f.ruleId === "undefined-tag")).toBe(false);
   });

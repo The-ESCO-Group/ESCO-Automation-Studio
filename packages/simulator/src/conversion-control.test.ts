@@ -82,6 +82,12 @@ describe("TND — temporary end", () => {
 });
 
 describe("model-only flow never alters memory or hangs", () => {
+  it("marks non-simulated conversion/control flow as model-only", () => {
+    for (const type of ["SWPB", "JMP", "LBL", "MCR", "BRK", "FOR"]) {
+      expect(registry.get(type)?.modelOnly).toBe(true);
+    }
+  });
+
   it("JMP/LBL/MCR/BRK/SWPB pass through without crashing", () => {
     for (const [type, ops] of [
       ["JMP", [["label", "Loop1"]]],
