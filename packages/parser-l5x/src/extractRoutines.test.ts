@@ -72,6 +72,7 @@ describe("importL5X — non-ladder routine languages", () => {
   it("preserves Function Block structure as read-only source text", () => {
     const fbd = routines(importL5X(MIXED).project).find((r) => r.name === "LoopFBD")!;
     expect(fbd.ladder).toBeUndefined();
+    expect(fbd.sourceText).toContain("<FBDContent");
     expect(fbd.sourceText).toContain("Block");
     expect(fbd.sourceText).toContain("PIDE_01");
     expect(fbd.sourceText).toContain("IRef");
@@ -80,6 +81,7 @@ describe("importL5X — non-ladder routine languages", () => {
   it("preserves SFC structure as read-only source text", () => {
     const sfc = routines(importL5X(MIXED).project).find((r) => r.name === "SeqSFC")!;
     expect(sfc.ladder).toBeUndefined();
+    expect(sfc.sourceText).toContain("<SFCContent");
     expect(sfc.sourceText).toContain("Step");
     expect(sfc.sourceText).toContain("Step_000");
     expect(sfc.sourceText).toContain("Transition");
@@ -110,5 +112,27 @@ describe("importL5X — non-ladder routine languages", () => {
     const st = routines(importL5X(xml).project).find((r) => r.name === "ScaleST")!;
     expect(st.language).toBe("structured-text");
     expect(st.structuredText).toContain("Level := Level + 1;");
+  });
+
+  it("exports and re-imports read-only FBD/SFC bodies instead of stubbing them", () => {
+    const { project } = importL5X(MIXED);
+    const { xml, warnings } = exportL5X(project);
+
+    expect(xml).toContain('<FBDContent SheetSize="Letter">');
+    expect(xml).toContain('<Block Type="PIDE" Operand="PIDE_01" Visible="true"/>');
+    expect(xml).toContain("<SFCContent>");
+    expect(xml).toContain('<Step Name="Step_001"/>');
+    expect(warnings.some((w) => w.includes("LoopFBD") && w.includes("body preserved"))).toBe(true);
+    expect(warnings.some((w) => w.includes("SeqSFC") && w.includes("body preserved"))).toBe(true);
+    expect(warnings.some((w) => w.includes("LoopFBD") && w.includes("stub"))).toBe(false);
+    expect(warnings.some((w) => w.includes("SeqSFC") && w.includes("stub"))).toBe(false);
+
+    const reimported = routines(importL5X(xml).project);
+    const fbd = reimported.find((r) => r.name === "LoopFBD")!;
+    const sfc = reimported.find((r) => r.name === "SeqSFC")!;
+    expect(fbd.language).toBe("function-block");
+    expect(fbd.sourceText).toContain("PIDE_01");
+    expect(sfc.language).toBe("sfc");
+    expect(sfc.sourceText).toContain("Step_001");
   });
 });

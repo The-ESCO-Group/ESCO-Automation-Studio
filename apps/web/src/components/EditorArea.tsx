@@ -357,14 +357,17 @@ function outlineRows(source: string, query: string): { id: string; depth: number
     .map((line, index) => {
       const depth = Math.floor((line.match(/^\s*/)?.[0].length ?? 0) / 2);
       const trimmed = line.trim();
-      const match = trimmed.match(/^([^\[]+?)(?:\s+\[(.*)\])?$/);
+      const xml = trimmed.match(/^<([A-Za-z0-9_:.-]+)([^>]*)\/?>$/);
+      const legacy = trimmed.match(/^([^\[]+?)(?:\s+\[(.*)\])?$/);
+      const rawAttrs = xml?.[2]?.replace(/\/$/, "").trim() ?? legacy?.[2] ?? "";
       return {
         id: `${index}-${trimmed}`,
         depth,
-        name: (match?.[1] ?? trimmed).trim(),
-        attrs: (match?.[2] ?? "").trim(),
+        name: (xml?.[1] ?? legacy?.[1] ?? trimmed).trim(),
+        attrs: rawAttrs.replace(/\s+/g, " ").trim(),
       };
     })
+    .filter((row) => !row.name.startsWith("/") && !row.name.startsWith("</"))
     .filter((row) => row.name.length > 0)
     .filter((row) => !term || `${row.name} ${row.attrs}`.toLowerCase().includes(term));
 }

@@ -52,6 +52,11 @@ const ROUTINE_LABEL: Record<RoutineLanguage, string> = {
   sfc: "Sequential Function Chart",
 };
 
+const GRAPHICAL_CONTENT_TAG: Partial<Record<RoutineLanguage, string>> = {
+  "function-block": "FBDContent",
+  sfc: "SFCContent",
+};
+
 function taskTypeToL5X(type: Task["type"]): string {
   switch (type) {
     case "periodic":
@@ -84,6 +89,13 @@ class XmlWriter {
   /** A literal line with no indentation (used for the XML prolog). */
   raw(line: string): void {
     this.parts.push(line);
+  }
+
+  /** Preformatted XML block indented at the current nesting level. */
+  rawXmlBlock(value: string): void {
+    for (const line of value.trim().split(/\r?\n/)) {
+      this.parts.push(`${this.pad()}${line}`);
+    }
   }
 
   comment(text: string): void {
@@ -166,6 +178,12 @@ function writeRung(xml: XmlWriter, rung: LadderRung): void {
   xml.close("Rung");
 }
 
+function hasGraphicalContentRoot(source: string | undefined, contentTag: string): boolean {
+  if (!source) return false;
+  const trimmed = source.trim();
+  return new RegExp(`^<${contentTag}(\\s|>|/)`).test(trimmed);
+}
+
 function writeRoutine(
   xml: XmlWriter,
   routine: Routine,
@@ -194,12 +212,20 @@ function writeRoutine(
     lines.forEach((line, index) => xml.cdataEl("Line", line, { Number: index }));
     xml.close("STContent");
     warnings.push(
-      `${where}: ${ROUTINE_LABEL[routine.language]} source is preserved in the file but is not re-imported by this tool.`,
+      `${where}: ${ROUTINE_LABEL[routine.language]} source preserved as read-only imported text.`,
     );
   } else if (routine.language !== "ladder") {
-    warnings.push(
-      `${where}: ${ROUTINE_LABEL[routine.language]} routine exported as a stub (its body is not yet serialized).`,
-    );
+    const contentTag = GRAPHICAL_CONTENT_TAG[routine.language];
+    if (contentTag && hasGraphicalContentRoot(routine.sourceText, contentTag)) {
+      xml.rawXmlBlock(routine.sourceText!);
+      warnings.push(
+        `${where}: ${ROUTINE_LABEL[routine.language]} body preserved as read-only imported XML (not simulated).`,
+      );
+    } else {
+      warnings.push(
+        `${where}: ${ROUTINE_LABEL[routine.language]} routine exported as a stub (its body was not available in a serializable form).`,
+      );
+    }
   }
 
   xml.close("Routine");

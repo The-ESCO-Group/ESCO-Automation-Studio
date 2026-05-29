@@ -44,39 +44,53 @@ function extractStructuredText(routineNode: L5XNode): string {
   return text(content);
 }
 
+function escapeXmlText(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function escapeXmlAttr(value: string): string {
+  return escapeXmlText(value).replace(/"/g, "&quot;");
+}
+
 /**
- * Render a parsed XML subtree to a compact, read-only structural text outline:
- * each element on its own indented line with its attributes, so graphical
- * (FBD/SFC) routine structure is preserved for display without being executed.
+ * Serialize a parsed XML subtree back to readable XML. This is intentionally
+ * conservative: imported FBD/SFC bodies remain read-only, but their structural
+ * body is preserved so generated L5X exports can round-trip it instead of
+ * replacing the routine with an empty stub.
  */
-function summarizeXml(node: unknown, name: string, depth = 0): string {
+function serializeXmlNode(node: unknown, name: string, depth = 0): string {
   const pad = "  ".repeat(depth);
-  if (node == null) return "";
+  if (node == null) return `${pad}<${name}/>`;
   if (typeof node !== "object") {
     const value = String(node).trim();
-    return value ? `${pad}${name}: ${value}` : `${pad}${name}`;
+    return value ? `${pad}<${name}>${escapeXmlText(value)}</${name}>` : `${pad}<${name}/>`;
   }
   const obj = node as Record<string, unknown>;
-  const attrs = Object.entries(obj)
+  const attrText = Object.entries(obj)
     .filter(([key]) => key.startsWith("@_"))
-    .map(([key, value]) => `${key.slice(2)}=${String(value)}`);
-  const lines = [`${pad}${name}${attrs.length ? ` [${attrs.join(", ")}]` : ""}`];
+    .map(([key, value]) => ` ${key.slice(2)}="${escapeXmlAttr(String(value))}"`)
+    .join("");
+
+  const lines: string[] = [];
   const inlineText = typeof obj["#text"] === "string" ? obj["#text"].trim() : "";
-  if (inlineText) lines.push(`${pad}  "${inlineText}"`);
+  if (inlineText) lines.push(`${pad}  ${escapeXmlText(inlineText)}`);
   for (const [key, value] of Object.entries(obj)) {
     if (key.startsWith("@_") || key === "#text") continue;
     for (const item of toArray(value)) {
-      const sub = summarizeXml(item, key, depth + 1);
-      if (sub) lines.push(sub);
+      lines.push(serializeXmlNode(item, key, depth + 1));
     }
   }
+
+  if (lines.length === 0) return `${pad}<${name}${attrText}/>`;
+  lines.unshift(`${pad}<${name}${attrText}>`);
+  lines.push(`${pad}</${name}>`);
   return lines.join("\n");
 }
 
 function extractGraphicalSource(routineNode: L5XNode, contentTag: string): string {
   const content = child(routineNode, contentTag);
   if (content == null) return "";
-  return summarizeXml(content, contentTag);
+  return serializeXmlNode(content, contentTag);
 }
 
 /**
