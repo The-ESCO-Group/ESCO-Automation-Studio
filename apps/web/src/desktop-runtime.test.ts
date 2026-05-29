@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isDesktopRuntime, isDesktopStartupRequested } from "./desktop-runtime";
+import {
+  invokeDesktopCommand,
+  isDesktopRuntime,
+  isDesktopStartupRequested,
+  promoteDesktopWindowToIde,
+} from "./desktop-runtime";
 
 describe("desktop runtime detection", () => {
   afterEach(() => {
@@ -21,5 +26,33 @@ describe("desktop runtime detection", () => {
     vi.stubGlobal("window", { location: { search: "" }, __TAURI_INTERNALS__: {} });
     expect(isDesktopRuntime()).toBe(true);
     expect(isDesktopStartupRequested()).toBe(true);
+  });
+
+  it("does not try to resize the window outside desktop runtime", async () => {
+    await expect(promoteDesktopWindowToIde()).resolves.toEqual({ ok: false, reason: "not-desktop" });
+  });
+
+  it("promotes the startup window to the full IDE through the Tauri command bridge", async () => {
+    const invoke = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("window", { location: { search: "" }, __TAURI_INTERNALS__: { invoke } });
+
+    await expect(promoteDesktopWindowToIde()).resolves.toEqual({ ok: true });
+    expect(invoke).toHaveBeenCalledWith("promote_desktop_window_to_ide");
+  });
+
+  it("supports the Tauri v2 global shape when promoting the IDE window", async () => {
+    const invoke = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("window", { location: { search: "" }, __TAURI__: { core: { invoke } } });
+
+    await expect(promoteDesktopWindowToIde()).resolves.toEqual({ ok: true });
+    expect(invoke).toHaveBeenCalledWith("promote_desktop_window_to_ide");
+  });
+
+  it("exposes a browser-safe desktop command bridge for future file-backed flows", async () => {
+    const invoke = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("window", { location: { search: "" }, __TAURI__: { core: { invoke } } });
+
+    await expect(invokeDesktopCommand("desktop_capabilities")).resolves.toEqual({ ok: true });
+    expect(invoke).toHaveBeenCalledWith("desktop_capabilities", undefined);
   });
 });

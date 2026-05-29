@@ -9,9 +9,25 @@ import { createSettingsStore, type SettingsStore } from "./settings";
 
 const FIRST_RUN_KEY = "app.firstRunComplete.v1";
 const CONNECTION_MODE_KEY = "app.connectionMode.v1";
+const DESKTOP_CONFIG_KEY = "app.desktopConfig.v1";
 
 /** The connection modes the user can pre-select (all offline-safe in this build). */
 export type ConnectionModePreference = "offline-simulation" | "request-readonly";
+
+export type DesktopStartupAction =
+  | "open-project"
+  | "new-project"
+  | "import-l5x"
+  | "restore-backup"
+  | "continue-offline"
+  | "setup-saved";
+
+export interface DesktopWorkstationConfig {
+  firstRunComplete: boolean;
+  connectionMode: ConnectionModePreference;
+  lastStartupAction?: DesktopStartupAction;
+  startupCompletedAt?: string;
+}
 
 const sharedStore = createSettingsStore();
 
@@ -21,6 +37,34 @@ export function isFirstRunComplete(store: SettingsStore = sharedStore): boolean 
 
 export function markFirstRunComplete(store: SettingsStore = sharedStore): void {
   store.set(FIRST_RUN_KEY, true);
+}
+
+export function loadDesktopWorkstationConfig(
+  store: SettingsStore = sharedStore,
+): DesktopWorkstationConfig {
+  const saved = store.get<Partial<DesktopWorkstationConfig> | null>(DESKTOP_CONFIG_KEY, null);
+  return {
+    firstRunComplete: saved?.firstRunComplete ?? isFirstRunComplete(store),
+    connectionMode: saved?.connectionMode ?? "offline-simulation",
+    lastStartupAction: saved?.lastStartupAction,
+    startupCompletedAt: saved?.startupCompletedAt,
+  };
+}
+
+export function recordDesktopStartupAction(
+  action: DesktopStartupAction,
+  store: SettingsStore = sharedStore,
+): DesktopWorkstationConfig {
+  const next: DesktopWorkstationConfig = {
+    ...loadDesktopWorkstationConfig(store),
+    firstRunComplete: true,
+    connectionMode: "offline-simulation",
+    lastStartupAction: action,
+    startupCompletedAt: new Date().toISOString(),
+  };
+  store.set(FIRST_RUN_KEY, true);
+  store.set(DESKTOP_CONFIG_KEY, next);
+  return next;
 }
 
 export function loadConnectionMode(store: SettingsStore = sharedStore): ConnectionModePreference {

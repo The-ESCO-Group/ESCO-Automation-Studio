@@ -89,8 +89,12 @@ import {
   type RecentProjectInput,
   type RecentProjectEntry,
 } from "./recent-projects";
-import { isDesktopStartupRequested } from "./desktop-runtime";
-import { isFirstRunComplete, markFirstRunComplete } from "./app-settings";
+import { isDesktopStartupRequested, promoteDesktopWindowToIde } from "./desktop-runtime";
+import {
+  isFirstRunComplete,
+  recordDesktopStartupAction,
+  type DesktopStartupAction,
+} from "./app-settings";
 
 const SCAN_INTERVAL_MS = 250;
 const TREND_BUFFER_LIMIT = 120;
@@ -503,20 +507,21 @@ export function App() {
     setRecovery(null);
     clearAutosave();
   };
-  const completeDesktopStartup = () => {
-    markFirstRunComplete();
+  const completeDesktopStartup = (action: DesktopStartupAction) => {
+    recordDesktopStartupAction(action);
     setDesktopStartupOpen(false);
+    void promoteDesktopWindowToIde();
   };
   const handleDesktopOpenProject = () => {
-    completeDesktopStartup();
+    completeDesktopStartup("open-project");
     setTimeout(() => handleImportClick(), 0);
   };
   const handleDesktopNewProject = () => {
-    completeDesktopStartup();
+    completeDesktopStartup("new-project");
     handleCreateRoutineProject();
   };
   const handleDesktopImportL5X = () => {
-    completeDesktopStartup();
+    completeDesktopStartup("import-l5x");
     setTimeout(() => handleImportL5XClick(), 0);
   };
   const handleDesktopRestoreBackup = () => {
@@ -524,11 +529,11 @@ export function App() {
       push("info", "No autosaved backup was found on this workstation.");
       return;
     }
-    completeDesktopStartup();
+    completeDesktopStartup("restore-backup");
     handleRestoreAutosave();
   };
   const handleDesktopContinueOffline = () => {
-    completeDesktopStartup();
+    completeDesktopStartup("continue-offline");
     push("info", "Workspace ready in Offline Simulation. No controller connection active.");
   };
   const handleDesktopSignIn = () => {
@@ -899,6 +904,7 @@ export function App() {
     }
     setAiProfile(saved);
     setSetupOpen(false);
+    if (desktopStartupOpen) completeDesktopStartup("setup-saved");
     push("success", `AI setup saved for ${aiProfileModelLabel(saved)}.`);
   };
 

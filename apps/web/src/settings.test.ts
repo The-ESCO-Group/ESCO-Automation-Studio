@@ -12,8 +12,10 @@ import {
 } from "./ai-profile";
 import {
   isFirstRunComplete,
+  loadDesktopWorkstationConfig,
   loadConnectionMode,
   markFirstRunComplete,
+  recordDesktopStartupAction,
   saveConnectionMode,
 } from "./app-settings";
 
@@ -154,6 +156,17 @@ describe("app settings", () => {
     expect(isFirstRunComplete(store)).toBe(false);
     markFirstRunComplete(store);
     expect(isFirstRunComplete(store)).toBe(true);
+  });
+
+  it("records desktop startup completion without leaving Offline Simulation", () => {
+    const store = new SettingsStore(memoryStorage(), "esco");
+    const saved = recordDesktopStartupAction("new-project", store);
+
+    expect(saved.firstRunComplete).toBe(true);
+    expect(saved.connectionMode).toBe("offline-simulation");
+    expect(saved.lastStartupAction).toBe("new-project");
+    expect(isFirstRunComplete(store)).toBe(true);
+    expect(loadDesktopWorkstationConfig(store).lastStartupAction).toBe("new-project");
   });
 
   it("defaults connection mode to offline-simulation and persists changes", () => {

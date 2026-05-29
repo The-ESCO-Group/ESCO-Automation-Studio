@@ -17,6 +17,13 @@ The desktop-only startup surface includes:
 - Open Project, New Project, Import L5X, Restore Backup.
 - Footer status: Workspace ready / No controller connection active.
 
+The packaged desktop window starts at the startup-box size (`758 x 558`) so the
+first-run view is not surrounded by a large empty IDE background. Once the user
+continues, opens/imports/creates a project, restores autosave, or saves setup,
+the renderer invokes the desktop shell to promote the window to the full IDE
+workspace (`1280 x 800`, resizable, minimum `1024 x 700`). Browser localhost
+development is unchanged.
+
 The Microsoft button does not fake authentication. Until Azure app registration,
 token handling, and secure user identity storage are implemented, it opens the
 local profile/API-key setup path. Continue offline enters the IDE in Offline
@@ -79,6 +86,12 @@ back to `localStorage`; in desktop production it should be replaced with an
 OS-backed secure store such as Windows Credential Manager or DPAPI through a
 Tauri command/plugin.
 
+The desktop startup now records workstation-only first-run metadata, including
+the last startup action and a hard default of `offline-simulation`. This metadata
+is not written into project files and does not imply a real controller
+connection. Recent-project entries remain local convenience metadata for the
+native file-dialog and file-backed project workflow.
+
 The current desktop Rust command surface reports:
 
 - `controller_connection: "offline-simulation"`
@@ -95,6 +108,9 @@ storage is complete until the adapter is implemented and tested.
 - [x] Desktop-only startup mode via `?desktop-startup=1`.
 - [x] Web localhost IDE startup remains unchanged.
 - [x] Desktop config preflight script.
+- [x] Startup-box-sized launch window with promotion into the full IDE shell.
+- [x] Workstation-only first-run metadata that keeps Offline Simulation as the
+      default mode.
 - [x] Rust/Cargo installed on the workstation.
 - [x] MSVC Build Tools installed on the workstation.
 - [x] Real `.exe`/installer artifact generated locally.

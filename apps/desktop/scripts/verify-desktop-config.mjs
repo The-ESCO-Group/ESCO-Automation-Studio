@@ -35,4 +35,15 @@ if (!String(mainWindow?.url ?? "").includes("desktop-startup=1")) {
   process.exit(1);
 }
 
+if (mainWindow?.width !== 758 || mainWindow?.height !== 558 || mainWindow?.resizable !== false) {
+  console.error("Packaged desktop window must open at the compact startup-box size.");
+  process.exit(1);
+}
+
+const rustShell = readFileSync(resolve(root, "src-tauri/src/lib.rs"), "utf8");
+if (!rustShell.includes("promote_desktop_window_to_ide")) {
+  console.error("Desktop shell must expose the startup-to-IDE window promotion command.");
+  process.exit(1);
+}
+
 console.log("Desktop scaffold config OK.");

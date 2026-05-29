@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::{fs, path::PathBuf};
+use tauri::{LogicalSize, Size, Window};
 
 #[derive(Serialize)]
 struct DesktopCapabilities {
@@ -49,6 +50,25 @@ fn desktop_capabilities() -> DesktopCapabilities {
         acd_access: false,
         secure_key_storage: "pending-os-keychain-adapter",
     }
+}
+
+#[tauri::command]
+fn promote_desktop_window_to_ide(window: Window) -> Result<(), String> {
+    window.set_resizable(true).map_err(|error| error.to_string())?;
+    window
+        .set_min_size(Some(Size::Logical(LogicalSize {
+            width: 1024.0,
+            height: 700.0,
+        })))
+        .map_err(|error| error.to_string())?;
+    window
+        .set_size(Size::Logical(LogicalSize {
+            width: 1280.0,
+            height: 800.0,
+        }))
+        .map_err(|error| error.to_string())?;
+    window.center().map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -103,6 +123,7 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             desktop_capabilities,
+            promote_desktop_window_to_ide,
             open_project_file,
             read_project_file,
             save_project_file
