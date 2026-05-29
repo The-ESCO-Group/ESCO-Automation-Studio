@@ -102,6 +102,9 @@ importers:
       '@esco/core':
         specifier: workspace:*
         version: link:../core
+      '@esco/hmi-model':
+        specifier: workspace:*
+        version: link:../hmi-model
       '@esco/instructions':
         specifier: workspace:*
         version: link:../instructions

@@ -48,5 +48,6 @@ export interface ApplyResult {
   project: PlcProject;
   applied: string[];
   findings: ValidationFinding[];
+  warnings: string[];
   error?: string;
 }

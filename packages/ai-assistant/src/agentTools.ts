@@ -6,6 +6,16 @@
 // .ACD/eval/state-mutation tools.
 
 import type { PlcProject } from "@esco/core";
+import {
+  getHmiElementDefinition,
+  getHmiProject,
+  HMI_ELEMENT_DEFINITIONS,
+  validateHmiProject,
+  type HmiGraphicElement,
+  type HmiProject,
+  type HmiSurfaceBase,
+  type HmiSurfaceKind,
+} from "@esco/hmi-model";
 import { createDefaultRegistry } from "@esco/instructions";
 import { rungNodes } from "@esco/ladder";
 import { createId } from "@esco/shared";
@@ -31,6 +41,46 @@ const obj = (
   required: string[] = [],
 ): Record<string, unknown> => ({ type: "object", properties, required, additionalProperties: false });
 const str = (description: string) => ({ type: "string", description });
+const num = (description: string) => ({ type: "number", description });
+const hmiSurfaceKindSchema = {
+  type: "string",
+  enum: ["screen", "popup", "system-banner", "add-on-graphic"],
+  description: "HMI surface kind.",
+};
+
+function knownTagPaths(project: PlcProject): string[] {
+  return getAllTags(project).map((tag) => tag.name);
+}
+
+function hmiSurfaces(hmi: HmiProject): HmiSurfaceBase[] {
+  return [...hmi.screens, ...hmi.popups, hmi.systemBanner];
+}
+
+function findHmiSurface(
+  hmi: HmiProject,
+  surfaceKind: HmiSurfaceKind,
+  surfaceId: string,
+): HmiSurfaceBase | undefined {
+  return hmiSurfaces(hmi).find((surface) => surface.kind === surfaceKind && surface.id === surfaceId);
+}
+
+function formatHmiElement(element: HmiGraphicElement): string {
+  const bindings = element.bindings
+    .map((binding) => `${binding.targetProperty}<-${binding.source.path || "(blank)"} (${binding.mode})`)
+    .join(", ");
+  const events = element.events
+    .map((event) => `${event.eventType}:${event.commands.map((command) => command.type).join("+") || "(none)"}`)
+    .join(", ");
+  return [
+    `${element.name} [${element.id}] type=${element.typeId}`,
+    `xywh=${element.geometry.x},${element.geometry.y},${element.geometry.width},${element.geometry.height}`,
+    bindings ? `bindings=${bindings}` : "bindings=(none)",
+    events ? `events=${events}` : "events=(none)",
+    element.unsupported ? "read-only unsupported" : "",
+  ]
+    .filter(Boolean)
+    .join(" | ");
+}
 
 /** Read-only tools — executed live against the working project; never mutate. */
 export const READ_TOOLS: AgentToolDef[] = [
@@ -69,6 +119,29 @@ export const READ_TOOLS: AgentToolDef[] = [
     description: "Describe a ladder instruction type (display name, operands, supported or not) from the instruction registry.",
     input_schema: obj({ instructionType: str("e.g. XIC, TON, MOV, PID.") }, ["instructionType"]),
   },
+  {
+    name: "get_hmi_overview",
+    description: "Summarize the View Designer/HMI project: screens, popups, system banner, element counts, and HMI validation status. Use this before proposing HMI edits.",
+    input_schema: obj({}),
+  },
+  {
+    name: "list_hmi_element_types",
+    description: "List registered HMI element typeIds that can be added safely. Use one of these typeIds with add_hmi_registered_element.",
+    input_schema: obj({}),
+  },
+  {
+    name: "get_hmi_surface",
+    description: "Show one HMI screen, popup, or system banner with element ids, bindings, and events. Use this to get ids before binding or navigation edits.",
+    input_schema: obj(
+      { surfaceKind: hmiSurfaceKindSchema, surfaceId: str("HMI surface id from get_hmi_overview.") },
+      ["surfaceKind", "surfaceId"],
+    ),
+  },
+  {
+    name: "get_hmi_validation_findings",
+    description: "Run HMI validation and return HMI/View Designer findings, including missing tag bindings and bad navigation targets.",
+    input_schema: obj({}),
+  },
 ];
 
 /** Map each write tool name to its project-action kind (what applyAction dispatches). */
@@ -88,6 +161,11 @@ export const WRITE_TOOL_TO_KIND: Record<string, string> = {
   add_parallel_branch: "addParallelBranch",
   add_branch_leg: "addBranchLeg",
   add_instruction_to_branch: "addInstructionToBranch",
+  create_hmi_screen: "createHmiScreen",
+  create_hmi_popup: "createHmiPopup",
+  add_hmi_registered_element: "addHmiElement",
+  set_hmi_tag_binding: "setHmiElementBinding",
+  add_hmi_navigation_event: "addHmiEventCommand",
 };
 
 /** Write tools — proposed as plan actions and applied ONLY through project-actions on Apply. */
@@ -173,6 +251,65 @@ export const WRITE_TOOLS: AgentToolDef[] = [
     description: "Append an instruction to a specific branch leg.",
     input_schema: obj({ routineId: str("routineId."), rungId: str("rungId."), branchId: str("Branch leg id."), instructionType: str("Instruction type.") }, ["routineId", "rungId", "branchId", "instructionType"]),
   },
+  {
+    name: "create_hmi_screen",
+    description: "Create a View Designer HMI screen. This only queues a reviewed project action.",
+    input_schema: obj(
+      { name: str("Screen name, e.g. Overview."), width: num("Optional screen width."), height: num("Optional screen height.") },
+      ["name"],
+    ),
+  },
+  {
+    name: "create_hmi_popup",
+    description: "Create a View Designer HMI popup. This only queues a reviewed project action.",
+    input_schema: obj(
+      { name: str("Popup name, e.g. Motor Details."), width: num("Optional popup width."), height: num("Optional popup height.") },
+      ["name"],
+    ),
+  },
+  {
+    name: "add_hmi_registered_element",
+    description: "Add a registered HMI element to a screen/popup/banner. typeId must come from list_hmi_element_types.",
+    input_schema: obj(
+      {
+        surfaceKind: hmiSurfaceKindSchema,
+        surfaceId: str("Target surface id from get_hmi_overview/get_hmi_surface."),
+        typeId: str("Registered HMI typeId, e.g. common.button or common.numeric-display."),
+        name: str("Optional element name."),
+      },
+      ["surfaceKind", "surfaceId", "typeId"],
+    ),
+  },
+  {
+    name: "set_hmi_tag_binding",
+    description: "Bind an existing HMI element property to a tag. The project-action layer validates missing tags as HMI findings.",
+    input_schema: obj(
+      {
+        surfaceKind: hmiSurfaceKindSchema,
+        surfaceId: str("Target surface id."),
+        elementId: str("Existing element id from get_hmi_surface."),
+        targetProperty: str("Bindable property, e.g. value, text, or enabled."),
+        tagPath: str("Tag path to bind, e.g. MotorRun."),
+        dataType: str("Optional data type, e.g. BOOL or DINT."),
+        mode: { type: "string", enum: ["read", "write", "read-write"], description: "Binding mode." },
+      },
+      ["surfaceKind", "surfaceId", "elementId", "targetProperty", "tagPath"],
+    ),
+  },
+  {
+    name: "add_hmi_navigation_event",
+    description: "Add a safe runtime-preview navigation command to an existing HMI element event, usually a button press.",
+    input_schema: obj(
+      {
+        surfaceKind: hmiSurfaceKindSchema,
+        surfaceId: str("Surface containing the button/element."),
+        elementId: str("Existing element id from get_hmi_surface."),
+        targetScreenId: str("Screen id to navigate to."),
+        eventType: { type: "string", enum: ["press", "release"], description: "Event type; press is typical." },
+      },
+      ["surfaceKind", "surfaceId", "elementId", "targetScreenId"],
+    ),
+  },
 ];
 
 export const ALL_AGENT_TOOLS: AgentToolDef[] = [...READ_TOOLS, ...WRITE_TOOLS];
@@ -187,6 +324,47 @@ export function writeToolToAction(name: string, input: Record<string, unknown>):
   const kind = WRITE_TOOL_TO_KIND[name];
   if (!kind) throw new Error(`Not a write tool: ${name}`);
   const s = (k: string) => (typeof input[k] === "string" ? (input[k] as string) : undefined);
+  let actionInput: Record<string, unknown> = input;
+
+  if (name === "create_hmi_screen") {
+    actionInput = { ...input, screenId: s("screenId") ?? createId("hmiscreen") };
+  } else if (name === "create_hmi_popup") {
+    actionInput = { ...input, popupId: s("popupId") ?? createId("hmipopup") };
+  } else if (name === "add_hmi_registered_element") {
+    const typeId = s("typeId");
+    if (typeId && !getHmiElementDefinition(typeId)) {
+      throw new Error(`HMI element type "${typeId}" is not registered. Use list_hmi_element_types first.`);
+    }
+    actionInput = { ...input, elementId: s("elementId") ?? createId("hmiel") };
+  } else if (name === "set_hmi_tag_binding") {
+    const mode = input.mode === "write" || input.mode === "read-write" ? input.mode : "read";
+    actionInput = {
+      surfaceKind: input.surfaceKind,
+      surfaceId: input.surfaceId,
+      elementId: input.elementId,
+      binding: {
+        id: s("bindingId") ?? createId("hmibind"),
+        targetProperty: s("targetProperty") ?? "",
+        source: { kind: "tag", path: s("tagPath") ?? "", dataType: s("dataType") },
+        mode,
+      },
+    };
+  } else if (name === "add_hmi_navigation_event") {
+    const eventType = input.eventType === "release" ? "release" : "press";
+    actionInput = {
+      surfaceKind: input.surfaceKind,
+      surfaceId: input.surfaceId,
+      elementId: input.elementId,
+      eventType,
+      command: {
+        id: s("commandId") ?? createId("hmicmd"),
+        type: "navigate",
+        safety: "runtime-preview",
+        args: { screenId: s("targetScreenId") ?? "" },
+      },
+    };
+  }
+
   let label = kind;
   if (name === "create_tag") label = `Create tag ${s("name")} (${s("dataType") ?? "BOOL"})`;
   else if (name === "rename_tag") label = `Rename tag ${s("from")} → ${s("to")}`;
@@ -203,7 +381,12 @@ export function writeToolToAction(name: string, input: Record<string, unknown>):
   else if (name === "add_parallel_branch") label = `Add parallel branch`;
   else if (name === "add_branch_leg") label = `Add branch leg`;
   else if (name === "add_instruction_to_branch") label = `Add ${s("instructionType")} to branch`;
-  return { id: createId("act"), kind, label, description: `Proposed ${kind}`, input };
+  else if (name === "create_hmi_screen") label = `Create HMI screen ${s("name")}`;
+  else if (name === "create_hmi_popup") label = `Create HMI popup ${s("name")}`;
+  else if (name === "add_hmi_registered_element") label = `Add HMI ${s("typeId")} to ${s("surfaceId")}`;
+  else if (name === "set_hmi_tag_binding") label = `Bind HMI ${s("elementId")} ${s("targetProperty")} to ${s("tagPath")}`;
+  else if (name === "add_hmi_navigation_event") label = `Navigate from ${s("elementId")} to ${s("targetScreenId")}`;
+  return { id: createId("act"), kind, label, description: `Proposed ${kind}`, input: actionInput };
 }
 
 /** Execute a read-only tool against the (working) project. Returns human/model-readable text. */
@@ -275,6 +458,54 @@ export function executeReadTool(
       const def = registry.get(type);
       if (!def) return `${type} is not in the instruction registry (unsupported — preserved read-only, not simulated).`;
       return `${type} — ${def.displayName}. Operands: ${def.operands.map((o) => o.name).join(", ") || "(none)"}.`;
+    }
+    case "get_hmi_overview": {
+      const hmi = getHmiProject(project);
+      if (!hmi) return "No HMI project is configured. Creating an HMI screen will initialize one through project-actions.";
+      const findings = validateHmiProject(hmi, { knownTagPaths: knownTagPaths(project) });
+      const lines = [
+        `HMI "${hmi.name}" [${hmi.id}] on ${hmi.targetDevice.name} (${hmi.targetDevice.width}x${hmi.targetDevice.height}).`,
+        `Screens (${hmi.screens.length}):`,
+      ];
+      for (const screen of hmi.screens) {
+        lines.push(`  ${screen.name} [${screen.id}]${hmi.homeScreenId === screen.id ? " home" : ""} — ${screen.elements.length} element(s)`);
+      }
+      lines.push(`Popups (${hmi.popups.length}):`);
+      for (const popup of hmi.popups) lines.push(`  ${popup.name} [${popup.id}] — ${popup.elements.length} element(s)`);
+      lines.push(`System banner [${hmi.systemBanner.id}] — ${hmi.systemBanner.elements.length} element(s)`);
+      lines.push(`HMI validation: ${findings.length} finding(s).`);
+      if (findings.length) {
+        lines.push(...findings.slice(0, 8).map((finding) => `  [${finding.severity}] ${finding.message}${finding.target ? ` (${finding.target})` : ""}`));
+      }
+      return lines.join("\n");
+    }
+    case "list_hmi_element_types": {
+      return HMI_ELEMENT_DEFINITIONS.map(
+        (definition) =>
+          `${definition.typeId} — ${definition.displayName} (${definition.category}, ${definition.runtimeSupport}): ${definition.description}`,
+      ).join("\n");
+    }
+    case "get_hmi_surface": {
+      const hmi = getHmiProject(project);
+      if (!hmi) return "No HMI project is configured.";
+      const surfaceKind = String(input.surfaceKind ?? "") as HmiSurfaceKind;
+      const surfaceId = String(input.surfaceId ?? "");
+      const surface = findHmiSurface(hmi, surfaceKind, surfaceId);
+      if (!surface) return `No HMI ${surfaceKind || "surface"} with id ${surfaceId}.`;
+      const lines = [
+        `${surface.kind} "${surface.name}" [${surface.id}] ${surface.width}x${surface.height}, ${surface.elements.length} element(s):`,
+      ];
+      if (surface.elements.length === 0) lines.push("  (empty)");
+      for (const element of surface.elements) lines.push(`  ${formatHmiElement(element)}`);
+      return lines.join("\n");
+    }
+    case "get_hmi_validation_findings": {
+      const hmi = getHmiProject(project);
+      const findings = validateHmiProject(hmi, { knownTagPaths: knownTagPaths(project) });
+      if (findings.length === 0) return "HMI validation clean — no findings.";
+      return `${findings.length} HMI finding(s):\n${findings
+        .map((finding) => `[${finding.severity}] ${finding.message}${finding.target ? ` (${finding.target})` : ""}`)
+        .join("\n")}`;
     }
     default:
       return `Unknown read tool: ${name}`;

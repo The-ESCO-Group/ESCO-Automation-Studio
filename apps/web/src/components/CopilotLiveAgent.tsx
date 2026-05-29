@@ -28,6 +28,9 @@ const QUICK_ACTIONS: { label: string; prompt: string }[] = [
   { label: "Diagnose validation", prompt: "Look at the current validation findings and explain what's wrong and how to fix it." },
   { label: "Fix undefined tags", prompt: "Find undefined tags referenced in logic and propose creating them with sensible data types." },
   { label: "Add seal-in starter", prompt: "Propose a seal-in motor starter (Start/Stop/Run) in the selected routine, creating any missing tags first." },
+  { label: "Create HMI screen", prompt: "Create an HMI screen named Overview through reviewed project actions." },
+  { label: "Explain HMI bindings", prompt: "Inspect the HMI/View Designer context and explain current bindings and HMI validation findings." },
+  { label: "Add navigation button", prompt: "Add a registered HMI navigation button and wire its press event to navigate to another HMI screen." },
 ];
 
 export function CopilotLiveAgent({
@@ -111,7 +114,7 @@ export function CopilotLiveAgent({
                 <div className="esco-ai__bubble-meta">AI Copilot</div>
                 <pre className="esco-ai__bubble-text">
                   {configured
-                    ? "Ask me to explain logic, diagnose validation findings, or propose reviewed ladder actions."
+                    ? "Ask me to explain logic, diagnose validation findings, or propose reviewed ladder/HMI actions."
                     : "AI setup is not finished on this workstation. Add your API key once in Settings, then Copilot will remember it."}
                 </pre>
                 {!configured ? (
@@ -268,7 +271,7 @@ export function CopilotLiveAgent({
 
       <div className="esco-ai__footer">
         <span>Model: {modelLabel}</span>
-        <span>{empty ? "No project" : "Reviewed actions only"}</span>
+        <span>{empty ? "No project" : "Reviewed ladder/HMI actions"}</span>
       </div>
     </div>
   );

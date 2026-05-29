@@ -88,6 +88,29 @@ describe("agent loop: safety", () => {
     expect(result.transcript.some((e) => e.role === "error" && /Blocked/.test(e.text))).toBe(true);
   });
 
+  it("rejects unregistered HMI element write tools before queuing actions", async () => {
+    const { project } = baseProject();
+    const caller = scriptedCaller([
+      {
+        content: [
+          {
+            type: "tool_use",
+            id: "t1",
+            name: "add_hmi_registered_element",
+            input: { surfaceKind: "screen", surfaceId: "screen_1", typeId: "vendor.custom-gauge" },
+          },
+        ],
+        stop_reason: "tool_use",
+      },
+      { content: [{ type: "text", text: "That element type is not registered." }], stop_reason: "end_turn" },
+    ]);
+
+    const result = await runAgent({ caller, project, prompt: "add custom HMI gauge" });
+
+    expect(result.plan.actions).toHaveLength(0);
+    expect(result.transcript.some((entry) => /not registered/i.test(entry.text))).toBe(true);
+  });
+
   it("runs read-only without proposing any actions", async () => {
     const { project } = baseProject();
     const caller = scriptedCaller([

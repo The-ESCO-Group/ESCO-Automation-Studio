@@ -1,5 +1,6 @@
 import type { PlcProject } from "@esco/core";
-import { findRoutine, getLadder, validate } from "@esco/project-actions";
+import { getHmiProject, validateHmiProject } from "@esco/hmi-model";
+import { findRoutine, getAllTags, getLadder, validate } from "@esco/project-actions";
 import { rungNodes } from "@esco/ladder";
 import { LARGE_PROJECT_RUNG_THRESHOLD } from "./agentConfig";
 import type { AssistantSelection } from "./types";
@@ -38,10 +39,16 @@ export function buildAgentContext(
   );
   const findings = validate(project);
   const errorCount = findings.filter((f) => f.severity === "error").length;
+  const hmi = getHmiProject(project);
+  const hmiFindings = validateHmiProject(hmi, { knownTagPaths: getAllTags(project).map((tag) => tag.name) });
+  const hmiErrorCount = hmiFindings.filter((finding) => finding.severity === "error").length;
 
   const lines = [
     `Project "${project.name}": ${programCount} program(s), ${routineCount} routine(s), ${rungs} rung(s).`,
     `Validation: ${findings.length} finding(s)${errorCount ? `, ${errorCount} error(s)` : ""}.`,
+    hmi
+      ? `HMI "${hmi.name}": ${hmi.screens.length} screen(s), ${hmi.popups.length} popup(s), ${hmiFindings.length} HMI finding(s)${hmiErrorCount ? `, ${hmiErrorCount} error(s)` : ""}.`
+      : "HMI: not configured.",
   ];
 
   const routine = selection?.routineId ? findRoutine(project, selection.routineId) : undefined;

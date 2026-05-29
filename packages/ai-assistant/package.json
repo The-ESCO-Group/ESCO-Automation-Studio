@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@esco/core": "workspace:*",
+    "@esco/hmi-model": "workspace:*",
     "@esco/shared": "workspace:*",
     "@esco/ladder": "workspace:*",
     "@esco/instructions": "workspace:*",

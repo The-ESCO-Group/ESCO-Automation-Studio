@@ -6,15 +6,18 @@ import {
   createRoutine,
   type PlcProject,
 } from "@esco/core";
+import { getHmiProject } from "@esco/hmi-model";
 import { createLadderRoutine } from "@esco/ladder";
 import { addRungFromText } from "@esco/project-actions";
 import {
+  applyAction,
   applyPlan,
   counterPlan,
   createProvider,
   explainRoutine,
   fixUndefinedPlan,
   getDefaultProvider,
+  hmiNavigationButtonPlan,
   motorStarterPlan,
   runAssistant,
   timerPlan,
@@ -120,6 +123,44 @@ describe("AI assistant: apply", () => {
     runAssistant({ prompt: "generate motor starter", project, selection: { routineId } });
     applyPlan(project, plan);
     expect(JSON.stringify(project)).toBe(snapshot);
+  });
+
+  it("applies reviewed HMI plans through project-actions with stable ids", () => {
+    const { project } = baseProject();
+    const plan = hmiNavigationButtonPlan(project);
+
+    expect(plan.actions.map((action) => action.kind)).toEqual([
+      "createHmiScreen",
+      "createHmiScreen",
+      "addHmiElement",
+      "addHmiEventCommand",
+    ]);
+
+    const result = applyPlan(project, plan);
+    const hmi = getHmiProject(result.project);
+    const overview = hmi?.screens.find((screen) => screen.name === "Overview");
+    const button = overview?.elements.find((element) => element.typeId === "common.button");
+
+    expect(result.ok).toBe(true);
+    expect(hmi?.screens.map((screen) => screen.name)).toEqual(["Overview", "Details"]);
+    expect(button?.events[0]?.commands[0]?.type).toBe("navigate");
+    expect(button?.events[0]?.commands[0]?.args.screenId).toBe(hmi?.screens[1]?.id);
+    expect(getHmiProject(project)).toBeUndefined();
+  });
+
+  it("rejects unknown HMI direct-mutation actions safely", () => {
+    const { project } = baseProject();
+    const outcome = applyAction(project, {
+      id: "bad-hmi",
+      kind: "mutateHmiProjectDirectly",
+      label: "Mutate HMI directly",
+      description: "This must never be allowed.",
+      input: { hmi: { screens: [] } },
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.error).toMatch(/Unknown or blocked/);
+    expect(outcome.project).toBe(project);
   });
 });
 

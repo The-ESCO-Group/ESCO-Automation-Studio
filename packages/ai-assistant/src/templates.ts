@@ -1,4 +1,5 @@
 import type { PlcProject } from "@esco/core";
+import { getHmiProject } from "@esco/hmi-model";
 import { createId } from "@esco/shared";
 import { tagExists } from "@esco/project-actions";
 import { resolveRoutineId, undefinedTags } from "./context";
@@ -21,6 +22,66 @@ function addRungAction(routineId: string, text: string, comment: string): Propos
     label: `Add rung: ${text}`,
     description: comment,
     input: { routineId, text, comment },
+  };
+}
+
+function createHmiScreenAction(name: string, screenId = createId("hmiscreen")): ProposedProjectAction {
+  return {
+    id: createId("act"),
+    kind: "createHmiScreen",
+    label: `Create HMI screen ${name}`,
+    description: `Create a View Designer screen named ${name}.`,
+    input: { name, screenId },
+  };
+}
+
+function createHmiPopupAction(name: string, popupId = createId("hmipopup")): ProposedProjectAction {
+  return {
+    id: createId("act"),
+    kind: "createHmiPopup",
+    label: `Create HMI popup ${name}`,
+    description: `Create a View Designer popup named ${name}.`,
+    input: { name, popupId },
+  };
+}
+
+function addHmiElementAction(
+  surfaceId: string,
+  typeId: string,
+  name: string,
+  elementId = createId("hmiel"),
+): ProposedProjectAction {
+  return {
+    id: createId("act"),
+    kind: "addHmiElement",
+    label: `Add HMI ${typeId} ${name}`,
+    description: `Add registered HMI element ${typeId} to the screen.`,
+    input: { surfaceKind: "screen", surfaceId, typeId, name, elementId },
+  };
+}
+
+function addHmiNavigationEventAction(
+  surfaceId: string,
+  elementId: string,
+  targetScreenId: string,
+): ProposedProjectAction {
+  return {
+    id: createId("act"),
+    kind: "addHmiEventCommand",
+    label: "Add HMI navigation event",
+    description: "On button press, navigate to the target HMI screen.",
+    input: {
+      surfaceKind: "screen",
+      surfaceId,
+      elementId,
+      eventType: "press",
+      command: {
+        id: createId("hmicmd"),
+        type: "navigate",
+        safety: "runtime-preview",
+        args: { screenId: targetScreenId },
+      },
+    },
   };
 }
 
@@ -117,6 +178,55 @@ export function fixUndefinedPlan(project: PlcProject): AssistantPlan {
     missing.length
       ? `Create ${missing.length} missing tag(s): ${missing.map((t) => `${t.name} (${t.type})`).join(", ")}.`
       : "No undefined tags were found.",
+    actions,
+  );
+}
+
+export function hmiScreenPlan(project: PlcProject, name = "Overview"): AssistantPlan {
+  const hmi = getHmiProject(project);
+  const exists = hmi?.screens.some((screen) => screen.name.toLowerCase() === name.toLowerCase());
+  const actions = exists ? [] : [createHmiScreenAction(name)];
+  return plan(
+    "Create HMI screen",
+    exists
+      ? `HMI screen "${name}" already exists; no screen creation is needed.`
+      : `Create a reviewed View Designer screen named "${name}".`,
+    actions,
+  );
+}
+
+export function hmiPopupPlan(project: PlcProject, name = "Details"): AssistantPlan {
+  const hmi = getHmiProject(project);
+  const exists = hmi?.popups.some((popup) => popup.name.toLowerCase() === name.toLowerCase());
+  const actions = exists ? [] : [createHmiPopupAction(name)];
+  return plan(
+    "Create HMI popup",
+    exists
+      ? `HMI popup "${name}" already exists; no popup creation is needed.`
+      : `Create a reviewed View Designer popup named "${name}".`,
+    actions,
+  );
+}
+
+export function hmiNavigationButtonPlan(project: PlcProject): AssistantPlan {
+  const hmi = getHmiProject(project);
+  const existingSource = hmi?.screens[0];
+  const existingTarget = hmi?.screens.find((screen) => screen.id !== existingSource?.id);
+  const sourceScreenId = existingSource?.id ?? createId("hmiscreen");
+  const targetScreenId = existingTarget?.id ?? createId("hmiscreen");
+  const buttonId = createId("hmiel");
+  const actions: ProposedProjectAction[] = [];
+
+  if (!existingSource) actions.push(createHmiScreenAction("Overview", sourceScreenId));
+  if (!existingTarget) actions.push(createHmiScreenAction("Details", targetScreenId));
+  actions.push(addHmiElementAction(sourceScreenId, "common.button", "Navigate to Details", buttonId));
+  actions.push(addHmiNavigationEventAction(sourceScreenId, buttonId, targetScreenId));
+
+  return plan(
+    "Add HMI navigation button",
+    existingSource && existingTarget
+      ? `Add a registered button to "${existingSource.name}" that navigates to "${existingTarget.name}" on press.`
+      : "Create any missing source/target HMI screens, add a registered button, and wire a reviewed navigation event.",
     actions,
   );
 }

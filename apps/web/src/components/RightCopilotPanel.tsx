@@ -62,7 +62,7 @@ export function RightCopilotPanel({
         <div>
           <h2 className="esco-copilot__title">AI Copilot</h2>
           <span className="esco-copilot__subtitle">
-            {configured ? "Reviewed ladder actions only" : "Choose provider and model in setup"}
+            {configured ? "Reviewed ladder/HMI actions only" : "Choose provider and model in setup"}
           </span>
         </div>
         <span className={`esco-copilot__badge${configured ? "" : " is-setup"}`}>{badgeLabel}</span>

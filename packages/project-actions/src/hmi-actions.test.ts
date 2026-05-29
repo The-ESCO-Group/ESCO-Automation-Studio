@@ -28,6 +28,24 @@ describe("HMI project actions", () => {
     expect(hmi?.homeScreenId).toBe(result.data?.screenId);
   });
 
+  it("honors reviewed stable ids for HMI screens and elements", () => {
+    const screenResult = createHmiScreen(createProject("Cell"), {
+      name: "Overview",
+      screenId: "screen_reviewed",
+    });
+    const elementResult = addHmiElement(screenResult.project, {
+      surfaceKind: "screen",
+      surfaceId: "screen_reviewed",
+      typeId: "common.button",
+      elementId: "button_reviewed",
+    });
+
+    const screen = getHmiProject(elementResult.project)?.screens[0];
+    expect(screenResult.data?.screenId).toBe("screen_reviewed");
+    expect(elementResult.data?.elementId).toBe("button_reviewed");
+    expect(screen?.elements[0]?.id).toBe("button_reviewed");
+  });
+
   it("adds registered and unsupported elements through the action layer", () => {
     const screenResult = createHmiScreen(createProject("Cell"), { name: "Overview" });
     const screenId = screenResult.data!.screenId;

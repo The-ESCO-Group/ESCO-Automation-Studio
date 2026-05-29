@@ -1,5 +1,6 @@
 import { rungNodes, type LadderRung } from "@esco/ladder";
-import { validate } from "@esco/project-actions";
+import { getAllTags, validate } from "@esco/project-actions";
+import { getHmiProject, validateHmiProject, type HmiProject, type HmiSurfaceBase } from "@esco/hmi-model";
 import { describeNode, distinct, readsAndWrites, registry, resolveRoutine } from "./context";
 import type { AssistantInput } from "./types";
 
@@ -9,6 +10,14 @@ const COUNTER_TYPES = new Set(["CTU"]);
 function pickRung(rungs: LadderRung[], rungId?: string): LadderRung | undefined {
   if (rungId) return rungs.find((rung) => rung.id === rungId) ?? rungs[0];
   return rungs[0];
+}
+
+function knownTagPaths(input: AssistantInput): string[] {
+  return getAllTags(input.project).map((tag) => tag.name);
+}
+
+function hmiSurfaces(hmi: HmiProject): HmiSurfaceBase[] {
+  return [...hmi.screens, ...hmi.popups, hmi.systemBanner];
 }
 
 /** Explain a single rung: instructions, tags read/written, timers/counters, behaviour. */
@@ -119,5 +128,60 @@ export function explainValidation(input: AssistantInput): string {
   lines.push(
     'Suggested fix: undefined tags can be created with "fix undefined tags" (preview first). Review all suggestions before applying.',
   );
+  return lines.join("\n");
+}
+
+/** Summarize HMI tag bindings and the related validation state. */
+export function explainHmiBindings(input: AssistantInput): string {
+  const hmi = getHmiProject(input.project);
+  if (!hmi) return "No HMI project is configured yet. Ask me to create an HMI screen to start one.";
+
+  const bindings = hmiSurfaces(hmi).flatMap((surface) =>
+    surface.elements.flatMap((element) =>
+      element.bindings.map((binding) => ({
+        surface,
+        element,
+        binding,
+      })),
+    ),
+  );
+
+  const findings = validateHmiProject(hmi, { knownTagPaths: knownTagPaths(input) });
+  const bindingFindings = findings.filter((finding) => finding.ruleId.includes("hmi-binding"));
+  const lines = [
+    `HMI "${hmi.name}" — ${hmi.screens.length} screen(s), ${hmi.popups.length} popup(s).`,
+    bindings.length ? `Bindings (${bindings.length}):` : "No HMI element bindings are configured yet.",
+  ];
+
+  for (const { surface, element, binding } of bindings) {
+    lines.push(
+      `  • ${surface.name}/${element.name}: ${binding.targetProperty} <- ${binding.source.path || "(blank)"} (${binding.mode})`,
+    );
+  }
+
+  lines.push("");
+  if (bindingFindings.length) {
+    lines.push(`Binding validation findings (${bindingFindings.length}):`);
+    for (const finding of bindingFindings) {
+      lines.push(`  • [${finding.severity}] ${finding.message}${finding.target ? ` (${finding.target})` : ""}`);
+    }
+  } else {
+    lines.push("Binding validation: clean.");
+  }
+  return lines.join("\n");
+}
+
+/** Summarize HMI/View Designer validation findings only. */
+export function explainHmiValidation(input: AssistantInput): string {
+  const hmi = getHmiProject(input.project);
+  const findings = validateHmiProject(hmi, { knownTagPaths: knownTagPaths(input) });
+  if (findings.length === 0) return "HMI validation is clean — no findings.";
+
+  const lines = [`HMI validation has ${findings.length} finding(s):`];
+  for (const finding of findings) {
+    lines.push(`  • [${finding.severity}] ${finding.message}${finding.target ? ` (${finding.target})` : ""}`);
+  }
+  lines.push("");
+  lines.push("Suggested fix: bind only known project tags and use reviewed HMI actions for screens, registered elements, and navigation events.");
   return lines.join("\n");
 }

@@ -1,7 +1,16 @@
-import { explainRoutine, explainRung, explainValidation } from "./explain";
+import {
+  explainHmiBindings,
+  explainHmiValidation,
+  explainRoutine,
+  explainRung,
+  explainValidation,
+} from "./explain";
 import {
   counterPlan,
   fixUndefinedPlan,
+  hmiNavigationButtonPlan,
+  hmiPopupPlan,
+  hmiScreenPlan,
   motorStarterPlan,
   movPlan,
   timerPlan,
@@ -15,6 +24,9 @@ export const HELP_TEXT = [
   "  • explain rung",
   "  • explain routine",
   "  • explain validation errors",
+  "  • explain HMI bindings",
+  "  • create HMI screen",
+  "  • add navigation button",
   "  • generate motor starter",
   "  • fix undefined tags",
   "  • timer example",
@@ -36,8 +48,19 @@ export function runAssistant(input: AssistantInput): AssistantResult {
 
   if (prompt.includes("explain rung")) return { ok: true, message: explainRung(input) };
   if (prompt.includes("explain routine")) return { ok: true, message: explainRoutine(input) };
+  if (prompt.includes("hmi") && (prompt.includes("binding") || prompt.includes("view designer"))) {
+    return { ok: true, message: explainHmiBindings(input) };
+  }
+  if (prompt.includes("hmi") && (prompt.includes("validation") || prompt.includes("finding"))) {
+    return { ok: true, message: explainHmiValidation(input) };
+  }
   if (prompt.includes("validation") || prompt.includes("explain error")) {
     return { ok: true, message: explainValidation(input) };
+  }
+  if (prompt.includes("hmi") && prompt.includes("screen")) return fromPlan(hmiScreenPlan(input.project));
+  if (prompt.includes("hmi") && prompt.includes("popup")) return fromPlan(hmiPopupPlan(input.project));
+  if (prompt.includes("navigation button") || (prompt.includes("hmi") && prompt.includes("navigate"))) {
+    return fromPlan(hmiNavigationButtonPlan(input.project));
   }
   if (prompt.includes("motor")) return fromPlan(motorStarterPlan(input.project, input.selection));
   if (prompt.includes("fix undefined") || prompt.includes("undefined tag")) {
