@@ -15,3 +15,17 @@ e2e/*.png
 e2e/*.L5X
 e2e/*.plcproj.json
 e2e/*.csv
+
+# Editing scratch artifacts (one-off patch scripts, temp copies) — never commit
+/*.tmp
+/tmp-*.mjs
+/*_tmp.ts
+
+# Dev UI-audit screenshots and one-off generated reports — never commit
+/artifacts/
+/e2e-start-state.png
+/pump-station-sim-report.json
+
+# Internal AI agent orchestration scratch (prompts, skill defs, lock) — not part of the shipped app
+/.agents/
+/skills-lock.json

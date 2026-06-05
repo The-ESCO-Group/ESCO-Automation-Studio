@@ -33,6 +33,40 @@ importers:
         specifier: ^2.5.0
         version: 2.11.2
 
+  apps/mcp:
+    dependencies:
+      '@esco/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@esco/instructions':
+        specifier: workspace:*
+        version: link:../../packages/instructions
+      '@esco/ladder':
+        specifier: workspace:*
+        version: link:../../packages/ladder
+      '@esco/parser-l5x':
+        specifier: workspace:*
+        version: link:../../packages/parser-l5x
+      '@esco/project-actions':
+        specifier: workspace:*
+        version: link:../../packages/project-actions
+      '@esco/sim-lab':
+        specifier: workspace:*
+        version: link:../../packages/sim-lab
+      '@esco/validator':
+        specifier: workspace:*
+        version: link:../../packages/validator
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.3
+        version: 6.4.2(@types/node@22.19.19)
+
   apps/web:
     dependencies:
       '@esco/ai-assistant':
@@ -65,9 +99,15 @@ importers:
       '@esco/project-store':
         specifier: workspace:*
         version: link:../../packages/project-store
+      '@esco/sim-lab':
+        specifier: workspace:*
+        version: link:../../packages/sim-lab
       '@esco/simulator':
         specifier: workspace:*
         version: link:../../packages/simulator
+      '@esco/soft-controller':
+        specifier: workspace:*
+        version: link:../../packages/soft-controller
       '@esco/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -152,7 +192,19 @@ importers:
       '@esco/shared':
         specifier: workspace:*
         version: link:../shared
+      '@esco/soft-controller':
+        specifier: workspace:*
+        version: link:../soft-controller
     devDependencies:
+      '@esco/core':
+        specifier: workspace:*
+        version: link:../core
+      '@esco/ladder':
+        specifier: workspace:*
+        version: link:../ladder
+      '@esco/project-actions':
+        specifier: workspace:*
+        version: link:../project-actions
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -302,6 +354,28 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/sim-lab:
+    dependencies:
+      '@esco/instructions':
+        specifier: workspace:*
+        version: link:../instructions
+      '@esco/ladder':
+        specifier: workspace:*
+        version: link:../ladder
+      '@esco/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@esco/simulator':
+        specifier: workspace:*
+        version: link:../simulator
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@22.19.19)
+
   packages/simulator:
     dependencies:
       '@esco/core':
@@ -313,6 +387,34 @@ importers:
       '@esco/ladder':
         specifier: workspace:*
         version: link:../ladder
+      '@esco/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@22.19.19)
+
+  packages/soft-controller:
+    dependencies:
+      '@esco/core':
+        specifier: workspace:*
+        version: link:../core
+      '@esco/instructions':
+        specifier: workspace:*
+        version: link:../instructions
+      '@esco/ladder':
+        specifier: workspace:*
+        version: link:../ladder
+      '@esco/parser-l5x':
+        specifier: workspace:*
+        version: link:../parser-l5x
+      '@esco/project-actions':
+        specifier: workspace:*
+        version: link:../project-actions
       '@esco/shared':
         specifier: workspace:*
         version: link:../shared
@@ -347,6 +449,9 @@ importers:
       '@esco/ladder':
         specifier: workspace:*
         version: link:../ladder
+      '@esco/parser-l5x':
+        specifier: workspace:*
+        version: link:../parser-l5x
     devDependencies:
       typescript:
         specifier: ^5.7.2

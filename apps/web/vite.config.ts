@@ -67,6 +67,8 @@ export default defineConfig({
       "@esco/parser-l5x": pkgSrc("parser-l5x"),
       "@esco/project-actions": pkgSrc("project-actions"),
       "@esco/project-store": pkgSrc("project-store"),
+      "@esco/soft-controller": pkgSrc("soft-controller"),
+      "@esco/sim-lab": pkgSrc("sim-lab"),
       "@esco/ui": pkgSrc("ui"),
     },
   },

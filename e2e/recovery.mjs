@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-import { URL, createBlankProject } from "./helpers.mjs";
+import { URL, addRungViaProjectMenu, createBlankProject } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
 const rungCount = (page) => page.locator(".esco-lad__rung").count();
@@ -20,7 +20,7 @@ try {
   // Make an edit so the project is dirty, then let autosave fire (debounced ~1s).
   await createBlankProject(page);
   const start = await rungCount(page);
-  await page.locator('button:has-text("Add Rung")').click();
+  await addRungViaProjectMenu(page);
   await page.waitForFunction((n) => document.querySelectorAll(".esco-lad__rung").length === n + 1, start);
   await page.waitForTimeout(1300); // allow the debounced autosave to persist
 
@@ -33,11 +33,11 @@ try {
   await page.locator('.esco-recovery button:has-text("Restore")').click();
   await page.waitForFunction((n) => document.querySelectorAll(".esco-lad__rung").length === n, start + 1);
   check("restore brings back the edited project", (await rungCount(page)) === start + 1);
-  check("restored work is marked Unsaved", (await page.locator(".esco-titlebar__saved.is-dirty").count()) === 1);
+  check("restored work is marked Unsaved", /\*$/.test(await page.locator(".esco-titlebar__name").innerText()));
   check("recovery banner is dismissed after restore", (await banner(page).count()) === 0);
 
   // Dismiss path: edit again, reload, dismiss -> banner gone, default project.
-  await page.locator('button:has-text("Add Rung")').click();
+  await addRungViaProjectMenu(page);
   await page.waitForTimeout(1300);
   await page.reload({ waitUntil: "networkidle" });
   await banner(page).waitFor({ timeout: 8000 });

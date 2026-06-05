@@ -20,6 +20,8 @@
     "@esco/parser-l5x": "workspace:*",
     "@esco/project-actions": "workspace:*",
     "@esco/project-store": "workspace:*",
+    "@esco/soft-controller": "workspace:*",
+    "@esco/sim-lab": "workspace:*",
     "@esco/simulator": "workspace:*",
     "@esco/ui": "workspace:*",
     "@esco/validator": "workspace:*",

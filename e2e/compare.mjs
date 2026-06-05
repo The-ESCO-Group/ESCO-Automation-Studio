@@ -2,7 +2,7 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { readFileSync } from "node:fs";
-import { URL, importStarterProject } from "./helpers.mjs";
+import { URL, addRungViaProjectMenu, importStarterProject, ribbonButton } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const exportPath = join(here, "compare-original.plcproj.json");
@@ -10,7 +10,6 @@ const csvPath = join(here, "compare-report.csv");
 
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
-const ribbonBtn = (page, text) => page.locator(`.esco-ribbon__button:has-text("${text}")`).first();
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const context = await browser.newContext({ viewport: { width: 1400, height: 950 }, acceptDownloads: true });
@@ -23,19 +22,19 @@ try {
   // Export the current (original) project to use as the comparison file.
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    ribbonBtn(page, "Save").click(),
+    ribbonButton(page, "Save").click(),
   ]);
   await download.saveAs(exportPath);
   check("exported the current project for comparison", true);
 
   // Edit the live project so it differs from the exported copy: add a rung.
-  await page.locator('button:has-text("MainRoutine")').first().click();
-  await page.locator('button:has-text("Add Rung")').waitFor({ timeout: 8000 });
-  await page.locator('button:has-text("Add Rung")').click();
+  await page.locator('.esco-tree__node--routine:has-text("MainRoutine")').first().click();
+  await addRungViaProjectMenu(page);
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung").length === 2);
 
   // Open the Compare view — empty until a file is chosen.
-  await ribbonBtn(page, "Compare").click();
+  await page.locator('.esco-ribbon__tab:has-text("View")').click();
+  await page.locator('.esco-ribbon-menu__item:has-text("Compare")').click();
   await page.locator(".esco-cmp").waitFor({ timeout: 8000 });
   check("compare view shows an empty state before a file is chosen", (await page.locator(".esco-cmp__empty").count()) === 1);
 
@@ -70,6 +69,13 @@ try {
     "CSV report downloads with the expected header",
     /^Status,Left routine,Right routine,Match type,Difference summary/.test(csv),
     csvDownload.suggestedFilename(),
+  );
+
+  await page.locator('.esco-cmp__detail-actions button:has-text("Open current routine")').first().click();
+  await page.locator(".esco-editor__tab.is-active").waitFor({ timeout: 5000 });
+  check(
+    "compare changed hit opens the current routine",
+    /MainRoutine/.test(await page.locator(".esco-editor__tab.is-active").innerText()),
   );
 
   const passed = results.filter(Boolean).length;

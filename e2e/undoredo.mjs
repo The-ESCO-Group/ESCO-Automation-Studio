@@ -2,9 +2,13 @@ import { chromium } from "playwright-core";
 import { URL, createBlankProject } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
-const undoBtn = (page) => page.locator('.esco-ribbon__button:has-text("Undo")').first();
-const redoBtn = (page) => page.locator('.esco-ribbon__button:has-text("Redo")').first();
+const undoBtn = (page) => page.locator('.esco-ribbon__button[aria-label="Undo"]').first();
+const redoBtn = (page) => page.locator('.esco-ribbon__button[aria-label="Redo"]').first();
 const rungCount = (page) => page.locator(".esco-lad__rung").count();
+const menuCommand = async (page, menu, command) => {
+  await page.locator(`.esco-ribbon__tab:has-text("${menu}")`).click();
+  await page.locator(`.esco-ribbon-menu__item:has-text("${command}")`).click();
+};
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
@@ -16,8 +20,8 @@ try {
   check("Undo disabled before any edit", await undoBtn(page).isDisabled());
   const start = await rungCount(page);
 
-  // Edit: add a rung.
-  await page.locator('button:has-text("Add Rung")').click();
+  // Edit through the Studio-style Logic menu: add a rung.
+  await menuCommand(page, "Logic", "Add Rung");
   await page.waitForFunction((n) => document.querySelectorAll(".esco-lad__rung").length === n + 1, start);
   check("Add Rung adds a rung", (await rungCount(page)) === start + 1);
   check("Undo enabled after an edit", !(await undoBtn(page).isDisabled()));

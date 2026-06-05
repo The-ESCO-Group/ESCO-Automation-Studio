@@ -1,8 +1,8 @@
 import type { PlcProject, UdtMember, UserDefinedType } from "@esco/core";
 import { fail, ok } from "./helpers";
+import { dimensionPropsFrom, mergeDimensionPatch } from "./dimensions";
+import { logixIdentifierError } from "./logix-names";
 import type { ProjectActionResult } from "./types";
-
-const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export interface AddUdtMemberInput {
   udtId: string;
@@ -52,16 +52,14 @@ function validateMember(
   existing: UdtMember[],
 ): string | undefined {
   if (!member.name?.trim()) return "Member name is required.";
-  if (!IDENTIFIER.test(member.name)) return `Invalid member name "${member.name}".`;
+  const invalidName = logixIdentifierError(member.name, "Member");
+  if (invalidName) return invalidName;
   if (existing.some((other) => other.name.toLowerCase() === member.name.toLowerCase())) {
     return `Member "${member.name}" already exists in "${udt.name}".`;
   }
   if (!member.dataType?.trim()) return "Member data type is required.";
   if (member.dataType.toLowerCase() === udt.name.toLowerCase()) {
     return `Member "${member.name}" cannot use its own UDT "${udt.name}" as a type.`;
-  }
-  if (member.dimension !== undefined && (!Number.isInteger(member.dimension) || member.dimension < 0)) {
-    return "Member dimension must be a non-negative integer.";
   }
   return undefined;
 }
@@ -74,10 +72,12 @@ export function addUdtMember(
   const udt = findUdt(project, input.udtId);
   if (!udt) return fail(project, `UDT "${input.udtId}" was not found.`);
 
+  const dimensions = dimensionPropsFrom(input.member, "Member");
+  if (dimensions.error) return fail(project, dimensions.error);
   const member: UdtMember = {
     name: input.member.name?.trim() ?? "",
     dataType: input.member.dataType?.trim() ?? "",
-    ...(input.member.dimension ? { dimension: input.member.dimension } : {}),
+    ...dimensions.props,
     ...(input.member.description?.trim() ? { description: input.member.description.trim() } : {}),
   };
   const error = validateMember(udt, member, udt.members);
@@ -99,11 +99,12 @@ export function updateUdtMember(
   const current = udt.members.find((member) => member.name === input.memberName);
   if (!current) return fail(project, `Member "${input.memberName}" was not found in "${udt.name}".`);
 
+  const dimensions = mergeDimensionPatch(current, input.patch, "Member");
+  if (dimensions.error) return fail(project, dimensions.error);
   const merged: UdtMember = {
     name: input.patch.name?.trim() ?? current.name,
     dataType: input.patch.dataType?.trim() ?? current.dataType,
-    dimension:
-      input.patch.dimension !== undefined ? input.patch.dimension || undefined : current.dimension,
+    ...dimensions.props,
     description:
       input.patch.description !== undefined
         ? input.patch.description.trim() || undefined

@@ -77,6 +77,38 @@ describe("extended math — angle conversion and truncation", () => {
   });
 });
 
+describe("extended math — rung-condition gating", () => {
+  // Gate a unary math box behind an XIC so the rung-in condition is false.
+  function gatedUnary(type: string, source: number, enable: boolean): number {
+    const routine = createLadderRoutine();
+    routine.rungs.push(
+      createRung(routine.id, 0, [
+        createNode("XIC", [tagOperand("tag", "En")]),
+        createNode(type, [tagOperand("source", "Src"), tagOperand("dest", "Dest")]),
+      ]),
+    );
+    const runtime = new PlcRuntime(registry);
+    runtime.loadRoutine(routine);
+    runtime.writeTag("En", enable);
+    runtime.writeTag("Src", source);
+    runtime.writeTag("Dest", -1);
+    runtime.scanOnce(0);
+    return runtime.readTag("Dest") as number;
+  }
+
+  it("does not write Dest when the rung is false", () => {
+    // Every unary math box computes only "while the rung is true"; a false rung
+    // must leave the prior Dest untouched rather than writing fn(Source).
+    for (const type of ["SIN", "COS", "TAN", "ASN", "ACS", "ATN", "LN", "LOG", "DEG", "RAD", "TRN"]) {
+      expect(gatedUnary(type, 1, false), `${type} must not write on a false rung`).toBe(-1);
+    }
+  });
+
+  it("writes Dest when the rung is true", () => {
+    expect(gatedUnary("TRN", 3.7, true)).toBe(3);
+  });
+});
+
 describe("extended math — XPY (X to the power Y)", () => {
   function xpy(x: number, y: number, enable = true): number {
     const routine = createLadderRoutine();

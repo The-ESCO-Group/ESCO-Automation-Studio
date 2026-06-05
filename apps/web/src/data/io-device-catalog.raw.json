@@ -1,0 +1,1392 @@
+[
+  {
+    "displayName": "Backplane",
+    "escoCategory": "Network & Gateways",
+    "deviceClass": "Backplane",
+    "signalNetwork": "1756 backplane",
+    "setupMethod": "Chassis",
+    "vendorCatalogReference": "1756-A4 / A7 / A10 / A13 / A17",
+    "typicalUse": "rack controller platform rack slots",
+    "brandSafeNotes": "Holds controller, communication, and I/O cards"
+  },
+  {
+    "displayName": "Rack Power Supply",
+    "escoCategory": "Controllers & Racks",
+    "deviceClass": "Power Supply",
+    "signalNetwork": "Rack power",
+    "setupMethod": "Chassis Support",
+    "vendorCatalogReference": "1756-PA / PB / PC power supplies",
+    "typicalUse": "Power the chassis",
+    "brandSafeNotes": "Power supply selection depends on chassis/load"
+  },
+  {
+    "displayName": "Remote I/O Adapter",
+    "escoCategory": "Network & Gateways",
+    "deviceClass": "CIP industrial Ethernet Adapter",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Adapter",
+    "vendorCatalogReference": "5069-AENTR / 5069-AEN2TR",
+    "typicalUse": "Remote Compact 5000 I/O",
+    "brandSafeNotes": "Adapter for remote 5069 banks"
+  },
+  {
+    "displayName": "Remote I/O Adapter",
+    "escoCategory": "Network & Gateways",
+    "deviceClass": "CIP industrial Ethernet Adapter",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Adapter",
+    "vendorCatalogReference": "5094-AENTR / 5094-AEN2TR",
+    "typicalUse": "Remote distributed distributed I/O station I/O",
+    "brandSafeNotes": "Configured in ESCO Automation Studio"
+  },
+  {
+    "displayName": "Remote I/O Adapter",
+    "escoCategory": "Network & Gateways",
+    "deviceClass": "CIP industrial Ethernet Adapter",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Adapter",
+    "vendorCatalogReference": "1734-AENT / 1734-AENTR",
+    "typicalUse": "Remote modular remote I/O",
+    "brandSafeNotes": "Small modular distributed I/O"
+  },
+  {
+    "displayName": "Remote I/O Adapter",
+    "escoCategory": "Network & Gateways",
+    "deviceClass": "CIP industrial Ethernet Adapter",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Adapter",
+    "vendorCatalogReference": "1794-AENT / 1794-AENTR",
+    "typicalUse": "Remote distributed I/O station",
+    "brandSafeNotes": "Older distributed I/O family"
+  },
+  {
+    "displayName": "CIP industrial Ethernet Card",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "CIP industrial Ethernet Card",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Communication Module",
+    "vendorCatalogReference": "1756-EN2T / EN2TR / EN3TR / EN4TR",
+    "typicalUse": "Network comms, HMIs, drives, remote I/O",
+    "brandSafeNotes": "1756 chassis communication modules"
+  },
+  {
+    "displayName": "CIP control network Card",
+    "escoCategory": "Network & Gateways",
+    "deviceClass": "CIP control network Card",
+    "signalNetwork": "CIP control network",
+    "setupMethod": "Communication Module",
+    "vendorCatalogReference": "1756-CNB / CNBR / CN2 / CN2R",
+    "typicalUse": "Legacy CIP control network networks",
+    "brandSafeNotes": "Common in older systems"
+  },
+  {
+    "displayName": "CIP device network Scanner",
+    "escoCategory": "Network & Gateways",
+    "deviceClass": "CIP device network Scanner",
+    "signalNetwork": "CIP device network",
+    "setupMethod": "Communication Module",
+    "vendorCatalogReference": "1756-DNB",
+    "typicalUse": "Legacy CIP device network I/O/devices",
+    "brandSafeNotes": "Common migration item"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Serial Card",
+    "signalNetwork": "RS-232 / RS-485",
+    "setupMethod": "Specialty Module",
+    "vendorCatalogReference": "5069-SERIAL",
+    "typicalUse": "Serial instruments, scanners, ASCII devices",
+    "brandSafeNotes": "Compact 5000 serial module"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Input Card",
+    "signalNetwork": "120V AC input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IA16",
+    "typicalUse": "AC field inputs",
+    "brandSafeNotes": "16-point AC input"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Input Card",
+    "signalNetwork": "24V DC input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IB16 / IB32",
+    "typicalUse": "Pushbuttons, sensors, status contacts",
+    "brandSafeNotes": "Standard DC inputs"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Diagnostic Digital Input Card",
+    "signalNetwork": "24V DC input with diagnostics",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IB16D",
+    "typicalUse": "Diagnostics-heavy input points",
+    "brandSafeNotes": "Diagnostic input card"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Isolated Digital Input Card",
+    "signalNetwork": "24V DC isolated input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IB16I",
+    "typicalUse": "Inputs needing isolation",
+    "brandSafeNotes": "Isolated channels/groups"
+  },
+  {
+    "displayName": "Sequence of Events Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Sequence of Events Input Card",
+    "signalNetwork": "24V DC event input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IB16ISOE",
+    "typicalUse": "Timestamped event capture",
+    "brandSafeNotes": "SOE input style"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Input Card",
+    "signalNetwork": "24V DC sourcing input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IV16 / IV32",
+    "typicalUse": "DC field inputs",
+    "brandSafeNotes": "Sourcing style input"
+  },
+  {
+    "displayName": "Digital Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Output Card",
+    "signalNetwork": "AC output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-OA8 / OA16",
+    "typicalUse": "AC loads, relays, contactors",
+    "brandSafeNotes": "AC output points"
+  },
+  {
+    "displayName": "Digital Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Output Card",
+    "signalNetwork": "24V DC output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-OB8 / OB16 / OB32",
+    "typicalUse": "Solenoids, relays, lights",
+    "brandSafeNotes": "Standard DC output"
+  },
+  {
+    "displayName": "Diagnostic / Protected Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Diagnostic / Protected Output Card",
+    "signalNetwork": "24V DC output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-OB16D / OB16E / OB16I",
+    "typicalUse": "Outputs needing diagnostics or isolation",
+    "brandSafeNotes": "Variant depends on diagnostics/isolation"
+  },
+  {
+    "displayName": "Relay Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Relay Output Card",
+    "signalNetwork": "Relay contacts",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-OW16I / OX8I",
+    "typicalUse": "Mixed voltage loads",
+    "brandSafeNotes": "Relay output modules"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Analog Input Card",
+    "signalNetwork": "Current / voltage",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IF8 / IF16",
+    "typicalUse": "Pressure, flow, level transmitters",
+    "brandSafeNotes": "Standard analog input"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Analog HART Input Card",
+    "signalNetwork": "4-20 mA + HART",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IF8H / IF16H",
+    "typicalUse": "Smart process instruments",
+    "brandSafeNotes": "HART process input"
+  },
+  {
+    "displayName": "Analog Output Card",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Analog Output Card",
+    "signalNetwork": "Current / voltage",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-OF4 / OF8",
+    "typicalUse": "Valve position, VFD speed reference",
+    "brandSafeNotes": "Analog output"
+  },
+  {
+    "displayName": "Analog HART Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Analog HART Output Card",
+    "signalNetwork": "4-20 mA + HART",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-OF8H",
+    "typicalUse": "Smart valves/positioners",
+    "brandSafeNotes": "HART output"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "RTD Input Card",
+    "signalNetwork": "RTD",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IR6I",
+    "typicalUse": "Temperature measurement",
+    "brandSafeNotes": "RTD module"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Thermocouple Input Card",
+    "signalNetwork": "Thermocouple",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IT6I",
+    "typicalUse": "Temperature measurement",
+    "brandSafeNotes": "Thermocouple module"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Temperature Input Card",
+    "signalNetwork": "RTD / Thermocouple",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IRT8I",
+    "typicalUse": "Temperature measurement",
+    "brandSafeNotes": "Mixed temp input"
+  },
+  {
+    "displayName": "High-Speed Counter Card",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "High-Speed Counter Card",
+    "signalNetwork": "Pulse / counter",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-HSC",
+    "typicalUse": "Encoders, flow pulses, counts",
+    "brandSafeNotes": "High-speed counting"
+  },
+  {
+    "displayName": "Configurable Flowmeter Card",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Configurable Flowmeter Card",
+    "signalNetwork": "Flow pulse / meter",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-CFM",
+    "typicalUse": "Flow meter interface",
+    "brandSafeNotes": "Specialty flowmeter module"
+  },
+  {
+    "displayName": "Programmable Limit Switch Card",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Programmable Limit Switch Card",
+    "signalNetwork": "Position/event",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-PLS",
+    "typicalUse": "Machine timing / limit switching",
+    "brandSafeNotes": "Specialty motion/event"
+  },
+  {
+    "displayName": "Servo Drive / Motion Axis",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Motion Card",
+    "signalNetwork": "Analog/servo motion",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-M02AE / M02AS",
+    "typicalUse": "Servo/motion axes",
+    "brandSafeNotes": "Motion interface"
+  },
+  {
+    "displayName": "Servo Drive / Motion Axis",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "servo motion network Motion Card",
+    "signalNetwork": "servo motion network",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-M03SE / M08SE",
+    "typicalUse": "Servo motion systems",
+    "brandSafeNotes": "Legacy motion interface"
+  },
+  {
+    "displayName": "Safety Input Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Input Card",
+    "signalNetwork": "safety network protocol input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-IB16S",
+    "typicalUse": "E-stops, safety gates, light curtains",
+    "brandSafeNotes": "safety controller platform safety I/O"
+  },
+  {
+    "displayName": "Safety Output Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Output Card",
+    "signalNetwork": "safety network protocol output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1756-OBV8S / OB16S",
+    "typicalUse": "Safety contactors, STO circuits",
+    "brandSafeNotes": "safety controller platform safety output"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Input Card",
+    "signalNetwork": "24V DC input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-IB16 / IB16F / IB16K",
+    "typicalUse": "Sensors and input contacts",
+    "brandSafeNotes": "Compact 5000 digital input"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Input Card",
+    "signalNetwork": "3-wire high-speed DC input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-IB6F-3W",
+    "typicalUse": "Fast sensors / 3-wire inputs",
+    "brandSafeNotes": "Compact 5000 input"
+  },
+  {
+    "displayName": "Digital Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Output Card",
+    "signalNetwork": "24V DC output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-OB16 / OB16F / OB16K",
+    "typicalUse": "Solenoids, lights, relays",
+    "brandSafeNotes": "Compact 5000 digital output"
+  },
+  {
+    "displayName": "Digital Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Output Card",
+    "signalNetwork": "24V DC output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-OB8",
+    "typicalUse": "Smaller DC output banks",
+    "brandSafeNotes": "Compact 5000 output"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Analog Input Card",
+    "signalNetwork": "Current / voltage",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-IF8 / IF8K",
+    "typicalUse": "Process transmitters",
+    "brandSafeNotes": "Compact 5000 analog input"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Analog HART Input Card",
+    "signalNetwork": "4-20 mA + HART",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-IF4IH / IF8IH",
+    "typicalUse": "Smart meters/transmitters",
+    "brandSafeNotes": "Compact 5000 HART input"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Universal Analog Input Card",
+    "signalNetwork": "Current / voltage / RTD / TC",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-IY4 / IY4K",
+    "typicalUse": "Mixed analog and temperature inputs",
+    "brandSafeNotes": "Universal analog input"
+  },
+  {
+    "displayName": "Analog Output Card",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Analog Output Card",
+    "signalNetwork": "Current / voltage",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-OF4 / OF4K / OF8 / OF8K",
+    "typicalUse": "Valves, actuators, VFD references",
+    "brandSafeNotes": "Compact 5000 analog output"
+  },
+  {
+    "displayName": "Analog HART Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Analog HART Output Card",
+    "signalNetwork": "4-20 mA + HART",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-OF4IH / OF8IH",
+    "typicalUse": "Smart valves/positioners",
+    "brandSafeNotes": "Compact 5000 HART output"
+  },
+  {
+    "displayName": "High-Speed Counter Card",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "High-Speed Counter Card",
+    "signalNetwork": "High-speed counter + outputs",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-HSC2XOB4",
+    "typicalUse": "Encoders, pulse meters",
+    "brandSafeNotes": "Specialty module"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Serial Card",
+    "signalNetwork": "RS-232 / RS-485",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-SERIAL",
+    "typicalUse": "Serial meters, barcode scanners",
+    "brandSafeNotes": "Specialty module"
+  },
+  {
+    "displayName": "Field Potential Distributor",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Field Potential Distributor",
+    "signalNetwork": "Field power distribution",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-FPD",
+    "typicalUse": "Separate field power groups",
+    "brandSafeNotes": "Support/power module"
+  },
+  {
+    "displayName": "Address Reserve Module",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Address Reserve Module",
+    "signalNetwork": "Slot placeholder",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-ARM",
+    "typicalUse": "Reserve a node/slot",
+    "brandSafeNotes": "Support module"
+  },
+  {
+    "displayName": "Safety Input Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Input Card",
+    "signalNetwork": "safety network protocol input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-IB8S / IB8SK",
+    "typicalUse": "Safety input devices",
+    "brandSafeNotes": "Compact safety controller platform safety input"
+  },
+  {
+    "displayName": "Safety Output Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Output Card",
+    "signalNetwork": "safety network protocol output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5069-OB8S / OBV8S",
+    "typicalUse": "Safety outputs, STO, contactors",
+    "brandSafeNotes": "Compact safety controller platform safety output"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Input Card",
+    "signalNetwork": "24V DC input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-IB16 / IB16XT",
+    "typicalUse": "Remote sensors and input contacts",
+    "brandSafeNotes": "distributed I/O station standard/XT"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Diagnostic Digital Input Card",
+    "signalNetwork": "24V DC diagnostic input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-IB16D / IB16DXT",
+    "typicalUse": "Diagnostic input points",
+    "brandSafeNotes": "distributed I/O station diagnostic input"
+  },
+  {
+    "displayName": "Digital Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Output Card",
+    "signalNetwork": "24V DC output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-OB8 / OB16 / OB32",
+    "typicalUse": "Remote solenoids, relays, lights",
+    "brandSafeNotes": "distributed I/O station output"
+  },
+  {
+    "displayName": "Digital Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Output Card",
+    "signalNetwork": "AC output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-OA16 / OA16XT",
+    "typicalUse": "Remote AC outputs",
+    "brandSafeNotes": "distributed I/O station AC output"
+  },
+  {
+    "displayName": "Relay Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Relay Output Card",
+    "signalNetwork": "Relay contact output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-OW8I / OW4I",
+    "typicalUse": "Mixed voltage loads",
+    "brandSafeNotes": "distributed I/O station relay output"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Analog Input Card",
+    "signalNetwork": "Current / voltage",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-IF8 / IF8XT",
+    "typicalUse": "Remote process transmitters",
+    "brandSafeNotes": "distributed I/O station analog input"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Analog HART Input Card",
+    "signalNetwork": "4-20 mA + HART",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-IF8IH / IF8IHXT",
+    "typicalUse": "Remote smart transmitters",
+    "brandSafeNotes": "distributed I/O station HART input"
+  },
+  {
+    "displayName": "Safety Input Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Analog Input Card",
+    "signalNetwork": "Safety analog input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-IF4IHS / IF4IHSXT",
+    "typicalUse": "Safety-rated analog/process",
+    "brandSafeNotes": "distributed I/O station safety analog input"
+  },
+  {
+    "displayName": "Analog Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Universal Analog Input Card",
+    "signalNetwork": "Current / voltage / temp",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-IY8 / IY8XT",
+    "typicalUse": "Mixed analog field devices",
+    "brandSafeNotes": "distributed I/O station universal input"
+  },
+  {
+    "displayName": "Safety Input Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Temperature Input Card",
+    "signalNetwork": "RTD / Thermocouple safety",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-IRT8S / IRT8SXT",
+    "typicalUse": "Safety/process temperature",
+    "brandSafeNotes": "distributed I/O station safety temp"
+  },
+  {
+    "displayName": "Analog Output Card",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Analog Output Card",
+    "signalNetwork": "Current / voltage",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-OF8 / OF8XT",
+    "typicalUse": "Remote valve/VFD commands",
+    "brandSafeNotes": "distributed I/O station analog output"
+  },
+  {
+    "displayName": "Analog HART Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Analog HART Output Card",
+    "signalNetwork": "4-20 mA + HART",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-OF8IH / OF8IHXT",
+    "typicalUse": "Remote smart valves",
+    "brandSafeNotes": "distributed I/O station HART output"
+  },
+  {
+    "displayName": "Safety Output Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Analog Output Card",
+    "signalNetwork": "Safety analog output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-OF4IHS / OF4IHSXT",
+    "typicalUse": "Safety-rated analog control",
+    "brandSafeNotes": "distributed I/O station safety output"
+  },
+  {
+    "displayName": "High-Speed Counter Card",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "High-Speed Counter Card",
+    "signalNetwork": "Pulse / counter",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-HSC / HSCXT",
+    "typicalUse": "Encoders, pulse meters",
+    "brandSafeNotes": "distributed I/O station specialty"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Serial Card",
+    "signalNetwork": "RS-232 / RS-485",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-SERIAL / SERIALXT",
+    "typicalUse": "Serial meters/instruments",
+    "brandSafeNotes": "distributed I/O station specialty"
+  },
+  {
+    "displayName": "Safety Input Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Frequency Input Card",
+    "signalNetwork": "Intrinsic safety/frequency",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-IJ2IS / IJ2ISXT",
+    "typicalUse": "Frequency meters, turbine meters",
+    "brandSafeNotes": "Specialty process input"
+  },
+  {
+    "displayName": "Safety Input Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Input Card",
+    "signalNetwork": "safety network protocol input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-IB16S / IB16SXT",
+    "typicalUse": "Safety input devices",
+    "brandSafeNotes": "distributed I/O station safety input"
+  },
+  {
+    "displayName": "Safety Output Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Output Card",
+    "signalNetwork": "safety network protocol output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "5094-OB16S / OB16SXT",
+    "typicalUse": "Safety contactors/STO",
+    "brandSafeNotes": "distributed I/O station safety output"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Input Card",
+    "signalNetwork": "24V DC input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-IB2 / IB4 / IB8",
+    "typicalUse": "Small remote input banks",
+    "brandSafeNotes": "modular remote I/O input"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Input Card",
+    "signalNetwork": "24V DC input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-IV2 / IV4 / IV8",
+    "typicalUse": "Sourcing/sinking variants",
+    "brandSafeNotes": "modular remote I/O input"
+  },
+  {
+    "displayName": "Digital Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Output Card",
+    "signalNetwork": "24V DC output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-OB2 / OB4 / OB8",
+    "typicalUse": "Remote outputs",
+    "brandSafeNotes": "modular remote I/O output"
+  },
+  {
+    "displayName": "Relay Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Relay Output Card",
+    "signalNetwork": "Relay contacts",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-OW2 / OW4",
+    "typicalUse": "Mixed voltage loads",
+    "brandSafeNotes": "modular remote I/O relay"
+  },
+  {
+    "displayName": "Analog Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Analog Input Card",
+    "signalNetwork": "Current / voltage",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-IE2C / IE2V / IE4C / IE8C",
+    "typicalUse": "Small process inputs",
+    "brandSafeNotes": "modular remote I/O analog input"
+  },
+  {
+    "displayName": "Analog Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Analog Output Card",
+    "signalNetwork": "Current / voltage",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-OE2C / OE2V / OE4C",
+    "typicalUse": "Small analog outputs",
+    "brandSafeNotes": "modular remote I/O analog output"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "RTD Input Card",
+    "signalNetwork": "RTD",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-IR2",
+    "typicalUse": "Temperature",
+    "brandSafeNotes": "modular remote I/O RTD"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Thermocouple Input Card",
+    "signalNetwork": "Thermocouple",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-IT2I",
+    "typicalUse": "Temperature",
+    "brandSafeNotes": "modular remote I/O TC"
+  },
+  {
+    "displayName": "High-Speed Counter Card",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "High-Speed Counter Card",
+    "signalNetwork": "Pulse / counter",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-VHSC",
+    "typicalUse": "Encoders and pulse meters",
+    "brandSafeNotes": "modular remote I/O specialty"
+  },
+  {
+    "displayName": "SSI Encoder Card",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "SSI Encoder Card",
+    "signalNetwork": "SSI encoder",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-SSI",
+    "typicalUse": "Absolute encoders",
+    "brandSafeNotes": "modular remote I/O specialty"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Serial ASCII Card",
+    "signalNetwork": "RS-232 / RS-485 ASCII",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-232ASC / 485ASC",
+    "typicalUse": "Scanners/meters",
+    "brandSafeNotes": "modular remote I/O serial"
+  },
+  {
+    "displayName": "Safety Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety I/O Card",
+    "signalNetwork": "safety network protocol",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1734-IB8S / OB8S",
+    "typicalUse": "Safety inputs/outputs",
+    "brandSafeNotes": "POINT Guard I/O"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Input Card",
+    "signalNetwork": "24V DC input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1794-IB8 / IB16 / IB32",
+    "typicalUse": "Remote inputs",
+    "brandSafeNotes": "distributed I/O station input"
+  },
+  {
+    "displayName": "Digital Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Input Card",
+    "signalNetwork": "AC input",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1794-IA8 / IA16",
+    "typicalUse": "AC remote inputs",
+    "brandSafeNotes": "distributed I/O station input"
+  },
+  {
+    "displayName": "Digital Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Output Card",
+    "signalNetwork": "24V DC output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1794-OB8 / OB16 / OB32P",
+    "typicalUse": "Remote outputs",
+    "brandSafeNotes": "distributed I/O station output"
+  },
+  {
+    "displayName": "Digital Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Digital Output Card",
+    "signalNetwork": "AC output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1794-OA8 / OA16",
+    "typicalUse": "Remote AC outputs",
+    "brandSafeNotes": "distributed I/O station output"
+  },
+  {
+    "displayName": "Relay Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Relay Output Card",
+    "signalNetwork": "Relay output",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1794-OW8",
+    "typicalUse": "Mixed voltage loads",
+    "brandSafeNotes": "distributed I/O station relay"
+  },
+  {
+    "displayName": "Analog Input Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Analog Input Card",
+    "signalNetwork": "Current / voltage / HART",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1794-IE8 / IE12 / IE8H",
+    "typicalUse": "Remote process inputs",
+    "brandSafeNotes": "distributed I/O station analog input"
+  },
+  {
+    "displayName": "Analog Output Card",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Analog Output Card",
+    "signalNetwork": "Current / voltage / HART",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1794-OE4 / OE8H",
+    "typicalUse": "Remote analog outputs",
+    "brandSafeNotes": "distributed I/O station analog output"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Temperature Card",
+    "signalNetwork": "RTD / Thermocouple",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1794-IR8 / IT8",
+    "typicalUse": "Temperature",
+    "brandSafeNotes": "distributed I/O station temp"
+  },
+  {
+    "displayName": "High-Speed Counter Card",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "High-Speed Counter Card",
+    "signalNetwork": "Pulse / counter",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "1794-VHSC",
+    "typicalUse": "Encoders / meters",
+    "brandSafeNotes": "distributed I/O station specialty"
+  },
+  {
+    "displayName": "Meter / Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Meter / Instrument",
+    "signalNetwork": "4-20 mA, HART, pulse, CIP industrial Ethernet",
+    "setupMethod": "Device Definition File / Generic Ethernet / Analog",
+    "vendorCatalogReference": "Magnetic flowmeter",
+    "typicalUse": "Liquid flow measurement",
+    "brandSafeNotes": "Can enter through analog card, HART card, pulse card, or CIP industrial Ethernet"
+  },
+  {
+    "displayName": "Meter / Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Meter / Instrument",
+    "signalNetwork": "4-20 mA, HART, Modbus, CIP industrial Ethernet",
+    "setupMethod": "Device Definition File / Generic Ethernet / Analog",
+    "vendorCatalogReference": "Coriolis mass flowmeter",
+    "typicalUse": "Mass flow and density",
+    "brandSafeNotes": "Often via HART analog or gateway"
+  },
+  {
+    "displayName": "Meter / Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Meter / Instrument",
+    "signalNetwork": "4-20 mA, HART, pulse",
+    "setupMethod": "Device Definition File / Analog / HART",
+    "vendorCatalogReference": "Thermal mass flowmeter",
+    "typicalUse": "Gas mass flow",
+    "brandSafeNotes": "Example: t-mass style meters"
+  },
+  {
+    "displayName": "Meter / Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Meter / Instrument",
+    "signalNetwork": "Pulse / frequency",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "Turbine / pulse flowmeter",
+    "typicalUse": "Pulse-based flow totalization",
+    "brandSafeNotes": "Use HSC/frequency input modules"
+  },
+  {
+    "displayName": "Meter / Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Meter / Instrument",
+    "signalNetwork": "4-20 mA, HART, CIP industrial Ethernet",
+    "setupMethod": "Analog / HART / Device Definition File",
+    "vendorCatalogReference": "Radar level transmitter",
+    "typicalUse": "Tank/silo level",
+    "brandSafeNotes": "Often process input"
+  },
+  {
+    "displayName": "Meter / Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Meter / Instrument",
+    "signalNetwork": "4-20 mA, HART",
+    "setupMethod": "Analog / HART / Device Definition File",
+    "vendorCatalogReference": "Ultrasonic level transmitter",
+    "typicalUse": "Tank level",
+    "brandSafeNotes": "Analog input"
+  },
+  {
+    "displayName": "Meter / Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Meter / Instrument",
+    "signalNetwork": "4-20 mA, HART",
+    "setupMethod": "Analog / HART / Device Definition File",
+    "vendorCatalogReference": "Pressure transmitter",
+    "typicalUse": "Line/tank pressure",
+    "brandSafeNotes": "Analog/HART input"
+  },
+  {
+    "displayName": "Sensor / Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Sensor / Instrument",
+    "signalNetwork": "RTD",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "RTD sensor",
+    "typicalUse": "Temperature",
+    "brandSafeNotes": "Use RTD cards"
+  },
+  {
+    "displayName": "Sensor / Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Sensor / Instrument",
+    "signalNetwork": "Thermocouple",
+    "setupMethod": "I/O Module",
+    "vendorCatalogReference": "Thermocouple sensor",
+    "typicalUse": "Temperature",
+    "brandSafeNotes": "Use thermocouple cards"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Analyzer",
+    "signalNetwork": "4-20 mA, HART, CIP industrial Ethernet",
+    "setupMethod": "Analog / HART / Device Definition File",
+    "vendorCatalogReference": "pH analyzer",
+    "typicalUse": "Water/chemical process",
+    "brandSafeNotes": "May require vendor device profile"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Analyzer",
+    "signalNetwork": "4-20 mA, HART",
+    "setupMethod": "Analog / HART / Device Definition File",
+    "vendorCatalogReference": "Conductivity analyzer",
+    "typicalUse": "Water/chemical process",
+    "brandSafeNotes": "Analog process instrument"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Analyzer",
+    "signalNetwork": "4-20 mA, CIP industrial Ethernet",
+    "setupMethod": "Analog / Device Definition File",
+    "vendorCatalogReference": "Turbidity meter",
+    "typicalUse": "Water quality",
+    "brandSafeNotes": "Often analog or networked"
+  },
+  {
+    "displayName": "Meter / Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Meter / Instrument",
+    "signalNetwork": "4-20 mA, CIP industrial Ethernet, serial",
+    "setupMethod": "Device Definition File / Generic Ethernet / Analog",
+    "vendorCatalogReference": "Weigh scale / load cell transmitter",
+    "typicalUse": "Weight measurement",
+    "brandSafeNotes": "Can use specialty/third-party modules"
+  },
+  {
+    "displayName": "Network Communication Card",
+    "escoCategory": "Network & Gateways",
+    "deviceClass": "Identification Device",
+    "signalNetwork": "CIP industrial Ethernet, ASCII serial",
+    "setupMethod": "Device Definition File / Generic Ethernet / Serial",
+    "vendorCatalogReference": "Barcode scanner",
+    "typicalUse": "Product tracking",
+    "brandSafeNotes": "Often vendor barcode or vision devices"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Inspection Device",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Device Definition File / Vendor Profile / Generic Ethernet",
+    "vendorCatalogReference": "Vision camera / smart camera",
+    "typicalUse": "Inspection, sorting, quality",
+    "brandSafeNotes": "Vendor profile if available"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Identification Device",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Device Definition File / Generic Ethernet",
+    "vendorCatalogReference": "RFID reader",
+    "typicalUse": "Pallet/badge/product ID",
+    "brandSafeNotes": "Vendor EDS common"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Distributed Device",
+    "signalNetwork": "CIP industrial Ethernet to IO-Link",
+    "setupMethod": "Device Definition File / Vendor Profile / Generic Ethernet",
+    "vendorCatalogReference": "IO-Link master",
+    "typicalUse": "Connect smart sensors",
+    "brandSafeNotes": "Vendor IO-Link style devices"
+  },
+  {
+    "displayName": "AC Drive / VFD",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "VFD",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Vendor Profile / Device Definition File",
+    "vendorCatalogReference": "AC drive 525",
+    "typicalUse": "AC motor speed control",
+    "brandSafeNotes": "Common compact VFD"
+  },
+  {
+    "displayName": "AC Drive / VFD",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "VFD",
+    "signalNetwork": "CIP industrial Ethernet or hardwired",
+    "setupMethod": "Vendor Profile / Device Definition File",
+    "vendorCatalogReference": "AC drive 523",
+    "typicalUse": "AC motor speed control",
+    "brandSafeNotes": "Smaller VFD"
+  },
+  {
+    "displayName": "AC Drive / VFD",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "VFD / CIP Motion",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Vendor Profile / Motion",
+    "vendorCatalogReference": "AC drive 527",
+    "typicalUse": "Servo-like integrated motion with VFD",
+    "brandSafeNotes": "logic integrated"
+  },
+  {
+    "displayName": "AC Drive / VFD",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "VFD",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Vendor Profile / Device Definition File",
+    "vendorCatalogReference": "AC drive 753",
+    "typicalUse": "Heavy-duty motor control",
+    "brandSafeNotes": "AC drive 750 family"
+  },
+  {
+    "displayName": "AC Drive / VFD",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "VFD",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Vendor Profile / Device Definition File",
+    "vendorCatalogReference": "AC drive 755 / 755T",
+    "typicalUse": "High-performance motor control",
+    "brandSafeNotes": "Common in process/large machines"
+  },
+  {
+    "displayName": "Motor Control Device",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Motor Protection",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Vendor Profile / Device Definition File",
+    "vendorCatalogReference": "E300 electronic overload relay",
+    "typicalUse": "Motor overload/protection",
+    "brandSafeNotes": "Smart motor overload"
+  },
+  {
+    "displayName": "Soft Starter",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Soft Starter",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Vendor Profile / Device Definition File",
+    "vendorCatalogReference": "SMC soft starter",
+    "typicalUse": "Reduced-voltage motor starting",
+    "brandSafeNotes": "Motor control device"
+  },
+  {
+    "displayName": "Motor Control Device",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Motor Starter",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Vendor Profile / Device Definition File",
+    "vendorCatalogReference": "ArmorStart motor controller",
+    "typicalUse": "Distributed motor starter",
+    "brandSafeNotes": "On-machine motor control"
+  },
+  {
+    "displayName": "Servo Drive / Motion Axis",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Servo Drive",
+    "signalNetwork": "CIP industrial Ethernet / CIP Motion",
+    "setupMethod": "Motion Device",
+    "vendorCatalogReference": "servo drive 350",
+    "typicalUse": "Servo axis",
+    "brandSafeNotes": "Integrated motion family"
+  },
+  {
+    "displayName": "Servo Drive / Motion Axis",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Servo Drive",
+    "signalNetwork": "CIP industrial Ethernet / Pulse depending setup",
+    "setupMethod": "Motion Device",
+    "vendorCatalogReference": "servo drive 5100",
+    "typicalUse": "Servo axis",
+    "brandSafeNotes": "Machine motion"
+  },
+  {
+    "displayName": "Servo Drive / Motion Axis",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Servo Drive",
+    "signalNetwork": "CIP industrial Ethernet / CIP Motion",
+    "setupMethod": "Motion Device",
+    "vendorCatalogReference": "servo drive 5300",
+    "typicalUse": "Servo axis",
+    "brandSafeNotes": "Compact servo"
+  },
+  {
+    "displayName": "Servo Drive / Motion Axis",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Servo Drive",
+    "signalNetwork": "CIP industrial Ethernet / CIP Motion",
+    "setupMethod": "Motion Device",
+    "vendorCatalogReference": "servo drive 5500",
+    "typicalUse": "Servo axis",
+    "brandSafeNotes": "Integrated motion"
+  },
+  {
+    "displayName": "Servo Drive / Motion Axis",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Servo Drive",
+    "signalNetwork": "CIP industrial Ethernet / CIP Motion",
+    "setupMethod": "Motion Device",
+    "vendorCatalogReference": "servo drive 5700",
+    "typicalUse": "High-performance servo axes",
+    "brandSafeNotes": "Integrated motion"
+  },
+  {
+    "displayName": "Feedback Device",
+    "escoCategory": "Drives & Motion",
+    "deviceClass": "Feedback Device",
+    "signalNetwork": "Encoder / SSI / pulse",
+    "setupMethod": "I/O Module / Motion Axis",
+    "vendorCatalogReference": "Encoders / registration inputs",
+    "typicalUse": "Position feedback",
+    "brandSafeNotes": "Use motion or encoder modules"
+  },
+  {
+    "displayName": "Safety Input Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Input",
+    "signalNetwork": "Dual-channel safety input",
+    "setupMethod": "Safety Input Module",
+    "vendorCatalogReference": "Emergency stop pushbutton",
+    "typicalUse": "Emergency stop circuit",
+    "brandSafeNotes": "Use safety controller platform/Compact safety controller platform safety I/O"
+  },
+  {
+    "displayName": "Safety Input Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Input",
+    "signalNetwork": "Dual-channel safety input",
+    "setupMethod": "Safety Input Module",
+    "vendorCatalogReference": "Guard door interlock switch",
+    "typicalUse": "Door/gate safety",
+    "brandSafeNotes": "Safety-rated input"
+  },
+  {
+    "displayName": "Safety Input Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Input",
+    "signalNetwork": "OSSD / safety network protocol",
+    "setupMethod": "Safety Input Module / CIP industrial Ethernet safety",
+    "vendorCatalogReference": "Light curtain",
+    "typicalUse": "Point-of-operation guarding",
+    "brandSafeNotes": "May be hardwired OSSD or networked"
+  },
+  {
+    "displayName": "Safety Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Scanner",
+    "signalNetwork": "safety network protocol / OSSD",
+    "setupMethod": "Device Definition File / safety network protocol / Safety Input",
+    "vendorCatalogReference": "Safety laser scanner",
+    "typicalUse": "Area guarding",
+    "brandSafeNotes": "Networked scanners may use safety network config"
+  },
+  {
+    "displayName": "Safety Input Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Input",
+    "signalNetwork": "Dual-channel",
+    "setupMethod": "Safety Input Module",
+    "vendorCatalogReference": "Safety mat",
+    "typicalUse": "Presence detection",
+    "brandSafeNotes": "Safety-rated input"
+  },
+  {
+    "displayName": "Safety Output Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Output",
+    "signalNetwork": "Safety output",
+    "setupMethod": "Safety Output Module",
+    "vendorCatalogReference": "Safety contactor",
+    "typicalUse": "Remove power to load",
+    "brandSafeNotes": "Often dual contactors with feedback"
+  },
+  {
+    "displayName": "Safety Output Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Output",
+    "signalNetwork": "STO / safety network protocol",
+    "setupMethod": "Safety Output / Drive Safety",
+    "vendorCatalogReference": "Safe Torque Off (STO)",
+    "typicalUse": "Disable drive torque",
+    "brandSafeNotes": "Drive may support network safety"
+  },
+  {
+    "displayName": "Safety Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Safety Logic",
+    "signalNetwork": "safety network protocol",
+    "setupMethod": "Controller Safety Configuration",
+    "vendorCatalogReference": "safety controller platform safety task",
+    "typicalUse": "Safety program execution",
+    "brandSafeNotes": "Not an I/O card but part of setup"
+  },
+  {
+    "displayName": "Third-Party Device",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Third-Party Device",
+    "signalNetwork": "CIP industrial Ethernet assemblies",
+    "setupMethod": "Generic Network Profile",
+    "vendorCatalogReference": "Generic Ethernet Module",
+    "typicalUse": "Any device with known input/output assembly data",
+    "brandSafeNotes": "Needs input/output assembly instances, sizes, and data type"
+  },
+  {
+    "displayName": "Third-Party Device",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Third-Party Device",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Device Definition File Hardware Installation Tool / Add Module",
+    "vendorCatalogReference": "Any device with EDS file",
+    "typicalUse": "Vendor devices",
+    "brandSafeNotes": "Install EDS so ESCO Automation Studio can see the profile"
+  },
+  {
+    "displayName": "Third-Party Device",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Third-Party Device",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Vendor Profile / Module Profile",
+    "vendorCatalogReference": "Any device with Add-On Profile",
+    "typicalUse": "Vendor devices with rich configuration",
+    "brandSafeNotes": "Install matching device profile/version"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Protocol Gateway",
+    "signalNetwork": "Modbus, PROFIBUS, DNP3, etc.",
+    "setupMethod": "Vendor Profile / Device Definition File / Generic",
+    "vendorCatalogReference": "ProSoft gateway",
+    "typicalUse": "Protocol conversion",
+    "brandSafeNotes": "Common for non-CIP industrial Ethernet instruments"
+  },
+  {
+    "displayName": "Protocol Gateway",
+    "escoCategory": "Network & Gateways",
+    "deviceClass": "Protocol Gateway",
+    "signalNetwork": "Many protocols",
+    "setupMethod": "Device Definition File / Generic",
+    "vendorCatalogReference": "HMS Anybus gateway",
+    "typicalUse": "Protocol conversion",
+    "brandSafeNotes": "Used to bridge vendor devices"
+  },
+  {
+    "displayName": "Network Communication Card",
+    "escoCategory": "Network & Gateways",
+    "deviceClass": "Protocol Gateway",
+    "signalNetwork": "CIP industrial Ethernet, Modbus, serial",
+    "setupMethod": "Device Definition File / Generic",
+    "vendorCatalogReference": "Red Lion gateway",
+    "typicalUse": "Data mapping",
+    "brandSafeNotes": "Gateway device"
+  },
+  {
+    "displayName": "Pneumatic Manifold",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Pneumatic Manifold",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Device Definition File / Vendor Profile / Generic",
+    "vendorCatalogReference": "Festo valve terminal",
+    "typicalUse": "Valve bank control",
+    "brandSafeNotes": "Vendor config often required"
+  },
+  {
+    "displayName": "Pneumatic Manifold",
+    "escoCategory": "I/O Cards",
+    "deviceClass": "Pneumatic Manifold",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Device Definition File / Vendor Profile / Generic",
+    "vendorCatalogReference": "SMC valve manifold",
+    "typicalUse": "Valve bank control",
+    "brandSafeNotes": "Vendor config often required"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Sensor / Vision",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Device Definition File / Generic",
+    "vendorCatalogReference": "Vendor sensor/vision device",
+    "typicalUse": "Inspection or sensing",
+    "brandSafeNotes": "Vendor EDS if available"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "Vision Device",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Device Definition File / Vendor Profile / Generic",
+    "vendorCatalogReference": "Vendor camera",
+    "typicalUse": "Machine vision",
+    "brandSafeNotes": "Device profile depending model"
+  },
+  {
+    "displayName": "Safety Device",
+    "escoCategory": "Safety Hardware",
+    "deviceClass": "Scanner",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Device Definition File / Generic",
+    "vendorCatalogReference": "Vendor scanner",
+    "typicalUse": "Barcode/safety/scanning",
+    "brandSafeNotes": "Model-specific setup"
+  },
+  {
+    "displayName": "Process Instrument",
+    "escoCategory": "Meters & Instruments",
+    "deviceClass": "IO-Link Master",
+    "signalNetwork": "CIP industrial Ethernet",
+    "setupMethod": "Device Definition File / Vendor Profile / Generic",
+    "vendorCatalogReference": "Vendor IO-Link master",
+    "typicalUse": "Smart sensor hub",
+    "brandSafeNotes": "Popular networked sensor master"
+  }
+]

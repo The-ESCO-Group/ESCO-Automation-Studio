@@ -15,7 +15,7 @@
     "dev:api": "corepack pnpm --filter @esco/api dev",
     "build": "corepack pnpm --filter @esco/web build",
     "build:desktop": "corepack pnpm --filter @esco/desktop build",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "corepack pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "node e2e/run-all.mjs",

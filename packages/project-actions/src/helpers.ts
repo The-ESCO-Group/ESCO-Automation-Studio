@@ -1,7 +1,7 @@
 import type { PlcProject, Routine, Tag } from "@esco/core";
 import { createLadderRoutine, type LadderRoutine } from "@esco/ladder";
 import { createDefaultEngine, type ValidationFinding } from "@esco/validator";
-import type { ProjectActionResult } from "./types";
+import type { ProjectActionReceipt, ProjectActionResult } from "./types";
 
 /** Run the default validation engine over a project. */
 export function validate(project: PlcProject): ValidationFinding[] {
@@ -13,8 +13,9 @@ export function ok<T>(
   project: PlcProject,
   data?: T,
   warnings?: string[],
+  receipt?: ProjectActionReceipt,
 ): ProjectActionResult<T> {
-  return { ok: true, project, data, findings: validate(project), warnings };
+  return { ok: true, project, data, findings: validate(project), warnings, receipt };
 }
 
 /** Build a failure result; the project is returned unchanged. */

@@ -1,64 +1,81 @@
 import { chromium } from "playwright-core";
-import { URL, addPaletteInstruction, importStarterProject, paletteButton } from "./helpers.mjs";
+import { URL, importL5XText, openWatchPanel } from "./helpers.mjs";
+
 const results = [];
-const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
-const palette = paletteButton;
-const selOperands = (page) => page.locator(".esco-lad__rung.is-selected input.esco-lad__operand");
-const setOperand = async (input, text) => { await input.click(); await input.fill(""); await input.pressSequentially(text); };
+const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  - " + d : ""}`); };
 const watchText = (page, tag) => page.locator(`.esco-watch tr:has-text("${tag}")`).first().innerText();
+
+const INSTRUCTION_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content SchemaRevision="1.0" TargetName="E2E_Instructions" ContentType="Controller">
+  <Controller Use="Target" Name="E2E_Instructions">
+    <Tags>
+      <Tag Name="StartPB" TagType="Base" DataType="BOOL"/>
+      <Tag Name="StopPB" TagType="Base" DataType="BOOL"/>
+      <Tag Name="MotorRun" TagType="Base" DataType="BOOL"/>
+      <Tag Name="SomeDint" TagType="Base" DataType="DINT"/>
+      <Tag Name="Timer1" TagType="Base" DataType="TIMER"/>
+      <Tag Name="SeqControl" TagType="Base" DataType="CONTROL"/>
+      <Tag Name="Axis1" TagType="Base" DataType="AXIS_CIP_DRIVE"/>
+      <Tag Name="MotionCtl" TagType="Base" DataType="MOTION_INSTRUCTION"/>
+    </Tags>
+    <Programs>
+      <Program Name="MainProgram" MainRoutineName="MainRoutine">
+        <Routines>
+          <Routine Name="MainRoutine" Type="RLL">
+            <RLLContent>
+              <Rung Number="0" Type="N"><Text><![CDATA[XIC(StartPB)XIO(StopPB)OTE(MotorRun);]]></Text></Rung>
+              <Rung Number="1" Type="N"><Text><![CDATA[XIC(StartPB)MOV(123,SomeDint);]]></Text></Rung>
+              <Rung Number="2" Type="N"><Text><![CDATA[XIC(StartPB)TON(Timer1,750);]]></Text></Rung>
+              <Rung Number="3" Type="N"><Text><![CDATA[SQC(SeqControl,0,0,0);]]></Text></Rung>
+              <Rung Number="4" Type="N"><Text><![CDATA[MSO(Axis1,MotionCtl);]]></Text></Rung>
+            </RLLContent>
+          </Routine>
+        </Routines>
+      </Program>
+    </Programs>
+  </Controller>
+</RSLogix5000Content>`;
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
+
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
-  await importStarterProject(page);
-  check("registry palette exposes advanced model-only instructions", (await palette(page, "SQO").count()) === 1 && (await palette(page, "MSO").count()) === 1);
-  await page.locator(".esco-lad__node").first().click();
-  await page.locator(".esco-props").waitFor({ timeout: 5000 });
-  check("executable instruction properties are labelled", /Executable/.test(await page.locator(".esco-props").innerText()));
+  await importL5XText(page, INSTRUCTION_FIXTURE, "instructions.L5X");
 
-  // Rung: XIC(StartPB) MOV(123, SomeDint)
-  await page.locator('button:has-text("Add Rung")').click();
-  await addPaletteInstruction(page, "XIC");
-  await addPaletteInstruction(page, "MOV");
-  await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung.is-selected .esco-lad__operand").length === 3);
-  let ins = selOperands(page);
-  await setOperand(ins.nth(0), "StartPB");
-  await setOperand(ins.nth(1), "123");
-  await setOperand(ins.nth(2), "SomeDint");
-  await page.locator('button:has-text("Create DINT")').click();
+  check("imported MOV, TON, SQC, and MSO rungs render in the ladder", (
+    await page.locator(".esco-lad__box").filter({ hasText: /MOV|TON|SQC|MSO/ }).count()
+  ) >= 4);
+  check("model-only imported instructions use the preserved-review ladder style", (
+    await page.locator(".esco-lad__box--model-only").filter({ hasText: "MSO" }).count()
+  ) >= 1);
+
+  const msoTitle = await page.locator(".esco-lad__box--model-only", { hasText: "MSO" }).first().getAttribute("title");
+  check("model-only imported instruction is labelled for review", /model-only \/ preserved, not simulated/i.test(msoTitle ?? ""), msoTitle ?? "");
+
+  const sqcTitle = await page.locator(".esco-lad__box", { hasText: "SQC" }).first().getAttribute("title");
+  check("executable sequencer compare keeps normal ladder title", sqcTitle === "SQC", sqcTitle ?? "");
+
+  const movTitle = await page.locator(".esco-lad__box", { hasText: "MOV" }).first().getAttribute("title");
+  check("executable imported instruction keeps normal ladder title", movTitle === "MOV", movTitle ?? "");
+
+  await openWatchPanel(page);
   await page.waitForFunction(() => [...document.querySelectorAll(".esco-watch td")].some((td) => td.textContent === "SomeDint"));
-  check("built MOV rung; SomeDint created (DINT)", true);
+  check("imported DINT and TIMER tags appear in Watch", (
+    await page.locator(".esco-watch tr:has-text('SomeDint')").count()
+  ) === 1 && (
+    await page.locator(".esco-watch tr:has-text('Timer1')").count()
+  ) === 1);
 
-  // Rung: XIC(StartPB) TON(Timer1, 1000)
-  await page.locator('button:has-text("Add Rung")').click();
-  await addPaletteInstruction(page, "XIC");
-  await addPaletteInstruction(page, "TON");
-  await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung.is-selected .esco-lad__operand").length === 3);
-  ins = selOperands(page);
-  await setOperand(ins.nth(0), "StartPB");
-  await setOperand(ins.nth(1), "Timer1");
-  await setOperand(ins.nth(2), "1000");
-  await page.locator('button:has-text("Create TIMER")').click();
-  await page.waitForFunction(() => [...document.querySelectorAll(".esco-watch td")].some((td) => td.textContent === "Timer1"));
-  check("built TON rung; Timer1 created (TIMER)", true);
-
-  // Drive.
   await page.locator('.esco-watch tr:has-text("StartPB") button:has-text("Toggle")').click();
-  for (let i = 0; i < 4; i++) { await page.locator('button:has-text("Scan Once")').click(); await page.waitForTimeout(50); }
-  check("MOV simulates: SomeDint=123", /\b123\b/.test(await watchText(page, "SomeDint")));
-  check("TON simulates: Timer1 DN=true", /DN=true/.test(await watchText(page, "Timer1")));
+  for (let i = 0; i < 4; i++) {
+    await page.locator('button:has-text("Scan Once")').click();
+    await page.waitForTimeout(40);
+  }
+  check("MOV simulates from imported logic: SomeDint=123", /\b123\b/.test(await watchText(page, "SomeDint")));
+  check("TON simulates from imported logic: Timer1 DN=true", /DN=true/.test(await watchText(page, "Timer1")));
   check("seal-in still drives MotorRun=true", /\btrue\b/.test(await watchText(page, "MotorRun")));
-
-  await page.locator('button:has-text("Add Rung")').click();
-  await addPaletteInstruction(page, "SQO");
-  const modelOnlyBox = page.locator(".esco-lad__box--model-only:has-text('SQO')").first();
-  await modelOnlyBox.waitFor({ timeout: 5000 });
-  check("model-only instruction can be added from the registry palette", (await page.locator(".esco-lad__box--model-only:has-text('SQO')").count()) >= 1);
-  await modelOnlyBox.click();
-  await page.locator(".esco-props").waitFor({ timeout: 5000 });
-  check("model-only instruction properties are labelled", /Model-only \/ preserved, not simulated/.test(await page.locator(".esco-props").innerText()));
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

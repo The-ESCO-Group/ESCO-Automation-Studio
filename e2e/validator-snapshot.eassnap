@@ -1,0 +1,164 @@
+{
+  "extension": ".eassnap",
+  "formatName": "ESCO Project Snapshot",
+  "native": {
+    "checksum": {
+      "algorithm": "sha256",
+      "value": "ba950ec8ffdfd53f0b67b88950f6a187fb141b5c154336e9ad3c044aa19b34bc"
+    },
+    "createdAt": "2026-06-05T16:59:30.924Z",
+    "kind": "snapshot",
+    "producedBy": "ESCO Automation Studio"
+  },
+  "payload": {
+    "project": {
+      "controllers": [
+        {
+          "addOnInstructions": [],
+          "controllerTags": [
+            {
+              "controllerId": "ctrl_328a7313-76dc-486d-a148-07177cdadc3d",
+              "dataType": "BOOL",
+              "id": "tag_de2c88ba-165c-45f6-b07f-de741a5e32a1",
+              "name": "StartPB",
+              "scope": "controller",
+              "value": false
+            },
+            {
+              "controllerId": "ctrl_328a7313-76dc-486d-a148-07177cdadc3d",
+              "dataType": "BOOL",
+              "id": "tag_6f45c738-28cb-4588-bce4-72bf51eef2e9",
+              "name": "StopPB",
+              "scope": "controller",
+              "value": false
+            },
+            {
+              "controllerId": "ctrl_328a7313-76dc-486d-a148-07177cdadc3d",
+              "dataType": "BOOL",
+              "id": "tag_cb184b76-78c8-477e-9408-360c01a76605",
+              "name": "MotorRun",
+              "scope": "controller",
+              "value": false
+            }
+          ],
+          "dataTypes": [],
+          "id": "ctrl_328a7313-76dc-486d-a148-07177cdadc3d",
+          "ioConfiguration": {
+            "modules": []
+          },
+          "name": "E2E_Starter",
+          "parameterConnections": [],
+          "programs": [
+            {
+              "controllerId": "ctrl_328a7313-76dc-486d-a148-07177cdadc3d",
+              "id": "prog_3ca93870-e530-4819-8b8a-14e7d2677041",
+              "mainRoutineId": "rtn_0c7ae4d9-0f7b-4309-9976-1566dd82509b",
+              "name": "MainProgram",
+              "programTags": [],
+              "routines": [
+                {
+                  "id": "rtn_0c7ae4d9-0f7b-4309-9976-1566dd82509b",
+                  "ladder": {
+                    "id": "ladder_82088e08-26fa-4bf5-881d-51f2e925a91c",
+                    "rungs": [
+                      {
+                        "id": "rung_a77168f4-4d8d-4a9d-bcd9-71951754e8e7",
+                        "number": 0,
+                        "root": {
+                          "id": "branch_237579ab-6dc4-411d-9996-514e4067aad4",
+                          "nodes": [
+                            {
+                              "id": "node_a9dd08d8-aaf6-4ac3-a1c8-7c86a71076ce",
+                              "instructionType": "XIC",
+                              "operands": [
+                                {
+                                  "kind": "tag",
+                                  "name": "tag",
+                                  "value": "StartPB"
+                                }
+                              ]
+                            },
+                            {
+                              "id": "node_166442ab-c71c-4102-b062-b16aa0c58e55",
+                              "instructionType": "XIO",
+                              "operands": [
+                                {
+                                  "kind": "tag",
+                                  "name": "tag",
+                                  "value": "StopPB"
+                                }
+                              ]
+                            },
+                            {
+                              "id": "node_c8b8bba8-89c0-4712-8d96-426be6c54624",
+                              "instructionType": "OTE",
+                              "operands": [
+                                {
+                                  "kind": "tag",
+                                  "name": "tag",
+                                  "value": "MotorRun"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        "routineId": "ladder_82088e08-26fa-4bf5-881d-51f2e925a91c",
+                        "sourceText": "XIC(StartPB)XIO(StopPB)OTE(MotorRun);"
+                      }
+                    ]
+                  },
+                  "language": "ladder",
+                  "name": "MainRoutine",
+                  "programId": "prog_3ca93870-e530-4819-8b8a-14e7d2677041"
+                }
+              ]
+            }
+          ],
+          "projectId": "proj_22b20de1-b890-4cfa-9ee2-f92375b78912",
+          "quickWatchLists": [],
+          "tasks": [
+            {
+              "controllerId": "ctrl_328a7313-76dc-486d-a148-07177cdadc3d",
+              "id": "task_684ec5b2-8e09-4249-a85f-25fb4f18e956",
+              "name": "MainTask",
+              "scheduledProgramIds": [
+                "prog_3ca93870-e530-4819-8b8a-14e7d2677041"
+              ],
+              "type": "continuous"
+            }
+          ],
+          "trends": []
+        }
+      ],
+      "createdAt": "2026-06-05T16:59:30.520Z",
+      "description": "Imported from an L5X file.",
+      "id": "proj_22b20de1-b890-4cfa-9ee2-f92375b78912",
+      "name": "E2E_Starter",
+      "provenance": {
+        "fileName": "starter.L5X",
+        "importedAt": "2026-06-05T16:59:30.527Z",
+        "sourceType": "xml-review-import"
+      },
+      "updatedAt": "2026-06-05T16:59:30.520Z"
+    },
+    "snapshotKind": "offline-project-snapshot",
+    "summary": {
+      "boundaries": [
+        "offline-project-state-only",
+        "no-controller-communication",
+        "no-physical-upload-download",
+        "no-online-edit"
+      ],
+      "controllerCount": 1,
+      "hmiAlarmCount": 0,
+      "hmiScreenCount": 0,
+      "ioModuleCount": 0,
+      "programCount": 1,
+      "projectId": "proj_22b20de1-b890-4cfa-9ee2-f92375b78912",
+      "projectName": "E2E_Starter",
+      "routineCount": 1,
+      "tagCount": 3
+    }
+  },
+  "schemaVersion": 1
+}

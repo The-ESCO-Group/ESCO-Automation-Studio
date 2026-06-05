@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultRegistry } from "@esco/instructions";
-import { routineNodes, type LadderRoutine } from "@esco/ladder";
+import { routineNodes, rungToText, type LadderRoutine } from "@esco/ladder";
 import { createRuntime } from "@esco/simulator";
 import { deserializeProject, serializeProject } from "@esco/project-store";
 import { importL5X, parseRungText } from "./index";
+import { exportL5X } from "./exportL5X";
 
 const registry = createDefaultRegistry();
 const opValues = (text: string) =>
@@ -75,6 +76,15 @@ describe("parseRungText", () => {
 
   it("parses MOV(123, SomeDint)", () => {
     expect(opValues("MOV(123,SomeDint)")).toEqual([["MOV", "123", "SomeDint"]]);
+  });
+
+  it("parses Studio export aliases MOVE and LIMIT as supported instructions", () => {
+    const parsed = parseRungText("MOVE(123,SomeDint)LIMIT(0,SomeDint,100);", registry);
+    expect(parsed.unsupportedTypes).toEqual([]);
+    expect(parsed.root.nodes.map((n) => [n.instructionType, ...n.operands.map((o) => o.value)])).toEqual([
+      ["MOVE", "123", "SomeDint"],
+      ["LIMIT", "0", "SomeDint", "100"],
+    ]);
   });
 
   it("parses EQU(SomeDint, 123)", () => {
@@ -204,10 +214,60 @@ describe("parseRungText branches", () => {
     expect(parsed.root.next?.parallelBranches?.length).toBe(1);
   });
 
-  it("flattens a nested branch and flags it", () => {
+  it("preserves a representable nested branch instead of flattening it", () => {
     const parsed = parseRungText("[XIC(A)[XIC(B),XIC(C)],XIC(D)]OTE(E);", registry);
+    expect(parsed.complexBranch).toBe(false);
+    const group = parsed.root.next!;
+    expect(group.nodes[0]?.operands[0]?.value).toBe("D");
+    const nestedPath = group.parallelBranches?.[0]!;
+    expect(nestedPath.nodes[0]?.operands[0]?.value).toBe("A");
+    expect(nestedPath.next?.nodes[0]?.operands[0]?.value).toBe("B");
+    expect(nestedPath.next?.parallelBranches?.[0]?.nodes[0]?.operands[0]?.value).toBe("C");
+    expect(group.next?.nodes[0]?.operands[0]?.value).toBe("E");
+    expect(rungToText({ id: "r", routineId: "routine", number: 0, root: parsed.root })).toBe(
+      "[XIC(D),XIC(A)[XIC(B),XIC(C)]]OTE(E)",
+    );
+  });
+
+  it("simulates a preserved nested branch with the same branch semantics", () => {
+    const parsed = parseRungText("[XIC(A)[XIC(B),XIC(C)],XIC(D)]OTE(E);", registry);
+    const routine: LadderRoutine = {
+      id: "ladder",
+      rungs: [{ id: "rung", routineId: "ladder", number: 0, root: parsed.root }],
+    };
+
+    const nestedPath = createRuntime({ routine, tags: [], registry });
+    nestedPath.writeTag("A", true);
+    nestedPath.writeTag("C", true);
+    nestedPath.scanOnce(0);
+    expect(nestedPath.readTag("E")).toBe(true);
+
+    const blocked = createRuntime({ routine, tags: [], registry });
+    blocked.writeTag("A", true);
+    blocked.scanOnce(0);
+    expect(blocked.readTag("E")).toBe(false);
+
+    const bypass = createRuntime({ routine, tags: [], registry });
+    bypass.writeTag("D", true);
+    bypass.scanOnce(0);
+    expect(bypass.readTag("E")).toBe(true);
+  });
+
+  it("imports representable nested branches without a flattened-branch warning", () => {
+    const xml = FIXTURE.replace(
+      "XIC(StartPB)XIO(StopPB)OTE(MotorRun);",
+      "[XIC(StartPB)[XIO(StopPB),XIC(LocalFlag)],XIC(MotorRun)]OTE(MotorRun);",
+    );
+    const { project, warnings } = importL5X(xml);
+    expect(warnings.some((warning) => warning.includes("flattened"))).toBe(false);
+    const text = rungToText(mainLadder(project).rungs[0]!);
+    expect(text).toContain("XIC(StartPB)[XIO(StopPB),XIC(LocalFlag)]");
+  });
+
+  it("still flattens unrepresentable nested branches and flags them", () => {
+    const parsed = parseRungText("[XIC(A)[XIC(B),XIC(C)],XIC(D)[XIC(E),XIC(F)]]OTE(G);", registry);
     expect(parsed.complexBranch).toBe(true);
-    expect(parsed.root.nodes.map((n) => n.instructionType)).toEqual(["XIC", "XIC", "XIC", "XIC", "OTE"]);
+    expect(parsed.root.nodes.map((n) => n.operands[0]?.value)).toEqual(["A", "B", "C", "D", "E", "F", "G"]);
   });
 });
 
@@ -418,6 +478,17 @@ describe("importL5X (stress fixture)", () => {
     expect(myArray?.dimension).toBe(8);
   });
 
+  it("imports full multi-dimensional array metadata", () => {
+    const xml = STRESS.replace(
+      '<Tag Name="MyArray" TagType="Base" DataType="DINT" Dimensions="8"/>',
+      '<Tag Name="MyArray" TagType="Base" DataType="DINT" Dimensions="2 3"/>',
+    );
+    const { project } = importL5X(xml);
+    const myArray = project.controllers[0]!.controllerTags.find((t) => t.name === "MyArray");
+    expect(myArray?.dimension).toBe(2);
+    expect(myArray?.dimensions).toEqual([2, 3]);
+  });
+
   it("warns about an unmodeled (UDT) data type", () => {
     const { warnings } = importL5X(STRESS);
     expect(warnings.some((w) => w.includes("PumpData") && w.includes("PumpUdt"))).toBe(true);
@@ -475,7 +546,13 @@ const STRUCTURE = `<?xml version="1.0" encoding="UTF-8"?>
     </AddOnInstructionDefinitions>
     <Modules>
       <Module Name="Local" CatalogNumber="1756-L83E" Slot="0"/>
-      <Module Name="DI_01" CatalogNumber="1756-IB16" Slot="1" ParentModule="Local"><Description><![CDATA[Field inputs]]></Description></Module>
+      <Module Name="DI_01" CatalogNumber="1756-IB16" Vendor="1" ProductType="7" ProductCode="16" Major="3" Minor="2" ElectronicKeying="CompatibleModule" Inhibited="true" ParentModule="Local" ParentModPortId="1">
+        <Description><![CDATA[Field inputs]]></Description>
+        <Ports>
+          <Port Id="1" Type="Backplane" Address="1" Upstream="true"/>
+          <Port Id="2" Type="Ethernet" Address="192.168.1.20"/>
+        </Ports>
+      </Module>
     </Modules>
     <Tags><Tag Name="Start" DataType="BOOL"/><Tag Name="Run" DataType="BOOL"/><Tag Name="ScaleInst" DataType="ScaleAOI"/></Tags>
     <Programs>
@@ -516,6 +593,51 @@ describe("importL5X (structure: UDT / AOI / I/O)", () => {
     expect(aoi.parameters[0]!.description).toBe("Raw input");
     expect(aoi.localTags.map((t) => t.name)).toEqual(["Scratch"]);
     expect(aoi.routineNames).toEqual(["Logic"]);
+    expect(aoi.routines?.map((routine) => routine.name)).toEqual(["Logic"]);
+  });
+
+  it("imports unprotected AOI RLL routine bodies for offline execution", () => {
+    const xml = STRUCTURE.replace(
+      '<Routines><Routine Name="Logic" Type="RLL"/></Routines>',
+      `<Routines><Routine Name="Logic" Type="RLL"><RLLContent>
+        <Rung Number="0"><Text><![CDATA[ADD(In,1,Out);]]></Text></Rung>
+      </RLLContent></Routine></Routines>`,
+    );
+    const aoi = importL5X(xml).project.controllers[0]!.addOnInstructions[0]!;
+    const ladder = aoi.routines?.[0]?.ladder as LadderRoutine;
+    expect(ladder.rungs).toHaveLength(1);
+    expect(routineNodes(ladder).map((node) => node.instructionType)).toEqual(["ADD"]);
+  });
+
+  it("imports unprotected AOI non-ladder routines as read-only preserved bodies", () => {
+    const xml = STRUCTURE.replace(
+      '<Routines><Routine Name="Logic" Type="RLL"/></Routines>',
+      `<Routines>
+        <Routine Name="Calc" Type="ST"><STContent>
+          <Line Number="0"><![CDATA[Out := In + 1.0;]]></Line>
+        </STContent></Routine>
+        <Routine Name="Diagram" Type="FBD"><FBDContent>
+          <Sheet Number="1"><Blocks/></Sheet>
+        </FBDContent></Routine>
+      </Routines>`,
+    );
+    const result = importL5X(xml);
+    const aoi = result.project.controllers[0]!.addOnInstructions[0]!;
+    expect(aoi.routineNames).toEqual(["Calc", "Diagram"]);
+    expect(aoi.routines?.map((routine) => `${routine.name}:${routine.language}`)).toEqual([
+      "Calc:structured-text",
+      "Diagram:function-block",
+    ]);
+    expect(aoi.routines?.[0]?.structuredText).toBe("Out := In + 1.0;");
+    expect(aoi.routines?.[1]?.sourceText).toContain("<FBDContent>");
+    expect(result.warnings.some((warning) => warning.includes("AOI ScaleAOI/Calc") && warning.includes("read-only"))).toBe(true);
+    expect(result.warnings.some((warning) => warning.includes("AOI ScaleAOI/Diagram") && warning.includes("read-only"))).toBe(true);
+  });
+
+  it("treats project-defined AOI calls as known model-only logic, not unsupported imports", () => {
+    const result = importL5X(STRUCTURE);
+    expect(result.summary.unsupportedInstructions).not.toContain("SCALEAOI");
+    expect(result.warnings.some((warning) => warning.includes("SCALEAOI") && warning.includes("unsupported"))).toBe(false);
   });
 
   it("imports a module description and parent module", () => {
@@ -524,19 +646,55 @@ describe("importL5X (structure: UDT / AOI / I/O)", () => {
     )!;
     expect(di.description).toBe("Field inputs");
     expect(di.parentModule).toBe("Local");
+    expect(di.parentPortId).toBe("1");
   });
 
-  it("imports the I/O module tree with catalog and slot", () => {
+  it("imports the I/O module tree with catalog, slot, revision, keying, and ports", () => {
     const controller = importL5X(STRUCTURE).project.controllers[0]!;
     expect(controller.ioConfiguration.modules.map((m) => m.name)).toEqual(["Local", "DI_01"]);
     const di = controller.ioConfiguration.modules.find((m) => m.name === "DI_01")!;
-    expect(di.catalogNumber).toBe("1756-IB16");
-    expect(di.slot).toBe(1);
+    expect(di).toMatchObject({
+      catalogNumber: "1756-IB16",
+      slot: 1,
+      vendor: "1",
+      productType: "7",
+      productCode: "16",
+      majorRevision: "3",
+      minorRevision: "2",
+      electronicKeying: "CompatibleModule",
+      inhibited: true,
+    });
+    expect(di.ports).toEqual([
+      { id: "1", type: "Backplane", address: "1", upstream: true },
+      { id: "2", type: "Ethernet", address: "192.168.1.20" },
+    ]);
   });
 
   it("round-trips structure metadata through serialize/deserialize", () => {
     const { project } = importL5X(STRUCTURE);
     expect(deserializeProject(serializeProject(project))).toEqual(project);
+  });
+
+  it("imports electronic keying from the canonical <EKey State> child element", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content>
+  <Controller Use="Target" Name="EKeyCtl">
+    <Modules>
+      <Module Name="DI_01" CatalogNumber="1756-IB16" Vendor="1" ProductType="7" ProductCode="16" Major="3" Minor="2">
+        <EKey State="ExactMatch"/>
+      </Module>
+    </Modules>
+  </Controller>
+</RSLogix5000Content>`;
+    const module = importL5X(xml).project.controllers[0]!.ioConfiguration.modules[0]!;
+    expect(module.electronicKeying).toBe("ExactMatch");
+
+    // Export re-asserts it as an <EKey State="..."/> child (matching Studio 5000),
+    // and it survives export -> import.
+    const { xml: exported } = exportL5X(importL5X(xml).project);
+    expect(exported).toContain('<EKey State="ExactMatch"');
+    const reimported = importL5X(exported).project.controllers[0]!.ioConfiguration.modules[0]!;
+    expect(reimported.electronicKeying).toBe("ExactMatch");
   });
 });
 

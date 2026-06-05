@@ -18,6 +18,7 @@ interface Props {
   project: PlcProject;
   comparison: { name: string; project: PlcProject } | null;
   onChooseFile: () => void;
+  onOpenRoutine: (routineId: string) => void;
 }
 
 const STATUS_LABEL: Record<RoutineMatch["status"], string> = {
@@ -66,6 +67,8 @@ function StructureDiffTable({ title, diff }: { title: string; diff: NamedDiff })
 
 function structureDiffCount(structure: StructureComparison): number {
   return (
+    diffCount(structure.tasks) +
+    diffCount(structure.programs) +
     diffCount(structure.tags) +
     diffCount(structure.dataTypes) +
     diffCount(structure.addOnInstructions) +
@@ -74,7 +77,7 @@ function structureDiffCount(structure: StructureComparison): number {
 }
 
 /** A changed pair: header row that expands to a side-by-side normalized diff. */
-function ChangedRow({ match }: { match: RoutineMatch }) {
+function ChangedRow({ match, onOpenRoutine }: { match: RoutineMatch; onOpenRoutine: (routineId: string) => void }) {
   const [open, setOpen] = useState(false);
   const rows = Math.max(match.leftRungTexts.length, match.rightRungTexts.length);
   return (
@@ -92,6 +95,16 @@ function ChangedRow({ match }: { match: RoutineMatch }) {
       </button>
       {open ? (
         <div className="esco-cmp__detail">
+          <div className="esco-cmp__detail-actions">
+            <button
+              type="button"
+              className="esco-link"
+              onClick={() => onOpenRoutine(match.left.routineId)}
+              title="Open current routine"
+            >
+              Open current routine
+            </button>
+          </div>
           <div className="esco-cmp__sidebyside">
             <div className="esco-cmp__col">
               <h4>Current</h4>
@@ -127,7 +140,7 @@ function ChangedRow({ match }: { match: RoutineMatch }) {
 }
 
 /** Offline project comparison by logic structure (not just names). */
-export function CompareView({ project, comparison, onChooseFile }: Props) {
+export function CompareView({ project, comparison, onChooseFile, onOpenRoutine }: Props) {
   const [mode, setMode] = useState<"strict" | "logical">("logical");
   const result = useMemo(
     () => (comparison ? compareProjects(project, comparison.project, { canonicalize: mode }) : null),
@@ -227,7 +240,11 @@ export function CompareView({ project, comparison, onChooseFile }: Props) {
             {result.changed.length > 0 ? (
               <ul className="esco-cmp__list">
                 {result.changed.map((match) => (
-                  <ChangedRow key={`${match.left.routineId}:${match.right.routineId}`} match={match} />
+                  <ChangedRow
+                    key={`${match.left.routineId}:${match.right.routineId}`}
+                    match={match}
+                    onOpenRoutine={onOpenRoutine}
+                  />
                 ))}
               </ul>
             ) : (
@@ -240,7 +257,14 @@ export function CompareView({ project, comparison, onChooseFile }: Props) {
             <ul className="esco-cmp__list">
               {result.onlyInLeft.map((ref) => (
                 <li key={ref.routineId} className="esco-cmp__item">
-                  {refLabel(ref)}
+                  <button
+                    type="button"
+                    className="esco-link"
+                    onClick={() => onOpenRoutine(ref.routineId)}
+                    title="Open current routine"
+                  >
+                    {refLabel(ref)}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -262,7 +286,14 @@ export function CompareView({ project, comparison, onChooseFile }: Props) {
             <ul className="esco-cmp__list">
               {result.matches.map((match) => (
                 <li key={`${match.left.routineId}:${match.right.routineId}`} className="esco-cmp__item">
-                  {refLabel(match.left)}
+                  <button
+                    type="button"
+                    className="esco-link"
+                    onClick={() => onOpenRoutine(match.left.routineId)}
+                    title="Open current routine"
+                  >
+                    {refLabel(match.left)}
+                  </button>
                   {refLabel(match.left) !== refLabel(match.right) ? ` ≡ ${refLabel(match.right)}` : ""}
                 </li>
               ))}
@@ -272,6 +303,8 @@ export function CompareView({ project, comparison, onChooseFile }: Props) {
           {structureResult ? (
             <section className="esco-cmp__structure" aria-label="Structure comparison">
               <h2 className="esco-cmp__structure-title">Structure Differences</h2>
+              <StructureDiffTable title="Tasks" diff={structureResult.tasks} />
+              <StructureDiffTable title="Programs" diff={structureResult.programs} />
               <StructureDiffTable title="Tags" diff={structureResult.tags} />
               <StructureDiffTable title="Data Types" diff={structureResult.dataTypes} />
               <StructureDiffTable title="Add-On Instructions" diff={structureResult.addOnInstructions} />

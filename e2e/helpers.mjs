@@ -23,7 +23,7 @@ export const STARTER_L5X = `<?xml version="1.0" encoding="UTF-8"?>
 </RSLogix5000Content>`;
 
 export const ribbonButton = (page, label) =>
-  page.locator(`.esco-ribbon__button:has-text("${label}")`).first();
+  page.locator(`.esco-ribbon__button[aria-label="${label}"], .esco-ribbon__button:has-text("${label}")`).first();
 
 export const paletteButton = (page, type) =>
   page.locator(`.esco-palette__menu button[aria-label="${type}"]`).first();
@@ -45,6 +45,23 @@ export async function dismissToasts(page) {
   }
 }
 
+export async function readConfirmationText(page) {
+  await page.locator(".esco-confirmation").waitFor({ timeout: 8000 });
+  return page.locator(".esco-confirmation").innerText();
+}
+
+export async function acceptConfirmation(page) {
+  await page.locator(".esco-confirmation").waitFor({ timeout: 8000 });
+  await page.locator(".esco-confirmation .esco-btn--primary").click();
+  await page.locator(".esco-confirmation").waitFor({ state: "detached", timeout: 8000 });
+}
+
+export async function cancelConfirmation(page) {
+  await page.locator(".esco-confirmation").waitFor({ timeout: 8000 });
+  await page.locator('.esco-confirmation .esco-btn:has-text("Cancel")').click();
+  await page.locator(".esco-confirmation").waitFor({ state: "detached", timeout: 8000 });
+}
+
 export async function clearAiProfileStorage(page) {
   await page.evaluate(() => {
     localStorage.removeItem("esco.ai.profile.v1");
@@ -59,7 +76,7 @@ export async function importL5XText(page, text, name = "fixture.L5X") {
     mimeType: "application/xml",
     buffer: Buffer.from(text),
   });
-  await page.locator('button:has-text("MainRoutine")').first().waitFor({ timeout: 8000 });
+  await page.locator(".esco-tree__node--routine, .esco-tree__node--controller").first().waitFor({ timeout: 8000 });
 }
 
 export async function importL5XPath(page, path) {
@@ -74,12 +91,59 @@ export async function importStarterProject(page) {
 }
 
 export async function createBlankProject(page) {
-  await page.locator('button:has-text("Create New Routine")').click();
-  await page.locator('button:has-text("Add Rung")').waitFor({ timeout: 8000 });
+  await page.locator('.esco-ribbon__toolbar-row--standard .esco-ribbon__button[aria-label="New"]').click();
+  await page.locator(".esco-new-project").waitFor({ timeout: 8000 });
+  await page.locator('.esco-new-project .esco-btn--primary:has-text("OK")').click();
+  await page.locator(".esco-editor__surface").waitFor({ timeout: 8000 });
   await dismissToasts(page);
 }
 
+export async function createBoolTag(page, name) {
+  await page.locator('.esco-left :text("Controller Tags")').first().click({ button: "right" });
+  await page.locator('.esco-context-menu__item:has-text("New Tag")').click();
+  await page.locator('.esco-modal__panel[aria-label="New Tag"]').waitFor({ timeout: 8000 });
+  await page.locator('.esco-modal__panel[aria-label="New Tag"] label:has-text("Name") input').fill(name);
+  await page.locator('.esco-modal__panel[aria-label="New Tag"] .esco-btn--primary:has-text("OK")').click();
+  await page.locator('.esco-modal__panel[aria-label="New Tag"]').waitFor({ state: "detached", timeout: 8000 });
+  await dismissToasts(page);
+}
+
+export async function openWatchPanel(page) {
+  if ((await page.locator('.esco-dock__tab:has-text("Watch")').count()) > 0) {
+    await page.locator('.esco-dock__tab:has-text("Watch")').click();
+  } else {
+    await page.locator('.esco-ribbon__tab:has-text("View")').click();
+    await page.locator('.esco-ribbon-menu__item:has-text("Watch")').click();
+  }
+  await page.locator(".esco-watch").waitFor({ timeout: 8000 });
+}
+
+export async function addRungViaProjectMenu(page) {
+  await page.locator('.esco-ribbon__tab:has-text("Logic")').click();
+  await page.locator('.esco-ribbon-menu__item:has-text("Add Rung")').click();
+}
+
+export async function openDockPanel(page, label) {
+  if ((await page.locator(`.esco-dock__tab:has-text("${label}")`).count()) > 0) {
+    await page.locator(`.esco-dock__tab:has-text("${label}")`).click();
+  } else if (/^watch$/i.test(label)) {
+    await page.locator('.esco-ribbon__tab:has-text("View")').click();
+    await page.locator('.esco-ribbon-menu__item:has-text("Watch")').click();
+  } else if (/^forces$/i.test(label)) {
+    await page.locator('.esco-ribbon__tab:has-text("View")').click();
+    await page.locator('.esco-ribbon-menu__item:has-text("Forces")').click();
+  } else if (/cross ref|cross reference/i.test(label)) {
+    await page.locator('.esco-ribbon__tab:has-text("Tools")').click();
+    await page.locator('.esco-ribbon-menu__item:has-text("Cross Reference")').click();
+  } else if (/search/i.test(label)) {
+    await ribbonButton(page, "Find").click();
+  } else {
+    await openWatchPanel(page);
+    await page.locator(`.esco-dock__tab:has-text("${label}")`).click();
+  }
+}
+
 export async function openMainRoutine(page) {
-  await page.locator('button:has-text("MainRoutine")').first().click();
-  await page.locator('button:has-text("Add Rung")').waitFor({ timeout: 8000 });
+  await page.locator('.esco-tree__node--routine:has-text("MainRoutine"), .esco-tree__node--routine:has-text("Main")').first().click();
+  await page.locator(".esco-editor__surface").waitFor({ timeout: 8000 });
 }

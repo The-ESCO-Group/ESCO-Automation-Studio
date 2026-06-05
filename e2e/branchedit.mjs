@@ -1,11 +1,17 @@
 import { chromium } from "playwright-core";
-import { URL, addPaletteInstruction, createBlankProject } from "./helpers.mjs";
+import { URL, createBlankProject, createBoolTag, openMainRoutine, openWatchPanel } from "./helpers.mjs";
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
 const selOperands = (page) => page.locator(".esco-lad__rung.is-selected input.esco-lad__operand");
 const setOperand = async (input, text) => { await input.click(); await input.fill(""); await input.pressSequentially(text); };
 const watchText = (page, tag) => page.locator(`.esco-watch tr:has-text("${tag}")`).first().innerText();
-const leg = (page, i) => page.locator(".esco-branch-leg").nth(i);
+const ladderButton = (page, type) => page.locator(`.esco-ribbon__button[aria-label="${type}"]`).first();
+const pickBranchInstruction = async (page, type) => {
+  await page.locator(".esco-lad__branch-target").first().click();
+  await page.locator(".esco-instr-picker__input").fill(type);
+  await page.keyboard.press("Enter");
+  await page.locator(".esco-instr-picker").waitFor({ state: "detached", timeout: 8000 });
+};
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
@@ -13,34 +19,42 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
   await createBlankProject(page);
+  for (const tag of ["StartPB", "StopPB", "MotorRun"]) await createBoolTag(page, tag);
+  await openMainRoutine(page);
 
-  // Add a fresh rung (auto-selected) — the branch editor strip appears for it.
-  await page.locator('button:has-text("Add Rung")').click();
-  await page.locator(".esco-branch-edit").waitFor({ timeout: 8000 });
-  check("branch editor appears for the selected rung", true);
+  // Build a seal-in rung through the Studio-style instruction toolbar.
+  await page.locator(".esco-lad__rung").first().click();
+  check(
+    "instruction toolbar exposes Studio-style branch buttons",
+    (await ladderButton(page, "BST").count()) === 1 &&
+      (await ladderButton(page, "NXB").count()) === 1 &&
+      (await ladderButton(page, "BND").count()) === 1,
+  );
+  await ladderButton(page, "XIC").click();
+  await ladderButton(page, "BST").click();
+  await page.locator(".esco-lad__branch-target").first().waitFor({ timeout: 8000 });
+  check("empty parallel leg exposes a branch insertion target", (await page.locator(".esco-lad__parallel .esco-lad__branch-target").count()) >= 1);
+  await ladderButton(page, "NXB").click();
+  check("NXB adds another empty branch leg", (await page.locator(".esco-lad__parallel .esco-lad__branch-target").count()) >= 2);
 
-  // Create a parallel branch off the main line -> two legs (main + alternate).
-  await leg(page, 0).locator('button:has-text("Parallel")').click();
-  await page.waitForFunction(() => document.querySelectorAll(".esco-branch-leg").length === 2);
-  check("add parallel branch -> 2 legs", true);
-  check("empty legs show the placeholder", (await page.locator(".esco-branch-leg__empty").count()) >= 1);
-
-  // Leg 1: XIC(StartPB);  Leg 2: XIC(MotorRun) (the seal-in contact).
-  await leg(page, 0).locator('button:has-text("XIC")').click();
-  await leg(page, 1).locator('button:has-text("XIC")').click();
-  // Downstream after the merge: XIO(StopPB) OTE(MotorRun) via the main palette.
-  await addPaletteInstruction(page, "XIO");
-  await addPaletteInstruction(page, "OTE");
-  await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung.is-selected .esco-lad__operand").length === 4);
+  await page.locator(".esco-lad__branch-target").first().click();
+  check("branch insertion target opens the instruction picker", (await page.locator(".esco-instr-picker h2:has-text('branch leg')").count()) === 1);
+  await page.locator(".esco-instr-picker__input").fill("XIC");
+  await page.keyboard.press("Enter");
+  await page.locator(".esco-instr-picker").waitFor({ state: "detached", timeout: 8000 });
+  await pickBranchInstruction(page, "XIC");
+  check("branch insertion target adds alternate XIC legs through the picker", (await page.locator(".esco-lad__parallel .esco-lad__node--contact-closed").count()) === 3);
+  await ladderButton(page, "XIO").click();
+  await ladderButton(page, "OTE").click();
+  await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung.is-selected .esco-lad__operand").length === 5);
 
   const ins = selOperands(page);
   await setOperand(ins.nth(0), "StartPB");  // leg 1
   await setOperand(ins.nth(1), "MotorRun"); // leg 2 (seal)
-  await setOperand(ins.nth(2), "StopPB");   // downstream
-  await setOperand(ins.nth(3), "MotorRun"); // coil
-  while ((await page.locator(".esco-undef .esco-btn--create").count()) > 0) {
-    await page.locator(".esco-undef .esco-btn--create").first().click();
-  }
+  await setOperand(ins.nth(2), "StartPB");  // leg 3
+  await setOperand(ins.nth(3), "StopPB");   // downstream
+  await setOperand(ins.nth(4), "MotorRun"); // coil
+  await openWatchPanel(page);
   await page.waitForFunction(() => [...document.querySelectorAll(".esco-watch td")].some((td) => td.textContent === "MotorRun"));
   check("hand-built seal-in rung created with tags", true);
 

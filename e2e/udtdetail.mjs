@@ -41,7 +41,7 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
   await importL5XPath(page, fixturePath);
-  await page.locator('.esco-titlebar__project:has-text("UdtCtl")').waitFor({ timeout: 8000 });
+  await page.locator('.esco-titlebar__name:has-text("UdtCtl")').waitFor({ timeout: 8000 });
 
   await page.locator('.esco-tree__node--udt:has-text("MotorUdt")').click();
   await page.locator(".esco-detail").waitFor({ timeout: 5000 });

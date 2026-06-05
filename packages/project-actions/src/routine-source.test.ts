@@ -62,7 +62,7 @@ describe("project-actions: Structured Text source editing", () => {
     expect(firstRoutine(updated.project).sourceText).toBeUndefined();
     expect(firstRoutine(updated.project).ladder).toBeUndefined();
     expect(updated.warnings).toContain(
-      "Structured Text is preserved and exported, but not executed by Offline Simulation.",
+      "Structured Text is preserved/exported and executes only a conservative Offline Simulation subset.",
     );
 
     const exported = exportProjectL5X(updated.project);

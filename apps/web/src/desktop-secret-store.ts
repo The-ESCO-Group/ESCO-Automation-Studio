@@ -20,9 +20,9 @@ import { browserStorage, memoryStorage, type StorageLike } from "./settings";
  * store if they are absent or fail — so the web app and an un-upgraded desktop
  * build both keep working.
  *
- * NOTE: the desktop `secure_key_*` commands are specified and scaffolded in the
- * Tauri shell but require a real `tauri build` (Rust toolchain) to verify. Until
- * then `secure_key_available` resolves falsy and this falls back to browser-local.
+ * The packaged desktop shell exposes these commands through the Rust keyring
+ * adapter. If a development build lacks them or the OS keychain probe fails,
+ * `secure_key_available` resolves falsy and this falls back to browser-local.
  */
 
 export type SecretBackendKind = "os-keychain" | "browser-local";

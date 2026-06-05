@@ -1,8 +1,8 @@
 import type { AddOnInstruction, AoiLocalTag, AoiParameter, PlcProject } from "@esco/core";
 import { fail, ok } from "./helpers";
+import { dimensionPropsFrom, mergeDimensionPatch } from "./dimensions";
+import { logixIdentifierError } from "./logix-names";
 import type { ProjectActionResult } from "./types";
-
-const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export interface AddAoiParameterInput {
   aoiId: string;
@@ -85,7 +85,8 @@ function editableAoi(
 
 function validateName(name: string | undefined, used: Set<string>, label: string): string | undefined {
   if (!name?.trim()) return `${label} name is required.`;
-  if (!IDENTIFIER.test(name)) return `Invalid ${label.toLowerCase()} name "${name}".`;
+  const invalidName = logixIdentifierError(name, label);
+  if (invalidName) return invalidName;
   if (used.has(name.toLowerCase())) return `"${name}" already exists in this Add-On Instruction.`;
   return undefined;
 }
@@ -192,9 +193,12 @@ export function addAoiLocalTag(
   if (nameError) return fail(project, nameError);
   if (!input.localTag.dataType?.trim()) return fail(project, "Local tag data type is required.");
 
+  const dimensions = dimensionPropsFrom(input.localTag, "Local tag");
+  if (dimensions.error) return fail(project, dimensions.error);
   const localTag: AoiLocalTag = {
     name,
     dataType: input.localTag.dataType.trim(),
+    ...dimensions.props,
     ...(input.localTag.description?.trim() ? { description: input.localTag.description.trim() } : {}),
   };
   return ok(
@@ -221,9 +225,12 @@ export function updateAoiLocalTag(
   const dataType = input.patch.dataType?.trim() ?? current.dataType;
   if (!dataType) return fail(project, "Local tag data type is required.");
 
+  const dimensions = mergeDimensionPatch(current, input.patch, "Local tag");
+  if (dimensions.error) return fail(project, dimensions.error);
   const merged: AoiLocalTag = {
     name,
     dataType,
+    ...dimensions.props,
     description:
       input.patch.description !== undefined
         ? input.patch.description.trim() || undefined

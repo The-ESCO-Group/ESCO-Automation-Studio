@@ -3,7 +3,7 @@
 // never mutate; write tools are mapped to controlled @esco/project-actions and
 // returned as a previewable plan (applied only on user Apply). Anything not in
 // this whitelist is rejected. There are deliberately NO file/shell/network/PLC/
-// .ACD/eval/state-mutation tools.
+// proprietary-binary/eval/state-mutation tools.
 
 import type { PlcProject } from "@esco/core";
 import {
@@ -121,7 +121,7 @@ export const READ_TOOLS: AgentToolDef[] = [
   },
   {
     name: "get_hmi_overview",
-    description: "Summarize the View Designer/HMI project: screens, popups, system banner, element counts, and HMI validation status. Use this before proposing HMI edits.",
+    description: "Summarize the HMI project: screens, popups, system banner, element counts, and HMI validation status. Use this before proposing HMI edits.",
     input_schema: obj({}),
   },
   {
@@ -139,7 +139,7 @@ export const READ_TOOLS: AgentToolDef[] = [
   },
   {
     name: "get_hmi_validation_findings",
-    description: "Run HMI validation and return HMI/View Designer findings, including missing tag bindings and bad navigation targets.",
+    description: "Run HMI validation and return findings, including missing tag bindings and bad navigation targets.",
     input_schema: obj({}),
   },
 ];
@@ -253,7 +253,7 @@ export const WRITE_TOOLS: AgentToolDef[] = [
   },
   {
     name: "create_hmi_screen",
-    description: "Create a View Designer HMI screen. This only queues a reviewed project action.",
+    description: "Create an HMI screen. This only queues a reviewed project action.",
     input_schema: obj(
       { name: str("Screen name, e.g. Overview."), width: num("Optional screen width."), height: num("Optional screen height.") },
       ["name"],
@@ -261,7 +261,7 @@ export const WRITE_TOOLS: AgentToolDef[] = [
   },
   {
     name: "create_hmi_popup",
-    description: "Create a View Designer HMI popup. This only queues a reviewed project action.",
+    description: "Create an HMI popup. This only queues a reviewed project action.",
     input_schema: obj(
       { name: str("Popup name, e.g. Motor Details."), width: num("Optional popup width."), height: num("Optional popup height.") },
       ["name"],

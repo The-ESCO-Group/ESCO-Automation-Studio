@@ -7,13 +7,17 @@ import {
 } from "./explain";
 import {
   counterPlan,
+  debounceInputPlan,
   fixUndefinedPlan,
   hmiNavigationButtonPlan,
   hmiPopupPlan,
   hmiScreenPlan,
+  motorInterlockPlan,
+  motorStartCounterPlan,
   motorStarterPlan,
   movPlan,
   timerPlan,
+  unitConversionPlan,
 } from "./templates";
 import type { AssistantInput, AssistantPlan, AssistantResult } from "./types";
 
@@ -28,6 +32,10 @@ export const HELP_TEXT = [
   "  • create HMI screen",
   "  • add navigation button",
   "  • generate motor starter",
+  "  • motor starter with interlocks",
+  "  • debounce input",
+  "  • count motor starts with ONS",
+  "  • C/F unit conversion",
   "  • fix undefined tags",
   "  • timer example",
   "  • counter example",
@@ -61,6 +69,28 @@ export function runAssistant(input: AssistantInput): AssistantResult {
   if (prompt.includes("hmi") && prompt.includes("popup")) return fromPlan(hmiPopupPlan(input.project));
   if (prompt.includes("navigation button") || (prompt.includes("hmi") && prompt.includes("navigate"))) {
     return fromPlan(hmiNavigationButtonPlan(input.project));
+  }
+  if (prompt.includes("debounce")) return fromPlan(debounceInputPlan(input.project, input.selection));
+  if (
+    prompt.includes("unit conversion") ||
+    prompt.includes("fahrenheit") ||
+    prompt.includes("celsius") ||
+    prompt.includes("°f") ||
+    prompt.includes("°c") ||
+    (prompt.includes("convert") && (prompt.includes("temp") || prompt.includes("temperature")))
+  ) {
+    return fromPlan(unitConversionPlan(input.project, input.selection));
+  }
+  if (
+    prompt.includes("ons") ||
+    prompt.includes("one shot") ||
+    prompt.includes("one-shot") ||
+    (prompt.includes("count") && prompt.includes("start"))
+  ) {
+    return fromPlan(motorStartCounterPlan(input.project, input.selection));
+  }
+  if (prompt.includes("motor") && (prompt.includes("interlock") || prompt.includes("holding") || prompt.includes("hold"))) {
+    return fromPlan(motorInterlockPlan(input.project, input.selection));
   }
   if (prompt.includes("motor")) return fromPlan(motorStarterPlan(input.project, input.selection));
   if (prompt.includes("fix undefined") || prompt.includes("undefined tag")) {

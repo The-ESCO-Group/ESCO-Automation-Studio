@@ -92,6 +92,68 @@ export const ONS: InstructionDefinition = {
   render: { symbol: "ONS", style: "box" },
 };
 
+/**
+ * OSR - One Shot Rising. Output instruction with a Storage Bit and an Output Bit.
+ * On a false→true edge of the rung condition the Output Bit is set true for
+ * exactly one scan; otherwise it is cleared. The Storage Bit records the prior
+ * rung condition, so the edge is detected deterministically across scans and the
+ * state lives in tag memory (survives export/import). Rung-out follows rung-in.
+ */
+export const OSR: InstructionDefinition = {
+  type: "OSR",
+  displayName: "One Shot Rising",
+  category: "bit",
+  description: "Pulses the Output Bit true for one scan on a false→true edge of the rung; stores the prior rung state.",
+  operands: [
+    { name: "storage", label: "Storage Bit", required: true, allowedTypes: ["BOOL"], direction: "write" },
+    { name: "output", label: "Output Bit", required: true, allowedTypes: ["BOOL"], direction: "write" },
+  ],
+  validate: (node) =>
+    ["storage", "output"].flatMap((name, index) =>
+      node.operands[index]?.value ? [] : [`Operand '${name}' is required.`],
+    ),
+  execute: (node, ctx) => {
+    const storage = operandValue(node, 0);
+    const output = operandValue(node, 1);
+    const edge = ctx.rungIn && !ctx.readBool(storage);
+    ctx.writeBool(storage, ctx.rungIn);
+    if (output) ctx.writeBool(output, edge);
+    return ctx.rungIn;
+  },
+  render: { symbol: "OSR", style: "box" },
+};
+
+/**
+ * OSF - One Shot Falling. Output instruction with a Storage Bit and an Output Bit.
+ * On a true→false edge of the rung condition the Output Bit is set true for
+ * exactly one scan; otherwise it is cleared. The Storage Bit records the prior
+ * rung condition, so the edge is detected deterministically across scans.
+ * Rung-out follows rung-in.
+ */
+export const OSF: InstructionDefinition = {
+  type: "OSF",
+  displayName: "One Shot Falling",
+  category: "bit",
+  description: "Pulses the Output Bit true for one scan on a true→false edge of the rung; stores the prior rung state.",
+  operands: [
+    { name: "storage", label: "Storage Bit", required: true, allowedTypes: ["BOOL"], direction: "write" },
+    { name: "output", label: "Output Bit", required: true, allowedTypes: ["BOOL"], direction: "write" },
+  ],
+  validate: (node) =>
+    ["storage", "output"].flatMap((name, index) =>
+      node.operands[index]?.value ? [] : [`Operand '${name}' is required.`],
+    ),
+  execute: (node, ctx) => {
+    const storage = operandValue(node, 0);
+    const output = operandValue(node, 1);
+    const edge = !ctx.rungIn && ctx.readBool(storage);
+    ctx.writeBool(storage, ctx.rungIn);
+    if (output) ctx.writeBool(output, edge);
+    return ctx.rungIn;
+  },
+  render: { symbol: "OSF", style: "box" },
+};
+
 /** OTU - Output Unlatch. Clears the BOOL tag when the rung is true; never sets it. */
 export const OTU: InstructionDefinition = {
   type: "OTU",

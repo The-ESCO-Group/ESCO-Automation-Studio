@@ -1,8 +1,15 @@
 import type { InstructionDefinition } from "./types";
 
+function requireOperands(names: string[]) {
+  return (node: { operands: { value: string }[] }): string[] =>
+    names.flatMap((name, index) =>
+      node.operands[index]?.value ? [] : [`Operand '${name}' is required.`],
+    );
+}
+
 /**
- * Simple program-control utility instructions (NOP/AFI). Routine-call control
- * (JSR/SBR/RET) lives in routine-control.ts and drives multi-routine execution.
+ * Simple program-control utility instructions. Routine-call control (JSR/SBR/RET)
+ * lives in routine-control.ts and drives multi-routine execution.
  */
 
 /** NOP - No Operation. Passes the rung condition straight through. */
@@ -27,4 +34,21 @@ export const AFI: InstructionDefinition = {
   validate: () => [],
   execute: () => false,
   render: { symbol: "AFI", style: "box" },
+};
+
+/**
+ * IOT - Immediate Output. In a controller this immediately transfers an output
+ * module / produced tag image. The offline runtime has no delayed I/O image or
+ * controller connection, so the tag is validated/cross-referenced and the rung
+ * condition passes through without changing tag memory.
+ */
+export const IOT: InstructionDefinition = {
+  type: "IOT",
+  displayName: "Immediate Output",
+  category: "program-control",
+  description: "Validates an output/produced tag update request; offline scan has no delayed I/O image to flush.",
+  operands: [{ name: "updateTag", label: "Update Tag", required: true, direction: "read", isLabelRef: true }],
+  validate: requireOperands(["updateTag"]),
+  execute: (_node, ctx) => ctx.rungIn,
+  render: { symbol: "IOT", style: "box" },
 };

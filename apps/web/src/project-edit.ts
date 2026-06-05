@@ -10,7 +10,7 @@ import {
   type Tag,
 } from "@esco/core";
 import { createDefaultHmiProject } from "@esco/hmi-model";
-import { createLadderRoutine, type LadderRoutine } from "@esco/ladder";
+import { createLadderRoutine, createRung, type LadderRoutine } from "@esco/ladder";
 
 /**
  * Web-side helpers for reading and immutably editing the project. The editable
@@ -18,29 +18,78 @@ import { createLadderRoutine, type LadderRoutine } from "@esco/ladder";
  * loosely typed); these helpers cast it to a `LadderRoutine` at the edges.
  */
 
-/** Initial workspace state: no controllers, no routines, no preloaded logic. */
+/** Initial workspace state: no controllers, matching ESCO's start page. */
 export function createInitialProject(): PlcProject {
   return createProject("Untitled Project", "Blank ESCO Automation Studio workspace.");
 }
 
+export interface BlankRoutineProjectOptions {
+  projectName?: string;
+  description?: string;
+  controllerName?: string;
+  catalogNumber?: string;
+  firmwareRevision?: string;
+  chassis?: string;
+  slot?: number;
+  securityAuthority?: string;
+}
+
+function processorTypeForCatalog(catalogNumber: string): string {
+  return /L8|558/i.test(catalogNumber) ? "ESCO5580" : "ESCO5571";
+}
+
 /** Create a real blank ladder workspace without sample tags or sample rungs. */
-export function createBlankRoutineProject(): PlcProject {
-  const project = createProject("Untitled Project", "Blank ESCO Automation Studio project.");
-  const controller = createController(project.id, "Controller_1");
-  controller.processorType = "Offline Simulation";
+export function createBlankRoutineProject(options: BlankRoutineProjectOptions = {}): PlcProject {
+  const projectName = options.projectName?.trim() || "Untitled Project";
+  const controllerName = options.controllerName?.trim() || "Controller_1";
+  const catalogNumber = options.catalogNumber?.trim() || "1756-L71";
+  const firmwareRevision = options.firmwareRevision?.trim() || "32.11";
+  const chassis = options.chassis?.trim() || "1756-A10";
+  const slot = Number.isFinite(options.slot) ? options.slot! : 0;
+  const processorType = processorTypeForCatalog(catalogNumber);
+
+  const project = createProject(projectName, options.description?.trim() || "Blank ESCO Automation Studio project.");
+  const controller = createController(project.id, controllerName);
+  controller.processorType = processorType;
+  controller.catalogNumber = catalogNumber;
+  controller.firmwareRevision = firmwareRevision;
+  controller.chassis = chassis;
+  controller.slot = slot;
+  controller.commDriver = "Offline Model";
+  controller.commPath = `Offline Model\\Local Backplane\\Slot ${slot}`;
+  if (options.securityAuthority?.trim()) {
+    controller.security = { securityAuthorityName: options.securityAuthority.trim() };
+  }
 
   const program = createProgram(controller.id, "MainProgram");
   const routine = createRoutine(program.id, "MainRoutine", "ladder");
-  routine.ladder = createLadderRoutine();
+  const ladder = createLadderRoutine();
+  ladder.rungs = [createRung(routine.id, 0)];
+  routine.ladder = ladder;
   program.mainRoutineId = routine.id;
   program.routines.push(routine);
 
   const task = createContinuousTask(controller.id, "MainTask", [program.id]);
   controller.tasks.push(task);
   controller.programs.push(program);
+  controller.ioConfiguration.modules.push(
+    {
+      id: `${controller.id}-chassis`,
+      name: "1756 Backplane",
+      catalogNumber: chassis,
+      productType: "Chassis",
+    },
+    {
+      id: `${controller.id}-slot${slot}`,
+      name: controller.name,
+      catalogNumber,
+      productType: `${processorType} Processor`,
+      slot,
+    },
+  );
   project.controllers.push(controller);
 
-  const projectWithHmi = { ...project, hmi: createDefaultHmiProject("Untitled HMI") };
+  const projectWithHmi = { ...project, hmi: createDefaultHmiProject(`${projectName} HMI`) };
   return projectWithHmi;
 }
 
@@ -115,9 +164,12 @@ export function withNewTag(
   };
 }
 
-/** All controller tags across the project, in declaration order. */
+/** All controller and program tags across the project, in declaration order. */
 export function getTags(project: PlcProject): Tag[] {
-  return project.controllers.flatMap((controller) => controller.controllerTags);
+  return project.controllers.flatMap((controller) => [
+    ...controller.controllerTags,
+    ...controller.programs.flatMap((program) => program.programTags),
+  ]);
 }
 
 export function tagExists(project: PlcProject, name: string): boolean {

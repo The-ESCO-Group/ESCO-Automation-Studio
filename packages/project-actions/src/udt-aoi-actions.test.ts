@@ -10,8 +10,10 @@ import {
   addAoiLocalTag,
   addAoiParameter,
   addUdtMember,
+  removeAoiLocalTag,
   removeAoiParameter,
   removeUdtMember,
+  updateAoiLocalTag,
   updateAoiParameter,
   updateUdtMember,
 } from "./index";
@@ -62,12 +64,58 @@ describe("UDT member actions", () => {
     expect(member?.dimension).toBe(8);
   });
 
+  it("adds and updates members with full multi-dimensional array metadata", () => {
+    const added = addUdtMember(fixture(), {
+      udtId: "udt_motor",
+      member: { name: "Recipe", dataType: "DINT", dimensions: [2, 3] },
+    });
+    expect(added.ok).toBe(true);
+    expect(udtOf(added.project).members.find((m) => m.name === "Recipe")).toMatchObject({
+      dimension: 2,
+      dimensions: [2, 3],
+    });
+
+    const updated = updateUdtMember(added.project, {
+      udtId: "udt_motor",
+      memberName: "Recipe",
+      patch: { dimensions: [4, 5] },
+    });
+    expect(updated.ok).toBe(true);
+    expect(udtOf(updated.project).members.find((m) => m.name === "Recipe")).toMatchObject({
+      dimension: 4,
+      dimensions: [4, 5],
+    });
+
+    const cleared = updateUdtMember(updated.project, {
+      udtId: "udt_motor",
+      memberName: "Recipe",
+      patch: { dimensions: [] },
+    });
+    const member = udtOf(cleared.project).members.find((m) => m.name === "Recipe");
+    expect(member?.dimension).toBeUndefined();
+    expect(member?.dimensions).toBeUndefined();
+  });
+
   it("rejects duplicate, invalid, and self-referential members", () => {
     expect(addUdtMember(fixture(), { udtId: "udt_motor", member: { name: "Run", dataType: "BOOL" } }).ok).toBe(false);
     expect(addUdtMember(fixture(), { udtId: "udt_motor", member: { name: "1bad", dataType: "BOOL" } }).ok).toBe(false);
     const selfRef = addUdtMember(fixture(), { udtId: "udt_motor", member: { name: "Nested", dataType: "MotorUdt" } });
     expect(selfRef.ok).toBe(false);
     expect(selfRef.error).toMatch(/own UDT/i);
+  });
+
+  it("rejects member names that Studio 5000 would reject at edit time", () => {
+    const cases = [
+      ["Trailing_", /must not end with an underscore/],
+      ["Has__Gap", /consecutive underscores/],
+      ["M".repeat(41), /limit is 40/],
+    ] as const;
+
+    for (const [name, reason] of cases) {
+      const result = addUdtMember(fixture(), { udtId: "udt_motor", member: { name, dataType: "BOOL" } });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(reason);
+    }
   });
 
   it("renames a member but rejects collision with another member", () => {
@@ -104,6 +152,29 @@ describe("AOI parameter and local-tag actions", () => {
     expect(aoiOf(withLocal.project).localTags.some((t) => t.name === "Scratch")).toBe(true);
   });
 
+  it("adds and updates AOI local tags with full multi-dimensional array metadata", () => {
+    const added = addAoiLocalTag(fixture(), {
+      aoiId: "aoi_scale",
+      localTag: { name: "Window", dataType: "DINT", dimensions: [2, 3] },
+    });
+    expect(added.ok).toBe(true);
+    expect(aoiOf(added.project).localTags.find((t) => t.name === "Window")).toMatchObject({
+      dimension: 2,
+      dimensions: [2, 3],
+    });
+
+    const updated = updateAoiLocalTag(added.project, {
+      aoiId: "aoi_scale",
+      localTagName: "Window",
+      patch: { dimensions: [4, 5] },
+    });
+    expect(updated.ok).toBe(true);
+    expect(aoiOf(updated.project).localTags.find((t) => t.name === "Window")).toMatchObject({
+      dimension: 4,
+      dimensions: [4, 5],
+    });
+  });
+
   it("enforces a shared parameter/local-tag name space", () => {
     const withParam = addAoiParameter(fixture(), { aoiId: "aoi_scale", parameter: { name: "Shared", dataType: "REAL" } });
     const clash = addAoiLocalTag(withParam.project, { aoiId: "aoi_scale", localTag: { name: "Shared", dataType: "REAL" } });
@@ -111,10 +182,56 @@ describe("AOI parameter and local-tag actions", () => {
     expect(clash.error).toMatch(/already exists/i);
   });
 
-  it("refuses to edit a source-protected AOI", () => {
-    const result = addAoiParameter(fixture(), { aoiId: "aoi_locked", parameter: { name: "X", dataType: "BOOL" } });
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/source-protected/i);
+  it("rejects AOI parameter and local-tag names that Studio 5000 would reject at edit time", () => {
+    const badParameter = addAoiParameter(fixture(), {
+      aoiId: "aoi_scale",
+      parameter: { name: "Param_", dataType: "REAL" },
+    });
+    expect(badParameter.ok).toBe(false);
+    expect(badParameter.error).toMatch(/must not end with an underscore/);
+
+    const longLocal = addAoiLocalTag(fixture(), {
+      aoiId: "aoi_scale",
+      localTag: { name: "L".repeat(41), dataType: "DINT" },
+    });
+    expect(longLocal.ok).toBe(false);
+    expect(longLocal.error).toMatch(/limit is 40/);
+
+    const gapLocal = updateAoiLocalTag(
+      addAoiLocalTag(fixture(), {
+        aoiId: "aoi_scale",
+        localTag: { name: "Scratch", dataType: "DINT" },
+      }).project,
+      { aoiId: "aoi_scale", localTagName: "Scratch", patch: { name: "Bad__Name" } },
+    );
+    expect(gapLocal.ok).toBe(false);
+    expect(gapLocal.error).toMatch(/consecutive underscores/);
+  });
+
+  it("refuses every parameter/local-tag edit on a source-protected AOI", () => {
+    // The shared editableAoi guard must reject EVERY mutation entry point — not
+    // just addAoiParameter — and must run before the "not found" check, so a
+    // protected AOI is rejected as protected even for a member it never had.
+    const edits = [
+      () => addAoiParameter(fixture(), { aoiId: "aoi_locked", parameter: { name: "X", dataType: "BOOL" } }),
+      () => updateAoiParameter(fixture(), { aoiId: "aoi_locked", parameterName: "EnableIn", patch: { required: true } }),
+      () => removeAoiParameter(fixture(), { aoiId: "aoi_locked", parameterName: "EnableIn" }),
+      () => addAoiLocalTag(fixture(), { aoiId: "aoi_locked", localTag: { name: "Scratch", dataType: "BOOL" } }),
+      () => updateAoiLocalTag(fixture(), { aoiId: "aoi_locked", localTagName: "Scratch", patch: { dataType: "DINT" } }),
+      () => removeAoiLocalTag(fixture(), { aoiId: "aoi_locked", localTagName: "Scratch" }),
+    ];
+    for (const edit of edits) {
+      const result = edit();
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/source-protected/i);
+      // The guard leaves the project untouched — no partial mutation leaks through.
+      expect(result.project.controllers[0].addOnInstructions[1]).toMatchObject({
+        id: "aoi_locked",
+        protected: true,
+        parameters: [],
+        localTags: [],
+      });
+    }
   });
 
   it("updates and removes a parameter", () => {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  controlDesktopWindow,
   invokeDesktopCommand,
   isDesktopRuntime,
   isDesktopStartupRequested,
@@ -54,5 +55,13 @@ describe("desktop runtime detection", () => {
 
     await expect(invokeDesktopCommand("desktop_capabilities")).resolves.toEqual({ ok: true });
     expect(invoke).toHaveBeenCalledWith("desktop_capabilities", undefined);
+  });
+
+  it("sends painted titlebar controls through the Tauri window bridge", async () => {
+    const invoke = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("window", { location: { search: "" }, __TAURI__: { core: { invoke } } });
+
+    await expect(controlDesktopWindow("minimize")).resolves.toBeUndefined();
+    expect(invoke).toHaveBeenCalledWith("desktop_window_action", { action: "minimize" });
   });
 });

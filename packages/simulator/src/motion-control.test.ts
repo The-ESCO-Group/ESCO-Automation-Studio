@@ -5,10 +5,10 @@ import { PlcRuntime } from "./runtime";
 
 const registry = createDefaultRegistry();
 const MOTION = [
-  "MCD", "MCCD", "MCLM", "MCLP", "MCT", "MAG", "MAPC", "MCSV", "MCSR",
-  "MDO", "MDAC", "MAH", "MHS", "MRP", "MRAT", "MGS",
+  "MCD", "MCCD", "MCLM", "MCLP", "MCT", "MAG", "MAPC", "MATC", "MCSV", "MCCP", "MCSR",
+  "MDO", "MDF", "MDAC", "MAH", "MHS", "MRP", "MRAT", "MAAT", "MRHD", "MAHD", "MGS",
 ];
-const CONTROL = ["UID", "UIE", "IOT"];
+const CONTROL = ["UID", "UIE"];
 
 describe("motion + remaining program-control instructions", () => {
   it("registers motion mnemonics as model-only (no real motion control)", () => {
@@ -19,11 +19,18 @@ describe("motion + remaining program-control instructions", () => {
     }
   });
 
-  it("registers UID/UIE/IOT as model-only", () => {
+  it("registers UID/UIE as model-only and IOT as executable offline I/O flush", () => {
     for (const type of CONTROL) {
       expect(registry.has(type)).toBe(true);
       expect(registry.get(type)?.modelOnly).toBe(true);
     }
+    expect(registry.has("IOT")).toBe(true);
+    expect(registry.get("IOT")?.modelOnly).toBeFalsy();
+    expect(registry.get("IOT")?.operands[0]).toMatchObject({
+      name: "updateTag",
+      direction: "read",
+      isLabelRef: true,
+    });
   });
 
   it("passes the rung condition through without crashing or hanging", () => {
@@ -41,6 +48,19 @@ describe("motion + remaining program-control instructions", () => {
     rt.loadRoutine(ladder);
     rt.writeTag("En", true);
     expect(() => rt.scanOnce(0)).not.toThrow();
-    expect(rt.readTag("Done")).toBe(true); // model-only motion/control pass condition through
+    expect(rt.readTag("Done")).toBe(true); // motion + offline IOT pass condition through
+  });
+
+  it("validates IOT's update tag and does not modify tag memory offline", () => {
+    const iot = registry.get("IOT")!;
+    expect(iot.validate(createNode("IOT", []))).toEqual(["Operand 'updateTag' is required."]);
+
+    const ladder = createLadderRoutine();
+    ladder.rungs.push(createRung(ladder.id, 0, [createNode("IOT", [tagOperand("updateTag", "Local:5:O")])]));
+    const rt = new PlcRuntime(registry);
+    rt.loadRoutine(ladder);
+    rt.writeTag("Local:5:O", 123);
+    rt.scanOnce(0);
+    expect(rt.readTag("Local:5:O")).toBe(123);
   });
 });

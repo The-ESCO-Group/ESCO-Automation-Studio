@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-import { URL, importL5XText, dismissToasts } from "./helpers.mjs";
+import { URL, dismissToasts, importL5XText, openDockPanel } from "./helpers.mjs";
 
 const MIXED_L5X = `<?xml version="1.0" encoding="UTF-8"?>
 <RSLogix5000Content SchemaRevision="1.0" TargetName="MixedRoutineCtl" ContentType="Controller">
@@ -55,35 +55,40 @@ const check = (label, cond, detail = "") => {
   results.push(!!cond);
   console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? "  - " + String(detail).replace(/\s+/g, " ").slice(0, 90) : ""}`);
 };
-const dockTab = (page, label) => page.locator(`.esco-dock__tab:has-text("${label}")`).first();
-const routineTab = (page, label) => page.locator(`.esco-editor__tab:has-text("${label}")`).first();
+const routineNode = (page, label) => page.locator(`.esco-tree__node--routine:has-text("${label}")`).first();
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 
 try {
-  await page.goto(URL, { waitUntil: "networkidle" });
+  // The app's LiveBridge opens a retrying EventSource (MCP live stream), so the
+  // network never goes idle — wait for the shell to mount instead of networkidle.
+  await page.goto(URL, { waitUntil: "domcontentloaded" });
+  await page.locator(".esco-ribbon").waitFor({ timeout: 60000 });
   await importL5XText(page, MIXED_L5X, "mixed-routines.L5X");
   await dismissToasts(page);
 
-  await routineTab(page, "ScaleST").click();
+  await routineNode(page, "ScaleST").click();
   await page.locator(".esco-st-editor").waitFor({ timeout: 5000 });
   const stText = await page.locator(".esco-nonladder").innerText();
   const stSource = await page.locator(".esco-st-editor").inputValue();
   check("Structured Text routine opens in editable ST editor", /Editable ST/.test(stText) && /SpeedCmd := SpeedCmd \+ 1/.test(stSource));
 
-  await routineTab(page, "LoopFBD").click();
-  await page.locator(".esco-graphical-outline").waitFor({ timeout: 5000 });
-  const fbdText = await page.locator(".esco-graphical-outline").innerText();
-  check("Function Block routine opens as readonly outline", /FBDContent/.test(fbdText) && /PIDE_01/.test(fbdText));
+  await routineNode(page, "LoopFBD").click();
+  await page.locator(".esco-fbd-review").waitFor({ timeout: 5000 });
+  const fbdText = await page.locator(".esco-fbd-review").innerText();
+  check(
+    "Function Block routine opens as model-only review (read-only, not executed)",
+    /Model-only review/.test(fbdText) && /offline review only/i.test(fbdText) && /PIDE_01/.test(fbdText),
+  );
 
-  await routineTab(page, "SeqSFC").click();
+  await routineNode(page, "SeqSFC").click();
   await page.locator(".esco-graphical-outline").waitFor({ timeout: 5000 });
   const sfcText = await page.locator(".esco-graphical-outline").innerText();
   check("SFC routine opens as readonly outline", /SFCContent/.test(sfcText) && /Idle/.test(sfcText));
 
-  await dockTab(page, "Trend").click();
+  await openDockPanel(page, "Trend");
   await page.locator(".esco-trend").waitFor({ timeout: 5000 });
   check("Trend starts with an honest empty buffer", /No trend samples yet/.test(await page.locator(".esco-trend").innerText()));
   await page.locator('.esco-trend button:has-text("Capture Scan")').click();
@@ -91,15 +96,12 @@ try {
   const trendText = await page.locator(".esco-trend").innerText();
   check("Trend capture records a scan sample", /Trend buffer:\s*1 sample/.test(trendText) && /StartPB/.test(trendText));
 
-  await dockTab(page, "Task Monitor").click();
-  const taskText = await page.locator(".esco-taskmon").innerText();
-  check("Task Monitor shows imported task metadata", /MainTask/.test(taskText) && /MainProgram/.test(taskText) && /20 ms/.test(taskText));
+  await page.locator('.esco-trend button:has-text("Clear Buffer")').click();
+  await page.locator('.esco-trend:has-text("No trend samples yet")').waitFor({ timeout: 5000 });
+  check("Trend Clear Buffer empties the buffer", /No trend samples yet/.test(await page.locator(".esco-trend").innerText()));
 
-  await dockTab(page, "Logger").click();
-  const loggerText = await page.locator(".esco-logger").innerText();
-  check("Logger shows import activity", /Activity logger/.test(loggerText) && /Imported L5X/.test(loggerText));
-  await page.locator('.esco-logger button:has-text("Clear Log")').click();
-  check("Logger can clear session activity", /No activity recorded yet/.test(await page.locator(".esco-logger").innerText()));
+  const organizerText = await page.locator(".esco-left").innerText();
+  check("Controller Organizer shows imported task metadata", /MainTask/.test(organizerText) && /MainProgram/.test(organizerText));
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

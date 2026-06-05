@@ -105,7 +105,76 @@ export const XPY: InstructionDefinition = {
   render: { symbol: "XPY", style: "box" },
 };
 
+/** Two-source math box: Dest = fn(Source A, Source B) while the rung is true (result guarded finite). */
+function binaryMathBox(
+  type: string,
+  displayName: string,
+  description: string,
+  labelA: string,
+  labelB: string,
+  fn: (a: number, b: number) => number,
+): InstructionDefinition {
+  return {
+    type,
+    displayName,
+    category: "math",
+    description,
+    operands: [
+      { name: "sourceA", label: labelA, required: true, allowedTypes: NUMERIC, direction: "read" },
+      { name: "sourceB", label: labelB, required: true, allowedTypes: NUMERIC, direction: "read" },
+      { name: "dest", label: "Dest", required: true, allowedTypes: NUMERIC, direction: "write" },
+    ],
+    validate: requireOperands(["sourceA", "sourceB", "dest"]),
+    execute: (node, ctx) => {
+      if (ctx.rungIn) {
+        const dest = operandValue(node, 2);
+        if (dest) ctx.writeNumber(dest, finite(fn(ctx.numeric(operandValue(node, 0)), ctx.numeric(operandValue(node, 1)))));
+      }
+      return ctx.rungIn;
+    },
+    render: { symbol: type, style: "box" },
+  };
+}
+
+/*
+ * Studio-style long-name math/trig instructions. ACOS/ASIN/ATAN/TRUNC are the
+ * function-block / structured-text spellings of the canonical ACS/ASN/ATN/TRN
+ * RLL boxes and share their exact offline semantics (radians, out-of-domain →
+ * 0). SQRT is the long name for SQR (negative source → 0). ATAN2 and EXPT add
+ * the two-argument arc-tangent and power that the long-name family exposes.
+ */
+
+// --- Inverse trig long names (alias of ACS/ASN/ATN; result in radians) ---
+export const ACOS = unaryMathBox("ACOS", "Arc Cosine", "Dest = arc cosine of Source in radians (|Source| ≤ 1) while the rung is true (alias of ACS).", Math.acos);
+export const ASIN = unaryMathBox("ASIN", "Arc Sine", "Dest = arc sine of Source in radians (|Source| ≤ 1) while the rung is true (alias of ASN).", Math.asin);
+export const ATAN = unaryMathBox("ATAN", "Arc Tangent", "Dest = arc tangent of Source in radians while the rung is true (alias of ATN).", Math.atan);
+
+/** ATAN2 - Four-quadrant arc tangent. Dest = atan2(Source A = Y, Source B = X) in radians. */
+export const ATAN2 = binaryMathBox(
+  "ATAN2",
+  "Arc Tangent (X, Y)",
+  "Dest = four-quadrant arc tangent of Source A (Y) over Source B (X), in radians, while the rung is true.",
+  "Source A (Y)",
+  "Source B (X)",
+  (y, x) => Math.atan2(y, x),
+);
+
+/** EXPT - Exponent (X to the power Y). Dest = Source A ^ Source B; long name for XPY. */
+export const EXPT = binaryMathBox(
+  "EXPT",
+  "Exponent (X to the Power Y)",
+  "Dest = Source A raised to the power of Source B while the rung is true (alias of XPY).",
+  "Source A (X)",
+  "Source B (Y)",
+  (x, y) => Math.pow(x, y),
+);
+
+// --- Truncate / square root long names ---
+export const TRUNC = unaryMathBox("TRUNC", "Truncate", "Dest = Source truncated toward zero (fractional part removed) while the rung is true (alias of TRN).", Math.trunc);
+export const SQRT = unaryMathBox("SQRT", "Square Root", "Dest = square root of Source (negative Source → 0) while the rung is true (alias of SQR).", (a) => (a < 0 ? 0 : Math.sqrt(a)));
+
 /** Every extended-math instruction, for bulk registration. */
 export const MATH_EXTENDED_INSTRUCTIONS: InstructionDefinition[] = [
   SIN, COS, TAN, ASN, ACS, ATN, LN, LOG, DEG, RAD, TRN, XPY,
+  ACOS, ASIN, ATAN, ATAN2, EXPT, TRUNC, SQRT,
 ];

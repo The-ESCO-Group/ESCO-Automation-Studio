@@ -2,16 +2,16 @@
  * Shared expression engine for the CPT (Compute) and CMP (Compare) instructions.
  *
  * Logix CPT/CMP share one expression grammar: arithmetic (+ - * / MOD ** with the
- * `%` synonym), relational (< <= > >= = <>), bitwise/logical (AND OR XOR NOT),
+ * `%` synonym), relational (< <= > >= = <>), bitwise/logical (&/AND OR XOR NOT),
  * parentheses, numeric and radix literals (`16#FF`, `2#1010`), tag / member /
  * array-element paths, and a fixed set of math functions (ABS, SIN, COS, TAN,
- * ASN/ASIN, ACS/ACOS, ATN/ATAN, LN, LOG, SQR/SQRT, TRN/TRUNC, DEG, RAD). This is
- * a single recursive-descent evaluator so both instructions stay consistent and
- * there is one place that defines "a safe expression".
+ * ASN/ASIN, ACS/ACOS, ATN/ATAN, LN, LOG, SQR/SQRT, TRN/TRUNC, DEG, RAD). This
+ * is a single recursive-descent evaluator so both instructions stay consistent
+ * and there is one place that defines "a safe expression".
  *
  * Semantics chosen to match Logix:
  *  - Relational/equality operators yield 1 or 0.
- *  - AND/OR/XOR/NOT are **bitwise** on 32-bit integers (NOT is a bitwise
+ *  - &/AND/OR/XOR/NOT are **bitwise** on 32-bit integers (NOT is a bitwise
  *    complement, not a logical negation) — the same footgun Studio 5000 has.
  *  - Division / modulo by zero yields 0 (deterministic, never a crash).
  *
@@ -30,6 +30,14 @@ export type ResolvePath = (path: string) => number;
 
 export type ExpressionResult = { ok: true; value: number } | { ok: false };
 
+export type StringComparisonOperator = "=" | "<>" | "<" | "<=" | ">" | ">=";
+
+export interface StringComparisonExpression {
+  left: string;
+  operator: StringComparisonOperator;
+  right: string;
+}
+
 /** Truncate to a 32-bit signed integer for the bitwise operators. */
 const i32 = (n: number): number => n | 0;
 
@@ -45,6 +53,13 @@ const FUNCTIONS: Record<string, (x: number) => number> = {
   ACOS: Math.acos,
   ATN: Math.atan,
   ATAN: Math.atan,
+  // Hyperbolic family: Logix exposes SINH/COSH/TANH as expression functions
+  // (there are no standalone hyperbolic instruction boxes). Each is a single
+  // deterministic function of its source, so — like the plain trig functions —
+  // it is simulated exactly offline.
+  SINH: Math.sinh,
+  COSH: Math.cosh,
+  TANH: Math.tanh,
   LN: Math.log,
   LOG: Math.log10,
   SQR: Math.sqrt,
@@ -69,6 +84,13 @@ type Token =
 const isIdentStart = (char: string): boolean => /[A-Za-z_]/.test(char);
 const isIdentChar = (char: string): boolean => /[A-Za-z0-9_]/.test(char);
 const isHexishChar = (char: string): boolean => /[0-9A-Fa-f]/.test(char);
+
+function readIdentifier(expression: string, from: number): number | undefined {
+  if (!isIdentStart(expression[from] ?? "")) return undefined;
+  let i = from + 1;
+  while (i < expression.length && isIdentChar(expression[i] ?? "")) i++;
+  return i;
+}
 
 /** Parse a Logix radix literal body (`16#FF`); returns undefined for an invalid digit/radix. */
 function parseRadixLiteral(radixText: string, digits: string): number | undefined {
@@ -133,7 +155,7 @@ function tokenize(expression: string): Token[] | undefined {
       i += 2;
       continue;
     }
-    if ("+-*/%<>=".includes(char)) {
+    if ("+-*/%<>=&".includes(char)) {
       tokens.push({ k: "op", v: char });
       i++;
       continue;
@@ -171,8 +193,7 @@ function tokenize(expression: string): Token[] | undefined {
     // Identifier: a function call, a keyword operator, or a tag/member/element path.
     if (isIdentStart(char)) {
       const identStart = i;
-      i++;
-      while (i < expression.length && isIdentChar(expression[i] ?? "")) i++;
+      i = readIdentifier(expression, i)!;
       const ident = expression.slice(identStart, i);
       const upper = ident.toUpperCase();
 
@@ -185,6 +206,16 @@ function tokenize(expression: string): Token[] | undefined {
       if (KEYWORD_OPS.has(upper)) {
         tokens.push({ k: "op", v: upper });
         continue;
+      }
+      // Program-scoped tags use Logix's `Program:ProgramName.TagName` prefix.
+      // Treat it as one path token so expression evaluation and validation can
+      // resolve the target program's local tag scope.
+      if (upper === "PROGRAM" && expression[i] === ":") {
+        const programEnd = readIdentifier(expression, i + 1);
+        if (programEnd === undefined || expression[programEnd] !== ".") return undefined;
+        const tagEnd = readIdentifier(expression, programEnd + 1);
+        if (tagEnd === undefined) return undefined;
+        i = tagEnd;
       }
       // Otherwise a path: continue consuming `.member` and `[index]` segments.
       while (i < expression.length) {
@@ -215,7 +246,7 @@ function tokenize(expression: string): Token[] | undefined {
 /**
  * Recursive-descent evaluator. Each level returns a number, or `undefined` on a
  * syntax error. Precedence, lowest to highest:
- *   OR · XOR · AND · (= <>) · (< <= > >=) · (+ -) · (* / % MOD) · unary(- + NOT)
+ *   OR · XOR · & AND · (= <>) · (< <= > >=) · (+ -) · (* / % MOD) · unary(- + NOT)
  *   · ** (right-assoc) · primary
  */
 class ExpressionParser {
@@ -267,7 +298,7 @@ class ExpressionParser {
   }
 
   private andExpr(): number | undefined {
-    return this.binaryLevel(() => this.equalityExpr(), ["AND"], (a, _op, b) => i32(a) & i32(b));
+    return this.binaryLevel(() => this.equalityExpr(), ["&", "AND"], (a, _op, b) => i32(a) & i32(b));
   }
 
   private equalityExpr(): number | undefined {
@@ -376,6 +407,90 @@ export function evaluateExpression(expression: string, resolve: ResolvePath): Ex
 /** True when `expression` is syntactically valid (tags resolve to 0 for the check). */
 export function isValidExpression(expression: string): boolean {
   return evaluateExpression(expression, () => 0).ok;
+}
+
+function stripBalancedOuterParens(tokens: Token[]): Token[] {
+  let current = tokens;
+  while (current.length >= 3 && current[0]?.k === "lp" && current[current.length - 1]?.k === "rp") {
+    let depth = 0;
+    let enclosesAll = true;
+    for (let index = 0; index < current.length; index += 1) {
+      const token = current[index]!;
+      if (token.k === "lp") depth += 1;
+      else if (token.k === "rp") depth -= 1;
+      if (depth === 0 && index < current.length - 1) {
+        enclosesAll = false;
+        break;
+      }
+      if (depth < 0) return current;
+    }
+    if (!enclosesAll || depth !== 0) return current;
+    current = current.slice(1, -1);
+  }
+  return current;
+}
+
+/**
+ * Studio 5000 permits CMP/FSC expressions that compare two STRING tags directly
+ * with a relational operator. This parser intentionally accepts only the narrow
+ * documented form (`TagA = TagB`, optionally wrapped in parentheses) so numeric
+ * CPT/FAL expressions do not grow string semantics by accident.
+ */
+export function parseStringComparisonExpression(expression: string): StringComparisonExpression | undefined {
+  const tokens = tokenize(expression);
+  if (!tokens || tokens.length === 0) return undefined;
+  const unwrapped = stripBalancedOuterParens(tokens);
+  if (unwrapped.length !== 3) return undefined;
+  const [left, operator, right] = unwrapped;
+  if (left?.k !== "path" || operator?.k !== "op" || right?.k !== "path") return undefined;
+  if (!["=", "<>", "<", "<=", ">", ">="].includes(operator.v)) return undefined;
+  return {
+    left: left.v,
+    operator: operator.v as StringComparisonOperator,
+    right: right.v,
+  };
+}
+
+function isNumericText(value: string): boolean {
+  return value.trim() !== "" && Number.isFinite(Number(value));
+}
+
+function compareStrings(left: string, operator: StringComparisonOperator, right: string): boolean {
+  switch (operator) {
+    case "=":
+      return left === right;
+    case "<>":
+      return left !== right;
+    case "<":
+      return left < right;
+    case "<=":
+      return left <= right;
+    case ">":
+      return left > right;
+    case ">=":
+      return left >= right;
+  }
+}
+
+/**
+ * Evaluate a CMP/FSC comparison expression. Numeric expressions use the shared
+ * numeric evaluator; the documented two-STRING-tag form compares text
+ * lexicographically when either resolved operand is text-like.
+ */
+export function evaluateComparisonExpression(
+  expression: string,
+  resolveNumber: ResolvePath,
+  resolveString: (path: string) => string,
+): ExpressionResult {
+  const stringComparison = parseStringComparisonExpression(expression);
+  if (stringComparison) {
+    const left = resolveString(stringComparison.left);
+    const right = resolveString(stringComparison.right);
+    if (!isNumericText(left) || !isNumericText(right)) {
+      return { ok: true, value: compareStrings(left, stringComparison.operator, right) ? 1 : 0 };
+    }
+  }
+  return evaluateExpression(expression, resolveNumber);
 }
 
 /**

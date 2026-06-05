@@ -57,8 +57,8 @@ interface ApplyResult { ok; project; applied: string[]; findings; error? }
 
 ## Provider interface
 
-The assistant runs behind a small provider seam so a real LLM can be added later
-without touching the UI or the safety model:
+The assistant runs behind a small provider seam so local, mock, and externally
+configured model calls all share the same review/apply safety model:
 
 ```ts
 type ProviderMode = "local" | "mock" | "external";
@@ -75,22 +75,21 @@ interface AssistantProvider {
 - **`MockProvider`** (`mockProvider.ts`) — a deterministic stand-in for tests and
   demos. Returns a previewable plan; accepts a custom `responder` to simulate
   other model outputs.
-- **`ExternalLlmProvider`** (`externalProvider.ts`) — a stub for a future real
-  model. It is **not** wired to any network or key; calling `run` rejects with a
-  clear "not configured" error so the app falls back to local.
+- **`ExternalLlmProvider`** (`externalProvider.ts`) — a real provider adapter
+  that accepts an injected `ModelCaller` and runs the same safe tool-use loop as
+  the live Copilot. It owns no API key and performs no network call by itself;
+  an unconfigured instance rejects with a clear "not configured" error.
 
 `createProvider(mode)` builds one; `getDefaultProvider()` returns the local
 provider (the UI uses this — see `DEFAULT_PROVIDER_MODE`).
 
-### Adding a real LLM later
+### Configuring a real LLM
 
-1. Implement `AssistantProvider` in a new `external` provider: in `run`, send the
-   prompt plus **context** (`context.ts`: routines, tags, findings, undefined
-   tags) to the model and translate the reply into an `AssistantResult` — a
-   message and, for changes, an `AssistantPlan` whose actions use only known
-   `ProposedProjectAction` kinds (`createTag`, `addRungFromText`, …).
-2. Read the key from configuration/env at call time. **No key is bundled**, and
-   nothing should call out unless explicitly configured.
+1. Create an injected `ModelCaller` from the workstation/browser transport
+   (`apps/web/src/ai-online.ts`) or a server/desktop proxy. This is the only
+   object that knows how to reach the provider and attach credentials.
+2. Construct `new ExternalLlmProvider({ caller, modelId })`. **No key is
+   bundled**, and nothing calls out unless explicitly configured.
 3. **`apply.ts` is unchanged** — it still maps every action to
    `@esco/project-actions` and runs validation, so the LLM can never bypass the
    safe mutation layer, and the user still clicks **Apply**.

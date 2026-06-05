@@ -1,5 +1,6 @@
-import { createRoutine as makeRoutine, type PlcProject } from "@esco/core";
-import { createDefaultRegistry } from "@esco/instructions";
+import { createRoutine as makeRoutine, type PlcProject, type Routine } from "@esco/core";
+import { baseTagName, createDefaultRegistry } from "@esco/instructions";
+import type { LadderBranch, LadderRoutine, LadderRung, LadderNode } from "@esco/ladder";
 import {
   addBranchLeg as ladderAddBranchLeg,
   addParallelBranch as ladderAddParallelBranch,
@@ -7,22 +8,30 @@ import {
   appendNode,
   appendNodeToBranch as ladderAppendNodeToBranch,
   appendRungWithRoot,
+  countBranchIdInRoot,
+  countNodeIdInBranch,
   createLadderRoutine,
   createNode,
   duplicateRung as ladderDuplicateRung,
   findBranchInRoot,
+  insertNodeRelativeToNode as ladderInsertNodeRelativeToNode,
   insertRungFromRoot,
+  insertRungRelative as ladderInsertRungRelative,
   isParallelLeg,
+  isValidOperandIndex,
+  mapRoutineNodes,
   removeBranchLeg as ladderRemoveBranchLeg,
   removeInstruction as ladderRemoveInstruction,
   removeRung as ladderRemoveRung,
-  rungNodes,
   setOperandValue as ladderSetOperandValue,
   setRungComment as ladderSetRungComment,
   tagOperand,
 } from "@esco/ladder";
 import { parseRungText } from "@esco/parser-l5x";
-import { fail, findRoutine, getLadder, ok, withProgramRoutines, withRoutineLadder } from "./helpers";
+import type { ValidationFinding } from "@esco/validator";
+import { collectTagReferences, type TagReference } from "./cross-reference";
+import { fail, findRoutine, getLadder, ok, validate, withProgramRoutines, withRoutineLadder } from "./helpers";
+import { logixIdentifierError } from "./logix-names";
 import type {
   AddInstructionInput,
   AddInstructionToBranchInput,
@@ -30,26 +39,225 @@ import type {
   AddRungInput,
   BranchInput,
   CreateRoutineInput,
+  CrossReferenceRungInput,
   DeleteRungInput,
   DuplicateRungInput,
+  InsertInstructionInput,
+  InsertRungInput,
   PasteRungInput,
   ProjectActionResult,
   RemoveBranchLegInput,
   RemoveInstructionInput,
+  SetRoutinePropertiesInput,
   SetStructuredTextInput,
   SetRungCommentInput,
   UpdateOperandInput,
+  VerifyRungInput,
 } from "./types";
 
 const registry = createDefaultRegistry();
 
-function rungExists(project: PlcProject, routineId: string, rungId: string): boolean {
-  const ladder = getLadder(findRoutine(project, routineId));
-  return !!ladder?.rungs.some((rung) => rung.id === rungId);
+interface BranchNodeLocation {
+  branch: LadderBranch;
+  isParallelLeg: boolean;
+}
+
+function findNodeBranch(
+  branch: LadderBranch,
+  nodeId: string,
+  isParallelLeg = false,
+): BranchNodeLocation | undefined {
+  if (branch.nodes.some((node) => node.id === nodeId)) return { branch, isParallelLeg };
+  for (const leg of branch.parallelBranches ?? []) {
+    const found = findNodeBranch(leg, nodeId, true);
+    if (found) return found;
+  }
+  return branch.next ? findNodeBranch(branch.next, nodeId, false) : undefined;
+}
+
+interface RungTarget {
+  ladder: LadderRoutine;
+  rung: LadderRung;
+}
+
+interface LadderRoutineTarget {
+  routine: Routine;
+  ladder: LadderRoutine;
+}
+
+function idInputError(value: unknown, label: string): string | undefined {
+  return typeof value === "string" && value.trim() ? undefined : `${label} is required.`;
+}
+
+function ladderRoutineTarget(
+  project: PlcProject,
+  routineId: string,
+  options: { createIfMissing?: boolean } = {},
+): LadderRoutineTarget | { error: string } {
+  const routineIdError = idInputError(routineId, "Routine id");
+  if (routineIdError) return { error: routineIdError };
+  const routine = findRoutine(project, routineId);
+  if (!routine) return { error: `Routine "${routineId}" not found.` };
+  if (routine.language !== "ladder") {
+    return { error: `Routine "${routine.name}" is ${routine.language}, not a ladder routine.` };
+  }
+  const ladder = getLadder(routine);
+  if (ladder) return { routine, ladder };
+  if (options.createIfMissing) return { routine, ladder: createLadderRoutine() };
+  return { error: `Routine "${routine.name}" has no ladder data.` };
+}
+
+function uniqueRungTarget(project: PlcProject, routineId: string, rungId: string): RungTarget | { error: string } {
+  const routineTarget = ladderRoutineTarget(project, routineId);
+  if (isTargetError(routineTarget)) return routineTarget;
+  const rungIdError = idInputError(rungId, "Rung id");
+  if (rungIdError) return { error: rungIdError };
+  const ladder = routineTarget.ladder;
+  const matches = ladder?.rungs.filter((rung) => rung.id === rungId) ?? [];
+  if (ladder && matches.length === 1) return { ladder, rung: matches[0]! };
+  if (matches.length === 0) return { error: `Rung "${rungId}" not found.` };
+  return { error: `Rung "${rungId}" appears ${matches.length} times in this routine. Repair duplicate ladder IDs before editing.` };
+}
+
+function isTargetError<T extends object>(target: T | { error: string }): target is { error: string } {
+  return "error" in target;
+}
+
+const VARIADIC_OPERAND_INSTRUCTIONS = new Set(["JSR", "SBR", "RET"]);
+
+function findNodeInBranch(branch: LadderBranch, nodeId: string): LadderNode | undefined {
+  const local = branch.nodes.find((node) => node.id === nodeId);
+  if (local) return local;
+  for (const leg of branch.parallelBranches ?? []) {
+    const found = findNodeInBranch(leg, nodeId);
+    if (found) return found;
+  }
+  return branch.next ? findNodeInBranch(branch.next, nodeId) : undefined;
+}
+
+function uniqueInstructionIdError(rung: { root: LadderBranch }, nodeId: string): string | undefined {
+  const count = countNodeIdInBranch(rung.root, nodeId);
+  if (count === 1) return undefined;
+  if (count === 0) return `Instruction "${nodeId}" not found.`;
+  return `Instruction "${nodeId}" appears ${count} times in this rung. Repair duplicate ladder IDs before editing.`;
+}
+
+function uniqueBranchIdError(root: LadderBranch, branchId: string): string | undefined {
+  const count = countBranchIdInRoot(root, branchId);
+  if (count === 1) return undefined;
+  if (count === 0) return `Branch "${branchId}" not found in the rung.`;
+  return `Branch "${branchId}" appears ${count} times in this rung. Repair duplicate ladder IDs before editing.`;
+}
+
+function operandIndexError(index: number): string | undefined {
+  return isValidOperandIndex(index) ? undefined : "Operand index must be a non-negative integer between 0 and 255.";
+}
+
+function operandArityError(node: LadderNode, index: number): string | undefined {
+  const type = node.instructionType.toUpperCase();
+  const definition = registry.get(type);
+  if (!definition || definition.modelOnly || VARIADIC_OPERAND_INSTRUCTIONS.has(type)) return undefined;
+  if (index < definition.operands.length) return undefined;
+  return `${type} has ${definition.operands.length} operand${definition.operands.length === 1 ? "" : "s"}; operand index ${index} is outside that range.`;
+}
+
+function isRungPosition(value: unknown): value is "above" | "below" {
+  return value === "above" || value === "below";
+}
+
+function rungPositionError(value: unknown): string | undefined {
+  return isRungPosition(value) ? undefined : 'Rung position must be "above" or "below".';
+}
+
+function isInstructionPosition(value: unknown): value is "before" | "after" {
+  return value === "before" || value === "after";
+}
+
+function instructionPositionError(value: unknown): string | undefined {
+  return isInstructionPosition(value) ? undefined : 'Instruction position must be "before" or "after".';
+}
+
+function instructionTypeError(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? undefined : "Instruction type is required.";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object";
+}
+
+function pastedBranchRootError(root: unknown): string | undefined {
+  const seen = new Set<object>();
+  const branchIds = new Set<string>();
+  const nodeIds = new Set<string>();
+  let branchCount = 0;
+  let nodeCount = 0;
+  const maxBranches = 512;
+  const maxNodes = 4096;
+  const maxDepth = 64;
+
+  const visit = (branch: unknown, depth: number): string | undefined => {
+    if (!isRecord(branch)) return "Pasted rung root is malformed.";
+    if (seen.has(branch)) return "Pasted rung root contains a cycle.";
+    if (depth > maxDepth) return "Pasted rung root is too deeply nested.";
+    seen.add(branch);
+    branchCount += 1;
+    if (branchCount > maxBranches) return "Pasted rung root is too large.";
+    if (typeof branch.id !== "string" || !branch.id.trim()) return "Pasted rung branch is missing an id.";
+    if (branchIds.has(branch.id)) return `Pasted rung branch id "${branch.id}" is duplicated.`;
+    branchIds.add(branch.id);
+    if (!Array.isArray(branch.nodes)) return "Pasted rung branch nodes are malformed.";
+    nodeCount += branch.nodes.length;
+    if (nodeCount > maxNodes) return "Pasted rung root has too many instructions.";
+    for (const node of branch.nodes) {
+      if (!isRecord(node)) return "Pasted rung instruction is malformed.";
+      if (typeof node.id !== "string" || !node.id.trim()) return "Pasted rung instruction is missing an id.";
+      if (nodeIds.has(node.id)) return `Pasted rung instruction id "${node.id}" is duplicated.`;
+      nodeIds.add(node.id);
+      if (typeof node.instructionType !== "string" || !node.instructionType.trim()) {
+        return "Pasted rung instruction is missing a type.";
+      }
+      if (!Array.isArray(node.operands)) return "Pasted rung instruction operands are malformed.";
+      for (const operand of node.operands) {
+        if (
+          !isRecord(operand) ||
+          typeof operand.name !== "string" ||
+          typeof operand.kind !== "string" ||
+          typeof operand.value !== "string" ||
+          (operand.dataType !== undefined && typeof operand.dataType !== "string")
+        ) {
+          return "Pasted rung operand is malformed.";
+        }
+      }
+    }
+    if (branch.parallelBranches !== undefined) {
+      if (!Array.isArray(branch.parallelBranches)) return "Pasted rung parallel branches are malformed.";
+      for (const leg of branch.parallelBranches) {
+        const error = visit(leg, depth + 1);
+        if (error) return error;
+      }
+    }
+    return branch.next === undefined ? undefined : visit(branch.next, depth + 1);
+  };
+
+  return visit(root, 0);
+}
+
+function commitLadderEdit<T>(
+  project: PlcProject,
+  routineId: string,
+  before: LadderRoutine,
+  after: LadderRoutine,
+  data: T,
+  warnings?: string[],
+): ProjectActionResult<T> {
+  if (after === before) {
+    return fail(project, "Ladder edit was rejected by the ladder model.");
+  }
+  return ok(withRoutineLadder(project, routineId, () => after), data, warnings);
 }
 
 const STRUCTURED_TEXT_SIM_WARNING =
-  "Structured Text is preserved and exported, but not executed by Offline Simulation.";
+  "Structured Text is preserved/exported and executes only a conservative Offline Simulation subset.";
 
 /** Create a new routine in a program. */
 export function createRoutine(
@@ -58,6 +266,8 @@ export function createRoutine(
 ): ProjectActionResult<{ routineId: string }> {
   const name = input.name?.trim();
   if (!name) return fail(project, "Routine name is required.");
+  const invalidName = logixIdentifierError(name, "Routine");
+  if (invalidName) return fail(project, invalidName);
 
   let found = false;
   let duplicate = false;
@@ -84,7 +294,98 @@ export function createRoutine(
   return ok(next, { routineId: routine.id });
 }
 
-/** Replace the source of a Structured Text routine. ST is preserved/exported but not simulated. */
+/**
+ * Remap every routine-reference operand (JSR/FOR/SFC, flagged `isRoutineRef` in
+ * the registry) that names `from` to `to`, leaving all other operands — and
+ * JSR's parameter operands — untouched.
+ */
+function remapRoutineReferences(
+  ladder: LadderRoutine,
+  from: string,
+  to: string,
+): LadderRoutine {
+  return mapRoutineNodes(ladder, (node) => {
+    const operandDefs = registry.get(node.instructionType)?.operands;
+    if (!operandDefs) return node;
+    let changed = false;
+    const operands = node.operands.map((operand, index) => {
+      if (operandDefs[index]?.isRoutineRef && operand.value.trim() === from) {
+        changed = true;
+        return { ...operand, value: to };
+      }
+      return operand;
+    });
+    return changed ? { ...node, operands } : node;
+  });
+}
+
+/**
+ * Rename a routine and/or edit its description (the Studio 5000 Routine
+ * Properties dialog). Renaming remaps JSR/FOR/SFC routine references within the
+ * owning program; program main/fault routine ids reference by id and so are
+ * unaffected. Rejects duplicate names within the program.
+ */
+export function setRoutineProperties(
+  project: PlcProject,
+  input: SetRoutinePropertiesInput,
+): ProjectActionResult<{ routineId: string }> {
+  const routineId = input.routineId?.trim();
+  if (!routineId) return fail(project, "Routine id is required.");
+
+  const routine = findRoutine(project, routineId);
+  if (!routine) return fail(project, `Routine "${routineId}" not found.`);
+  const owningProgramId = routine.programId;
+  const oldName = routine.name;
+
+  let nextName = oldName;
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) return fail(project, "Routine name is required.");
+    const invalidName = logixIdentifierError(name, "Routine");
+    if (invalidName) return fail(project, invalidName);
+    if (name !== oldName) {
+      const program = project.controllers
+        .flatMap((controller) => controller.programs)
+        .find((p) => p.id === owningProgramId);
+      if (program?.routines.some((r) => r.id !== routineId && r.name === name)) {
+        return fail(project, `Routine "${name}" already exists in that program.`);
+      }
+      nextName = name;
+    }
+  }
+  const renamed = nextName !== oldName;
+
+  const next: PlcProject = {
+    ...project,
+    controllers: project.controllers.map((controller) => ({
+      ...controller,
+      programs: controller.programs.map((program) => {
+        if (program.id !== owningProgramId) return program;
+        return {
+          ...program,
+          routines: program.routines.map((candidate) => {
+            let updated = candidate;
+            if (candidate.id === routineId) {
+              updated = { ...candidate, name: nextName };
+              if (input.description !== undefined) updated.description = input.description;
+            }
+            if (renamed) {
+              const ladder = getLadder(updated);
+              if (ladder) {
+                updated = { ...updated, ladder: remapRoutineReferences(ladder, oldName, nextName) };
+              }
+            }
+            return updated;
+          }),
+        };
+      }),
+    })),
+  };
+
+  return ok(next, { routineId });
+}
+
+/** Replace the source of a Structured Text routine. Full Logix ST execution is still bounded offline. */
 export function setStructuredTextSource(
   project: PlcProject,
   input: SetStructuredTextInput,
@@ -132,13 +433,13 @@ export function addRung(
   project: PlcProject,
   input: AddRungInput,
 ): ProjectActionResult<{ rungId: string }> {
-  const routine = findRoutine(project, input.routineId);
-  if (!routine) return fail(project, `Routine "${input.routineId}" not found.`);
+  const target = ladderRoutineTarget(project, input.routineId, { createIfMissing: true });
+  if (isTargetError(target)) return fail(project, target.error);
 
-  const ladder = getLadder(routine) ?? createLadderRoutine();
+  const ladder = target.ladder;
   const nextLadder = ladderAddRung(ladder);
   const rungId = nextLadder.rungs[nextLadder.rungs.length - 1]?.id ?? "";
-  return ok(withRoutineLadder(project, input.routineId, () => nextLadder), { rungId });
+  return commitLadderEdit(project, input.routineId, ladder, nextLadder, { rungId });
 }
 
 /**
@@ -150,12 +451,12 @@ export function addRungFromText(
   project: PlcProject,
   input: AddRungFromTextInput,
 ): ProjectActionResult<{ rungId: string }> {
-  const routine = findRoutine(project, input.routineId);
-  if (!routine) return fail(project, `Routine "${input.routineId}" not found.`);
+  const target = ladderRoutineTarget(project, input.routineId, { createIfMissing: true });
+  if (isTargetError(target)) return fail(project, target.error);
   if (!input.text?.trim()) return fail(project, "Rung text is required.");
 
   const parsed = parseRungText(input.text, registry);
-  const ladder = getLadder(routine) ?? createLadderRoutine();
+  const ladder = target.ladder;
   const nextLadder = appendRungWithRoot(ladder, parsed.root, input.comment);
   const newRung = nextLadder.rungs[nextLadder.rungs.length - 1];
   if (newRung) newRung.sourceText = input.text;
@@ -165,8 +466,11 @@ export function addRungFromText(
     ...parsed.unsupportedTypes.map((type) => `Unsupported instruction "${type}" preserved.`),
     ...(parsed.complexBranch ? ["Nested/complex branch flattened to a series."] : []),
   ];
-  return ok(
-    withRoutineLadder(project, input.routineId, () => nextLadder),
+  return commitLadderEdit(
+    project,
+    input.routineId,
+    ladder,
+    nextLadder,
     { rungId },
     warnings.length > 0 ? warnings : undefined,
   );
@@ -177,13 +481,10 @@ export function deleteRung(
   project: PlcProject,
   input: DeleteRungInput,
 ): ProjectActionResult<{ rungId: string }> {
-  if (!rungExists(project, input.routineId, input.rungId)) {
-    return fail(project, `Rung "${input.rungId}" not found.`);
-  }
-  return ok(
-    withRoutineLadder(project, input.routineId, (ladder) => ladderRemoveRung(ladder, input.rungId)),
-    { rungId: input.rungId },
-  );
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const nextLadder = ladderRemoveRung(target.ladder, input.rungId);
+  return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { rungId: input.rungId });
 }
 
 /** Duplicate a rung in place (a fresh-id copy is inserted right after it). */
@@ -191,35 +492,65 @@ export function duplicateRung(
   project: PlcProject,
   input: DuplicateRungInput,
 ): ProjectActionResult<{ rungId: string }> {
-  const ladder = getLadder(findRoutine(project, input.routineId));
-  if (!ladder?.rungs.some((rung) => rung.id === input.rungId)) {
-    return fail(project, `Rung "${input.rungId}" not found.`);
-  }
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const ladder = target.ladder;
   const before = new Set(ladder.rungs.map((rung) => rung.id));
-  const next = withRoutineLadder(project, input.routineId, (current) =>
-    ladderDuplicateRung(current, input.rungId),
-  );
-  const newId =
-    getLadder(findRoutine(next, input.routineId))?.rungs.find((rung) => !before.has(rung.id))?.id ?? "";
-  return ok(next, { rungId: newId });
+  const nextLadder = ladderDuplicateRung(ladder, input.rungId);
+  const newId = nextLadder.rungs.find((rung) => !before.has(rung.id))?.id ?? "";
+  return commitLadderEdit(project, input.routineId, ladder, nextLadder, { rungId: newId });
 }
 
-/** Append a new rung cloned from a branch root (paste). The root is deep-copied. */
+/**
+ * Paste a rung cloned from a branch root. The root is deep-copied (fresh ids).
+ * By default the rung is appended to the end of the routine; pass `rungId` +
+ * `position` to drop it directly above/below an existing rung instead.
+ */
 export function pasteRung(
   project: PlcProject,
   input: PasteRungInput,
 ): ProjectActionResult<{ rungId: string }> {
-  const routine = findRoutine(project, input.routineId);
-  if (!routine) return fail(project, `Routine "${input.routineId}" not found.`);
+  const routineTarget = ladderRoutineTarget(project, input.routineId, { createIfMissing: true });
+  if (isTargetError(routineTarget)) return fail(project, routineTarget.error);
   if (!input.root) return fail(project, "Nothing to paste.");
+  const rootError = pastedBranchRootError(input.root);
+  if (rootError) return fail(project, rootError);
 
-  const ladder = getLadder(routine) ?? createLadderRoutine();
+  const ladder = routineTarget.ladder;
+  const hasAnchor = input.rungId !== undefined || input.position !== undefined;
+  let anchor: { rungId: string; position: "above" | "below" } | undefined;
+  if (hasAnchor) {
+    if (typeof input.rungId !== "string" || !input.rungId.trim()) {
+      return fail(project, "Anchor rung id is required.");
+    }
+    if (!isRungPosition(input.position)) return fail(project, 'Rung position must be "above" or "below".');
+    anchor = { rungId: input.rungId, position: input.position };
+    const target = uniqueRungTarget(project, input.routineId, anchor.rungId);
+    if (isTargetError(target)) return fail(project, target.error);
+  }
   const before = new Set(ladder.rungs.map((rung) => rung.id));
-  const nextLadder = insertRungFromRoot(ladder, input.root, input.comment);
-  const next = withRoutineLadder(project, input.routineId, () => nextLadder);
-  const newId =
-    getLadder(findRoutine(next, input.routineId))?.rungs.find((rung) => !before.has(rung.id))?.id ?? "";
-  return ok(next, { rungId: newId });
+  const nextLadder =
+    anchor
+      ? ladderInsertRungRelative(ladder, anchor.rungId, anchor.position, input.root, input.comment)
+      : insertRungFromRoot(ladder, input.root, input.comment);
+  const newId = nextLadder.rungs.find((rung) => !before.has(rung.id))?.id ?? "";
+  return commitLadderEdit(project, input.routineId, ladder, nextLadder, { rungId: newId });
+}
+
+/** Insert a new empty rung directly above or below an existing rung. */
+export function insertRung(
+  project: PlcProject,
+  input: InsertRungInput,
+): ProjectActionResult<{ rungId: string }> {
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const positionError = rungPositionError(input.position);
+  if (positionError) return fail(project, positionError);
+  const ladder = target.ladder;
+  const before = new Set(ladder.rungs.map((rung) => rung.id));
+  const nextLadder = ladderInsertRungRelative(ladder, input.rungId, input.position, undefined, input.comment);
+  const newId = nextLadder.rungs.find((rung) => !before.has(rung.id))?.id ?? "";
+  return commitLadderEdit(project, input.routineId, ladder, nextLadder, { rungId: newId });
 }
 
 /** Append an instruction to a rung. Operands come from the registry definition. */
@@ -227,10 +558,11 @@ export function addInstruction(
   project: PlcProject,
   input: AddInstructionInput,
 ): ProjectActionResult<{ nodeId: string }> {
-  if (!rungExists(project, input.routineId, input.rungId)) {
-    return fail(project, `Rung "${input.rungId}" not found.`);
-  }
-  const type = input.instructionType.toUpperCase();
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const typeError = instructionTypeError(input.instructionType);
+  if (typeError) return fail(project, typeError);
+  const type = input.instructionType.trim().toUpperCase();
   const definition = registry.get(type);
   const operandDefs = definition ? definition.operands : [{ name: "tag" }];
   const node = createNode(type, operandDefs.map((operand) => tagOperand(operand.name, "")));
@@ -238,11 +570,45 @@ export function addInstruction(
   const warnings = definition
     ? undefined
     : [`Instruction "${type}" is not registered; added as an unsupported box.`];
-  return ok(
-    withRoutineLadder(project, input.routineId, (ladder) => appendNode(ladder, input.rungId, node)),
-    { nodeId: node.id },
-    warnings,
+  const nextLadder = appendNode(target.ladder, input.rungId, node);
+  return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { nodeId: node.id }, warnings);
+}
+
+/**
+ * Insert an instruction immediately before or after an existing instruction on
+ * the same rung (and within the same branch leg, if the anchor is inside a
+ * parallel). Operands come from the registry definition; an unregistered type is
+ * added as an unsupported box with a warning, mirroring {@link addInstruction}.
+ */
+export function insertInstruction(
+  project: PlcProject,
+  input: InsertInstructionInput,
+): ProjectActionResult<{ nodeId: string }> {
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const positionError = instructionPositionError(input.position);
+  if (positionError) return fail(project, positionError);
+  const rung = target.rung;
+  const instructionError = uniqueInstructionIdError(rung, input.nodeId);
+  if (instructionError) return fail(project, instructionError);
+  const typeError = instructionTypeError(input.instructionType);
+  if (typeError) return fail(project, typeError);
+  const type = input.instructionType.trim().toUpperCase();
+  const definition = registry.get(type);
+  const operandDefs = definition ? definition.operands : [{ name: "tag" }];
+  const node = createNode(type, operandDefs.map((operand) => tagOperand(operand.name, "")));
+
+  const warnings = definition
+    ? undefined
+    : [`Instruction "${type}" is not registered; added as an unsupported box.`];
+  const nextLadder = ladderInsertNodeRelativeToNode(
+    target.ladder,
+    input.rungId,
+    input.nodeId,
+    node,
+    input.position,
   );
+  return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { nodeId: node.id }, warnings);
 }
 
 /** Remove a single instruction from a rung. */
@@ -250,19 +616,29 @@ export function removeInstruction(
   project: PlcProject,
   input: RemoveInstructionInput,
 ): ProjectActionResult<{ nodeId: string }> {
-  const routine = findRoutine(project, input.routineId);
-  const ladder = getLadder(routine);
-  const rung = ladder?.rungs.find((r) => r.id === input.rungId);
-  if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
-  if (!rungNodes(rung).some((node) => node.id === input.nodeId)) {
-    return fail(project, `Instruction "${input.nodeId}" not found.`);
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const rung = target.rung;
+  const instructionError = uniqueInstructionIdError(rung, input.nodeId);
+  if (instructionError) return fail(project, instructionError);
+  const location = findNodeBranch(rung.root, input.nodeId);
+  const deletingOnlyNodeInBranch = location?.branch.nodes.length === 1 && location.branch.nodes[0]?.id === input.nodeId;
+  if (deletingOnlyNodeInBranch && location.branch.parallelBranches?.length) {
+    return fail(project, "Delete the parallel branch legs before removing the primary branch instruction.");
   }
-  return ok(
-    withRoutineLadder(project, input.routineId, (current) =>
-      ladderRemoveInstruction(current, input.rungId, input.nodeId),
-    ),
-    { nodeId: input.nodeId },
-  );
+  const emptyParallelLegToPrune =
+    location?.isParallelLeg && deletingOnlyNodeInBranch && !location.branch.parallelBranches?.length && !location.branch.next
+      ? location.branch.id
+      : undefined;
+  if (emptyParallelLegToPrune) {
+    const branchError = uniqueBranchIdError(rung.root, emptyParallelLegToPrune);
+    if (branchError) return fail(project, branchError);
+  }
+  const withoutInstruction = ladderRemoveInstruction(target.ladder, input.rungId, input.nodeId);
+  const nextLadder = emptyParallelLegToPrune
+    ? ladderRemoveBranchLeg(withoutInstruction, input.rungId, emptyParallelLegToPrune)
+    : withoutInstruction;
+  return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { nodeId: input.nodeId });
 }
 
 /** Set or clear a rung's comment. */
@@ -270,15 +646,10 @@ export function setRungComment(
   project: PlcProject,
   input: SetRungCommentInput,
 ): ProjectActionResult<{ rungId: string }> {
-  if (!rungExists(project, input.routineId, input.rungId)) {
-    return fail(project, `Rung "${input.rungId}" not found.`);
-  }
-  return ok(
-    withRoutineLadder(project, input.routineId, (ladder) =>
-      ladderSetRungComment(ladder, input.rungId, input.comment),
-    ),
-    { rungId: input.rungId },
-  );
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const nextLadder = ladderSetRungComment(target.ladder, input.rungId, input.comment);
+  return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { rungId: input.rungId });
 }
 
 /** Update one operand value of an instruction. */
@@ -286,19 +657,21 @@ export function updateInstructionOperand(
   project: PlcProject,
   input: UpdateOperandInput,
 ): ProjectActionResult<{ nodeId: string }> {
-  const routine = findRoutine(project, input.routineId);
-  const ladder = getLadder(routine);
-  const rung = ladder?.rungs.find((r) => r.id === input.rungId);
-  if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
-  if (!rungNodes(rung).some((node) => node.id === input.nodeId)) {
-    return fail(project, `Instruction "${input.nodeId}" not found.`);
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const rung = target.rung;
+  const index = input.index ?? 0;
+  const indexError = operandIndexError(index);
+  if (indexError) return fail(project, indexError);
+  const instructionError = uniqueInstructionIdError(rung, input.nodeId);
+  if (instructionError) return fail(project, instructionError);
+  const node = findNodeInBranch(rung.root, input.nodeId);
+  if (node) {
+    const arityError = operandArityError(node, index);
+    if (arityError) return fail(project, arityError);
   }
-  return ok(
-    withRoutineLadder(project, input.routineId, (current) =>
-      ladderSetOperandValue(current, input.rungId, input.nodeId, input.value, input.index ?? 0),
-    ),
-    { nodeId: input.nodeId },
-  );
+  const nextLadder = ladderSetOperandValue(target.ladder, input.rungId, input.nodeId, input.value, index);
+  return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { nodeId: input.nodeId });
 }
 
 /**
@@ -311,18 +684,15 @@ export function addParallelBranch(
   project: PlcProject,
   input: BranchInput,
 ): ProjectActionResult<{ rungId: string }> {
-  const ladder = getLadder(findRoutine(project, input.routineId));
-  const rung = ladder?.rungs.find((r) => r.id === input.rungId);
-  if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
-  if (input.branchId && !findBranchInRoot(rung.root, input.branchId)) {
-    return fail(project, `Branch "${input.branchId}" not found in the rung.`);
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const rung = target.rung;
+  if (input.branchId) {
+    const branchError = uniqueBranchIdError(rung.root, input.branchId);
+    if (branchError) return fail(project, branchError);
   }
-  return ok(
-    withRoutineLadder(project, input.routineId, (current) =>
-      ladderAddParallelBranch(current, input.rungId, input.branchId),
-    ),
-    { rungId: input.rungId },
-  );
+  const nextLadder = ladderAddParallelBranch(target.ladder, input.rungId, input.branchId);
+  return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { rungId: input.rungId });
 }
 
 /** Add another empty leg to a target branch's existing parallel group (root by default). */
@@ -330,20 +700,20 @@ export function addBranchLeg(
   project: PlcProject,
   input: BranchInput,
 ): ProjectActionResult<{ rungId: string }> {
-  const ladder = getLadder(findRoutine(project, input.routineId));
-  const rung = ladder?.rungs.find((r) => r.id === input.rungId);
-  if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
+  const targetRung = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(targetRung)) return fail(project, targetRung.error);
+  const rung = targetRung.rung;
+  if (input.branchId) {
+    const branchError = uniqueBranchIdError(rung.root, input.branchId);
+    if (branchError) return fail(project, branchError);
+  }
   const target = input.branchId ? findBranchInRoot(rung.root, input.branchId) : rung.root;
   if (!target) return fail(project, `Branch "${input.branchId}" not found in the rung.`);
   if (!target.parallelBranches || target.parallelBranches.length === 0) {
     return fail(project, "Add a parallel branch before adding a leg.");
   }
-  return ok(
-    withRoutineLadder(project, input.routineId, (current) =>
-      ladderAddBranchLeg(current, input.rungId, input.branchId),
-    ),
-    { rungId: input.rungId },
-  );
+  const nextLadder = ladderAddBranchLeg(targetRung.ladder, input.rungId, input.branchId);
+  return commitLadderEdit(project, input.routineId, targetRung.ladder, nextLadder, { rungId: input.rungId });
 }
 
 /** Remove an empty parallel leg (anywhere in the rung's branch tree, incl. nested). */
@@ -351,9 +721,11 @@ export function removeBranchLeg(
   project: PlcProject,
   input: RemoveBranchLegInput,
 ): ProjectActionResult<{ branchId: string }> {
-  const ladder = getLadder(findRoutine(project, input.routineId));
-  const rung = ladder?.rungs.find((r) => r.id === input.rungId);
-  if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const rung = target.rung;
+  const branchError = uniqueBranchIdError(rung.root, input.branchId);
+  if (branchError) return fail(project, branchError);
   if (!isParallelLeg(rung.root, input.branchId)) {
     return fail(project, "Branch leg not found (only parallel legs can be removed).");
   }
@@ -361,12 +733,8 @@ export function removeBranchLeg(
   if (leg && (leg.nodes.length > 0 || leg.parallelBranches?.length || leg.next)) {
     return fail(project, "Only an empty branch leg can be removed.");
   }
-  return ok(
-    withRoutineLadder(project, input.routineId, (current) =>
-      ladderRemoveBranchLeg(current, input.rungId, input.branchId),
-    ),
-    { branchId: input.branchId },
-  );
+  const nextLadder = ladderRemoveBranchLeg(target.ladder, input.rungId, input.branchId);
+  return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { branchId: input.branchId });
 }
 
 /** Append an instruction to a specific branch leg (by branch id) of a rung. */
@@ -374,13 +742,14 @@ export function addInstructionToBranch(
   project: PlcProject,
   input: AddInstructionToBranchInput,
 ): ProjectActionResult<{ nodeId: string }> {
-  const ladder = getLadder(findRoutine(project, input.routineId));
-  const rung = ladder?.rungs.find((r) => r.id === input.rungId);
-  if (!rung) return fail(project, `Rung "${input.rungId}" not found.`);
-  if (!findBranchInRoot(rung.root, input.branchId)) {
-    return fail(project, `Branch "${input.branchId}" not found in the rung.`);
-  }
-  const type = input.instructionType.toUpperCase();
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const rung = target.rung;
+  const branchError = uniqueBranchIdError(rung.root, input.branchId);
+  if (branchError) return fail(project, branchError);
+  const typeError = instructionTypeError(input.instructionType);
+  if (typeError) return fail(project, typeError);
+  const type = input.instructionType.trim().toUpperCase();
   const definition = registry.get(type);
   const operandDefs = definition ? definition.operands : [{ name: "tag" }];
   const node = createNode(type, operandDefs.map((operand) => tagOperand(operand.name, "")));
@@ -388,11 +757,89 @@ export function addInstructionToBranch(
   const warnings = definition
     ? undefined
     : [`Instruction "${type}" is not registered; added as an unsupported box.`];
-  return ok(
-    withRoutineLadder(project, input.routineId, (current) =>
-      ladderAppendNodeToBranch(current, input.rungId, input.branchId, node),
-    ),
-    { nodeId: node.id },
-    warnings,
-  );
+  const nextLadder = ladderAppendNodeToBranch(target.ladder, input.rungId, input.branchId, node);
+  return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { nodeId: node.id }, warnings);
+}
+
+export interface VerifyRungData {
+  rungId: string;
+  rungNumber: number;
+  routineName: string;
+  /** Validation findings attributable to this rung. */
+  findings: ValidationFinding[];
+  errorCount: number;
+  warningCount: number;
+}
+
+/**
+ * Run the validation engine and project the findings down to a single rung. A
+ * finding is attributed to the rung when its message quotes a tag/operand that is
+ * actually referenced on that rung, so "Verify Rung" reports the issues an
+ * engineer sees on the selected rung rather than the whole routine. This is real
+ * offline validation (no controller) scoped to one rung.
+ */
+export function verifyRung(
+  project: PlcProject,
+  input: VerifyRungInput,
+): ProjectActionResult<VerifyRungData> {
+  const routine = findRoutine(project, input.routineId);
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (!routine || isTargetError(target)) {
+    return fail(project, isTargetError(target) ? target.error : `Rung "${input.rungId}" not found.`);
+  }
+  const rung = target.rung;
+
+  const findings = validate(project);
+  const routineFindings = findings.filter((finding) => finding.target?.split("/").includes(routine.name) ?? false);
+  const rungRefs = collectTagReferences(project).filter((ref) => ref.rungId === input.rungId);
+  const rungTags = new Set(rungRefs.map((ref) => ref.tag));
+  const rungOperands = new Set(rungRefs.map((ref) => ref.operand));
+  const rungFindings = routineFindings.filter((finding) => {
+    const quoted = [...finding.message.matchAll(/"([^"]+)"/g)].map((match) => match[1]).filter((value): value is string => Boolean(value));
+    return quoted.some(
+      (token) => rungTags.has(token) || rungTags.has(baseTagName(token)) || rungOperands.has(token),
+    );
+  });
+
+  return ok(project, {
+    rungId: input.rungId,
+    rungNumber: rung.number,
+    routineName: routine.name,
+    findings: rungFindings,
+    errorCount: rungFindings.filter((finding) => finding.severity === "error").length,
+    warningCount: rungFindings.filter((finding) => finding.severity === "warning").length,
+  });
+}
+
+export interface CrossReferenceRungData {
+  rungId: string;
+  rungNumber: number;
+  /** Distinct base tags used on the rung, in first-seen order. */
+  tags: string[];
+  /** Every project reference to any tag used on the rung. */
+  references: TagReference[];
+}
+
+/**
+ * Cross-reference a rung: gather the tags used on it and every place in the
+ * project those tags are referenced. Feeds the editor's "Cross Reference Rung"
+ * command so it opens real reference results rather than a placeholder.
+ */
+export function crossReferenceRung(
+  project: PlcProject,
+  input: CrossReferenceRungInput,
+): ProjectActionResult<CrossReferenceRungData> {
+  const routine = findRoutine(project, input.routineId);
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (!routine || isTargetError(target)) {
+    return fail(project, isTargetError(target) ? target.error : `Rung "${input.rungId}" not found.`);
+  }
+  const rung = target.rung;
+
+  const tags: string[] = [];
+  for (const ref of collectTagReferences(project).filter((candidate) => candidate.rungId === input.rungId)) {
+    if (!tags.includes(ref.tag)) tags.push(ref.tag);
+  }
+  const references = collectTagReferences(project).filter((ref) => tags.includes(ref.tag));
+  return ok(project, { rungId: input.rungId, rungNumber: rung.number, tags, references });
 }

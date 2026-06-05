@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { evaluateExpression, isValidExpression } from "./expression";
+import {
+  evaluateComparisonExpression,
+  evaluateExpression,
+  isValidExpression,
+  parseStringComparisonExpression,
+  referencedPaths,
+} from "./expression";
 
 /** Evaluate against a tag map; undefined tags resolve to 0 (like tag memory). */
 function evalWith(expression: string, tags: Record<string, number> = {}): number | undefined {
@@ -48,19 +54,40 @@ describe("expression engine — relational and logical", () => {
     expect(evalWith("5 <> 5")).toBe(0);
   });
 
-  it("treats AND/OR/XOR/NOT as bitwise (Logix semantics)", () => {
+  it("treats &/AND/OR/XOR/NOT as bitwise (Logix semantics)", () => {
     expect(evalWith("1 AND 1")).toBe(1);
+    expect(evalWith("1 & 1")).toBe(1);
     expect(evalWith("1 AND 0")).toBe(0);
+    expect(evalWith("1 & 0")).toBe(0);
     expect(evalWith("1 OR 0")).toBe(1);
     expect(evalWith("1 XOR 1")).toBe(0);
     expect(evalWith("12 AND 10")).toBe(8); // 1100 & 1010 = 1000
+    expect(evalWith("12 & 10")).toBe(8);
     expect(evalWith("NOT 0")).toBe(-1); // bitwise complement, not logical
   });
 
   it("combines relational results with logical operators (relational binds tighter)", () => {
     expect(evalWith("Level >= 100 AND Pump", { Level: 120, Pump: 1 })).toBe(1);
     expect(evalWith("Level >= 100 AND Pump", { Level: 80, Pump: 1 })).toBe(0);
+    expect(evalWith("Level >= 100 & Pump", { Level: 120, Pump: 1 })).toBe(1);
+    expect(evalWith("Level >= 100 & Pump", { Level: 80, Pump: 1 })).toBe(0);
     expect(evalWith("A > B OR C > D", { A: 1, B: 9, C: 5, D: 2 })).toBe(1);
+  });
+
+  it("recognizes the Studio CMP/FSC two-string-tag comparison form", () => {
+    expect(parseStringComparisonExpression("(State <> Target)")).toEqual({
+      left: "State",
+      operator: "<>",
+      right: "Target",
+    });
+    const numericTags: Record<string, number> = { State: 0, Target: 0 };
+    const stringTags: Record<string, string> = { State: "IDLE", Target: "RUN" };
+    const result = evaluateComparisonExpression(
+      "State < Target",
+      (path) => numericTags[path] ?? 0,
+      (path) => stringTags[path] ?? "",
+    );
+    expect(result).toEqual({ ok: true, value: 1 });
   });
 });
 
@@ -75,9 +102,22 @@ describe("expression engine — functions", () => {
     expect(evalWith("ABS(A - B) > 2", { A: 1, B: 9 })).toBe(1);
   });
 
+  it("evaluates the hyperbolic family (SINH/COSH/TANH)", () => {
+    expect(evalWith("SINH(0)")).toBe(0);
+    expect(evalWith("COSH(0)")).toBe(1);
+    expect(evalWith("TANH(0)")).toBe(0);
+    // cosh(x)^2 - sinh(x)^2 == 1 (within float tolerance) for any x.
+    const x = 1.5;
+    const identity = evalWith("COSH(X) ** 2 - SINH(X) ** 2", { X: x })!;
+    expect(identity).toBeCloseTo(1, 10);
+    // tanh saturates toward ±1; well within domain so always finite.
+    expect(evalWith("TANH(50)")).toBeCloseTo(1, 10);
+  });
+
   it("is case-insensitive for functions and keyword operators", () => {
     expect(evalWith("abs(-3)")).toBe(3);
     expect(evalWith("1 and 1")).toBe(1);
+    expect(evalWith("tanh(0)")).toBe(0);
   });
 });
 
@@ -101,5 +141,22 @@ describe("expression engine — syntax validity", () => {
     expect(isValidExpression("LN(level)")).toBe(true);
     expect(isValidExpression("Speed * 2 + Offset")).toBe(true);
     expect(isValidExpression("Math.max(A, 1)")).toBe(false);
+  });
+});
+
+describe("expression engine — program-qualified paths", () => {
+  it("evaluates Program:ProgramName.Tag paths as a single operand", () => {
+    expect(evalWith("Program:ProgB.Remote + 1", { "Program:ProgB.Remote": 41 })).toBe(42);
+    expect(evalWith("ABS(Program:ProgB.Remote - Local)", { "Program:ProgB.Remote": 5, Local: 8 })).toBe(3);
+  });
+
+  it("reports qualified operands for validator and cross-reference consumers", () => {
+    expect(referencedPaths("Program:ProgB.Remote + Local")).toEqual(["Program:ProgB.Remote", "Local"]);
+    expect(referencedPaths("Program:ProgB.Remote[Index + 1]")).toEqual(["Program:ProgB.Remote[Index + 1]"]);
+  });
+
+  it("rejects malformed program-qualified paths", () => {
+    expect(isValidExpression("Program:ProgB + 1")).toBe(false);
+    expect(isValidExpression("Program:ProgB. + 1")).toBe(false);
   });
 });

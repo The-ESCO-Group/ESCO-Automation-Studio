@@ -16,11 +16,8 @@ export function TagCsvPreviewDialog({ fileName, preview, onCancel, onApply }: Pr
           <div>
             <span className="esco-modal__eyebrow">Tag CSV import</span>
             <h2 id="esco-tagcsv-title">Preview changes from {fileName}</h2>
-            <p>Review the parsed tag rows before applying them through project-actions.</p>
           </div>
-          <button type="button" className="esco-icon-btn" aria-label="Close tag CSV preview" onClick={onCancel}>
-            x
-          </button>
+          <button type="button" className="esco-icon-btn" aria-label="Close tag CSV preview" onClick={onCancel} />
         </header>
 
         <div className="esco-tagcsv__summary">

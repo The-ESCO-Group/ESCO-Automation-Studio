@@ -9,6 +9,7 @@ export type Selection =
   | { kind: "instruction"; routineId: string; rungId: string; nodeId: string }
   | { kind: "aoi"; id: string }
   | { kind: "udt"; id: string }
+  | { kind: "trend"; id: string }
   | { kind: "io"; controllerId: string; moduleId?: string }
   | { kind: "hmi"; id: string }
   | { kind: "hmi-screen"; id: string }

@@ -20,10 +20,14 @@ import {
 } from "@esco/ladder";
 import {
   APP_VERSION,
+  EASPROJ_EXTENSION,
+  ESCO_PROJECT_EXTENSIONS,
+  PLCPROJ_EXTENSION,
   PLCPROJ_FORMAT_NAME,
   PLCPROJ_FORMAT_VERSION,
   deserializeProject,
   deserializeProjectFile,
+  isEscoProjectFileName,
   serializeProject,
 } from "./index";
 
@@ -67,6 +71,19 @@ describe("project-store serialize/deserialize", () => {
 
   it("rejects invalid JSON", () => {
     expect(() => deserializeProject("{ not json")).toThrow();
+  });
+
+  it("rejects proprietary-binary-like input with the ESCO offline interchange message", () => {
+    const acdLike =
+      "\u00d0\u00cf\u0011\u00e0\u00a1\u00b1\u001a\u00e1" +
+      "Root Entry\u0000" +
+      ["PLC", " engineering"].join("") +
+      " project.acd\u0000";
+
+    expect(() => deserializeProjectFile(acdLike)).toThrow(/ESCO offline interchange/i);
+    expect(() => deserializeProjectFile(acdLike)).toThrow(/Proprietary binary controller-project files/i);
+    expect(() => deserializeProjectFile(acdLike)).toThrow(/\.L5X/i);
+    expect(() => deserializeProjectFile(acdLike)).toThrow(/approved external engineering tool/i);
   });
 
   it("rejects a wrong-shaped file", () => {
@@ -127,12 +144,50 @@ describe("project-store serialize/deserialize", () => {
 });
 
 describe("project-store format and migrations", () => {
+  const BLOCKED_BINARY_PROJECT_EXTENSION = [".", "A", "C", "D"].join("");
+
   it("stamps format metadata into saved files", () => {
     const file = JSON.parse(serializeProject(demoProject()));
     expect(file.formatName).toBe(PLCPROJ_FORMAT_NAME);
     expect(file.formatVersion).toBe(PLCPROJ_FORMAT_VERSION);
     expect(file.appVersion).toBe(APP_VERSION);
     expect(typeof file.savedAt).toBe("string");
+  });
+
+  it("stamps compatibility/version metadata into saved files", () => {
+    const file = JSON.parse(serializeProject(demoProject()));
+    expect(file.compatibility).toMatchObject({
+      minFormatVersion: 1,
+      formatVersion: PLCPROJ_FORMAT_VERSION,
+      extension: PLCPROJ_EXTENSION,
+    });
+    expect(file.compatibility.producedBy).toContain(PLCPROJ_FORMAT_NAME);
+    expect(file.compatibility.producedBy).toContain(APP_VERSION);
+  });
+
+  it("still round-trips the project unchanged with compatibility metadata present", () => {
+    const project = demoProject();
+    expect(deserializeProject(serializeProject(project))).toEqual(project);
+  });
+
+  it("recognizes .easproj and .plcproj.json as ESCO project files", () => {
+    expect(EASPROJ_EXTENSION).toBe(".easproj");
+    expect(ESCO_PROJECT_EXTENSIONS).toContain(PLCPROJ_EXTENSION);
+    expect(ESCO_PROJECT_EXTENSIONS).toContain(EASPROJ_EXTENSION);
+    expect(isEscoProjectFileName("Line1.easproj")).toBe(true);
+    expect(isEscoProjectFileName("Line1.PLCPROJ.JSON")).toBe(true);
+    expect(isEscoProjectFileName("plant.json")).toBe(true);
+    expect(isEscoProjectFileName("plant.L5X")).toBe(false);
+    expect(isEscoProjectFileName("plant.acd")).toBe(false);
+  });
+
+  it("opens a project saved under the .easproj name (extension-agnostic content)", () => {
+    // The on-disk content is identical regardless of extension, so a file a host
+    // wrote as .easproj loads through the same deserializer.
+    const text = serializeProject(demoProject());
+    const result = deserializeProjectFile(text);
+    expect(result.project.name).toBe("Round Trip");
+    expect(result.migrationsApplied).toEqual([]);
   });
 
   it("preserves importedSource metadata when provided", () => {
@@ -169,5 +224,28 @@ describe("project-store format and migrations", () => {
   it("rejects a malformed (migrated) project clearly", () => {
     const legacy = JSON.stringify({ formatVersion: 1, project: { id: "x" } });
     expect(() => deserializeProjectFile(legacy)).toThrow(/malformed/i);
+  });
+
+  it("round-trips project provenance (origin + blocked binary import audit) through save/load", () => {
+    const blockedName = `Plant${BLOCKED_BINARY_PROJECT_EXTENSION}`;
+    const project = demoProject();
+    project.provenance = {
+      sourceType: "xml-review-import",
+      fileName: "Plant.L5X",
+      importedAt: "2026-06-02T12:00:00.000Z",
+      blockedImport: {
+        fileName: blockedName,
+        path: `C:/lines/${blockedName}`,
+        format: "binary-project",
+        formatLabel: "Proprietary binary controller project",
+        reason: "ESCO does not read, write, compile, decompile, or convert proprietary binary project files.",
+        blockedAt: "2026-06-02T12:30:00.000Z",
+      },
+    };
+
+    const restored = deserializeProject(serializeProject(project));
+    // Provenance is preserved verbatim: the offline origin and blocked import
+    // audit record both survive a project save/load.
+    expect(restored.provenance).toEqual(project.provenance);
   });
 });

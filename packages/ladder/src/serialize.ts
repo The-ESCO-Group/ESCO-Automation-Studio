@@ -1,7 +1,7 @@
 /**
  * Serialize the semantic ladder AST back to Logix neutral rung text. This is the
  * inverse of the rung-text parser for the supported branch shapes (a flat series
- * and single-level parallel branches), so ladder logic survives an
+ * and representable parallel/nested branches), so ladder logic survives an
  * export → import round trip.
  */
 
@@ -15,9 +15,10 @@ function nodeToText(node: LadderNode): string {
 
 /**
  * Neutral text for a branch tree: the series instructions in order, then any
- * single-level parallel group as `[leg,leg,…]` (the segment's own series is the
- * first leg), then the series continuation. Mirrors how `parseRungText` builds
- * the tree, so `parse(serialize(branch))` reproduces the same structure.
+ * parallel group as `[leg,leg,…]` (the segment's own series is the first leg),
+ * then the series continuation. Mirrors how `parseRungText` builds the tree, so
+ * `parse(serialize(branch))` reproduces the same structure for supported
+ * branch shapes.
  */
 export function serializeBranch(branch: LadderBranch): string {
   const series = branch.nodes.map(nodeToText).join("");

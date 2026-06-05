@@ -1,9 +1,14 @@
 # E2E smoke harness
 
-Browser-driven smoke tests that exercise the running app end to end (ladder
-editing, simulation, tags, properties, cross-reference, AI assistant, and
-L5X / project import-export). They complement the in-process unit tests
+Browser-driven smoke tests that exercise the running app end to end. They cover
+the Studio shell, menus/dialogs, ladder editing, instruction authoring,
+simulation, tags, properties, cross-reference, guarded controller workflows,
+AI assistant, HMI authoring/live preview, project persistence, L5X/component
+flows, and desktop startup. They complement the in-process unit tests
 (`pnpm test`) by checking the real DOM and user flows.
+
+Controller smoke tests exercise guarded UI/session behavior only. They do not
+connect to, upload from, download to, or online-edit a physical PLC.
 
 ## Prerequisites
 
@@ -26,29 +31,35 @@ pnpm e2e
 The runner executes each driver and prints an aggregate summary, e.g.:
 
 ```
-PASS  welcome.mjs      8/8
-PASS  driver.mjs       5/5
+PASS  welcome.mjs      12/12
+PASS  controller.mjs   31/31
 ...
-ALL DRIVERS PASS  —  68/68 checks across 10 drivers
+ALL DRIVERS PASS  —  892/892 checks across 62 drivers
 ```
 
 Exit code is `0` only if every driver passes (`2` if the dev server is not
 reachable). To run a single driver: `node e2e/driver.mjs`.
 
+Set `E2E_URL` to point the suite at a non-default server:
+
+```
+$env:E2E_URL="http://localhost:5174/"; pnpm e2e
+```
+
 ## Drivers
 
-| Driver | Covers |
+The aggregate runner orders known high-signal flows first, then auto-discovers
+any other `.mjs` driver in this directory. Current coverage includes:
+
+| Group | Representative drivers |
 |---|---|
-| `welcome.mjs` | Welcome dashboard, action cards, navigation |
-| `driver.mjs` | Open routine, palette, operands, scan |
-| `instr.mjs` | Instruction palette groups |
-| `tags.mjs` | Tag table: create / rename / describe / delete |
-| `props.mjs` | Properties panel per selection |
-| `xref.mjs` | Cross reference |
-| `ai.mjs` | AI assistant explain / generate / apply |
-| `persist.mjs` | Edit → export → reload → import → scan |
-| `l5x.mjs` | L5X import + simulation |
-| `l5x-branch.mjs` | L5X import with parallel branches |
+| Shell and navigation | `desktop-startup.mjs`, `welcome.mjs`, `dialogs.mjs`, `ribbon.mjs`, `shortcuts.mjs`, `workbench.mjs`, `ui-layout.mjs` |
+| Ladder authoring | `driver.mjs`, `instr.mjs`, `newinstr.mjs`, `ladderedit.mjs`, `branchedit.mjs`, `nestedbranch.mjs`, `laddertoolbar.mjs`, `laddercontext.mjs`, `ladder-offline-edits.mjs` |
+| Editing state | `undoredo.mjs`, `copypaste.mjs`, `dirtystate.mjs`, `recovery.mjs`, `persist.mjs` |
+| Data and diagnostics | `tags.mjs`, `props.mjs`, `inspector.mjs`, `search.mjs`, `xref.mjs`, `arrayvalues.mjs`, `structure.mjs`, `structureedit.mjs`, `verifyoutput.mjs`, `diagnostics.mjs` |
+| Controller and runtime | `controller.mjs`, `virtualcontroller.mjs`, `readonly-monitoring.mjs`, `taskmonitor.mjs`, `taskscanstats.mjs`, `forcetrace.mjs`, `easrt.mjs` |
+| Import/export | `l5x.mjs`, `l5x-branch.mjs`, `binaryguard.mjs`, `component-export.mjs`, `component-import.mjs`, `stsource.mjs` |
+| HMI and assistant | `hmidesigner.mjs`, `hmilive.mjs`, `hmilive-authoring.mjs`, `hmi-layout.mjs`, `ai.mjs`, `aiagent.mjs` |
 
 Artifacts (screenshots, exported fixtures) are written next to the drivers and
 are git-ignored.

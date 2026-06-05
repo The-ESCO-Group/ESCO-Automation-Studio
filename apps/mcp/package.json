@@ -1,0 +1,26 @@
+{
+  "name": "@esco/mcp",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "ESCO Automation Studio MCP server — exposes the offline IDE as tools for Claude Code / Claude Desktop.",
+  "scripts": {
+    "build": "vite build",
+    "start": "node dist/server.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@esco/core": "workspace:*",
+    "@esco/instructions": "workspace:*",
+    "@esco/ladder": "workspace:*",
+    "@esco/parser-l5x": "workspace:*",
+    "@esco/project-actions": "workspace:*",
+    "@esco/sim-lab": "workspace:*",
+    "@esco/validator": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
+  }
+}

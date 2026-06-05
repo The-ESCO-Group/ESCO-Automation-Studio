@@ -1,6 +1,6 @@
 import type { InstructionDefinition } from "./types";
 import { operandValue } from "./operands";
-import { evaluateExpression, isValidExpression } from "./expression";
+import { evaluateComparisonExpression, evaluateExpression, isValidExpression } from "./expression";
 
 const NUMERIC = ["DINT", "REAL"];
 
@@ -77,6 +77,32 @@ export const OR = binaryBox("OR", "Bitwise OR", "Dest = Source A OR Source B (bi
 export const XOR = binaryBox("XOR", "Bitwise XOR", "Dest = Source A XOR Source B (bitwise).", (a, b) => i32(a) ^ i32(b));
 export const NOT = unaryBox("NOT", "Bitwise NOT", "Dest = NOT Source (bitwise complement).", (a) => ~i32(a));
 
+// --- Decode / Encode (bit position <-> 1-of-16 bit) ---
+/**
+ * DCD - Decode 4 to 1 of 16. Sets the single Dest bit selected by the low four
+ * bits (value 0-15) of Source: Dest = 1 << (Source AND 0x0F), all other bits 0.
+ */
+export const DCD = unaryBox(
+  "DCD",
+  "Decode 4 to 1 of 16",
+  "Dest = the single bit selected by the low 4 bits (0-15) of Source: 1 << (Source AND 0x0F).",
+  (a) => 1 << (i32(a) & 0x0f),
+);
+/**
+ * ENC - Encode 1 of 16 to 4. Writes the bit position (0-15) of the lowest set
+ * bit in the low 16 bits of Source. When no bit is set, Logix flags a minor
+ * fault; offline there is no fault word, so Dest is guarded to 0.
+ */
+export const ENC = unaryBox(
+  "ENC",
+  "Encode 1 of 16 to 4",
+  "Dest = the position (0-15) of the lowest set bit in the low 16 bits of Source, or 0 when none are set.",
+  (a) => {
+    const bits = i32(a) & 0xffff;
+    return bits === 0 ? 0 : 31 - Math.clz32(bits & -bits);
+  },
+);
+
 // --- Extended math ---
 export const MOD = binaryBox("MOD", "Modulo", "Dest = Source A modulo Source B (0 when B = 0).", (a, b) => (b === 0 ? 0 : a % b));
 export const SQR = unaryBox("SQR", "Square Root", "Dest = square root of Source (0 when negative).", (a) => (a < 0 ? 0 : Math.sqrt(a)));
@@ -118,9 +144,12 @@ export const CPT: InstructionDefinition = {
 };
 
 /**
- * CMP - Compare. Passes the rung when the expression evaluates true (non-zero),
- * using the same grammar as CPT (relational and logical operators included, e.g.
- * `Level >= 100 AND Pump.DN`). A syntax error or a non-finite result is false.
+ * CMP - Compare. Passes the rung when the expression evaluates true (non-zero).
+ * Numeric expressions use the same grammar as CPT (relational and logical
+ * operators included, e.g. `Level >= 100 AND Pump.DN`). Studio 5000 also permits
+ * a direct comparison between two string tags (`State = Target`); that narrow
+ * ASCII/string form compares character text lexicographically offline.
+ * A syntax error or a non-finite result is false.
  */
 export const CMP: InstructionDefinition = {
   type: "CMP",
@@ -135,7 +164,11 @@ export const CMP: InstructionDefinition = {
   },
   execute: (node, ctx) => {
     if (!ctx.rungIn) return false;
-    const result = evaluateExpression(operandValue(node, 0), (operand) => ctx.numeric(operand));
+    const result = evaluateComparisonExpression(
+      operandValue(node, 0),
+      (operand) => ctx.numeric(operand),
+      (operand) => ctx.readString(operand),
+    );
     return result.ok && Number.isFinite(result.value) && result.value !== 0;
   },
   render: { symbol: "CMP", style: "function" },
@@ -185,6 +218,17 @@ export const LIM: InstructionDefinition = {
   render: { symbol: "LIM", style: "function" },
 };
 
+/**
+ * LIMIT - Limit Test (Studio export alias of LIM). Some real-world L5X exports
+ * use the long mnemonic; preserve it and run the same offline test semantics.
+ */
+export const LIMIT: InstructionDefinition = {
+  ...LIM,
+  type: "LIMIT",
+  description: "Passes when Test is between the Low and High limits (alias of LIM).",
+  render: { ...LIM.render, symbol: "LIMIT" },
+};
+
 /** MEQ - Masked Equal. Passes when (Source AND Mask) == (Compare AND Mask). */
 export const MEQ: InstructionDefinition = {
   type: "MEQ",
@@ -205,4 +249,42 @@ export const MEQ: InstructionDefinition = {
     return (source & mask) === (compare & mask);
   },
   render: { symbol: "MEQ", style: "function" },
+};
+
+/**
+ * DTR - Data Transitional. Operands: DTR(Source, Mask, Reference).
+ *
+ * An input instruction that detects a change in the monitored bits of Source.
+ * Each scan the rung is true it passes Source through Mask and compares the
+ * result to Reference: while they are equal the instruction stays false; when
+ * they differ it is true for exactly one scan and writes the masked Source into
+ * Reference, so the next change is measured against the value just seen.
+ *
+ * Like the one-shot bit instructions, all state lives in tag memory (the
+ * Reference tag), so the transition is detected deterministically across
+ * scanOnce calls and survives export/import — nothing is hidden in the executor.
+ * When the rung is false the instruction is false and Reference is left
+ * untouched, matching the controller (no update on a false rung).
+ */
+export const DTR: InstructionDefinition = {
+  type: "DTR",
+  displayName: "Data Transitional",
+  category: "compare",
+  description: "Passes for one scan when the masked Source changes; records the masked value in Reference.",
+  operands: [
+    { name: "source", label: "Source", required: true, allowedTypes: NUMERIC, direction: "read" },
+    { name: "mask", label: "Mask", required: true, allowedTypes: NUMERIC, direction: "read" },
+    { name: "reference", label: "Reference", required: true, allowedTypes: NUMERIC, direction: "write" },
+  ],
+  validate: requireOperands(["source", "mask", "reference"]),
+  execute: (node, ctx) => {
+    if (!ctx.rungIn) return false;
+    const reference = operandValue(node, 2);
+    if (!reference) return false;
+    const masked = i32(ctx.numeric(operandValue(node, 0))) & i32(ctx.numeric(operandValue(node, 1)));
+    const changed = masked !== i32(ctx.numeric(reference));
+    ctx.writeNumber(reference, masked);
+    return changed;
+  },
+  render: { symbol: "DTR", style: "function" },
 };

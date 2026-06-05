@@ -14,7 +14,8 @@
   "dependencies": {
     "@esco/core": "workspace:*",
     "@esco/instructions": "workspace:*",
-    "@esco/ladder": "workspace:*"
+    "@esco/ladder": "workspace:*",
+    "@esco/parser-l5x": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

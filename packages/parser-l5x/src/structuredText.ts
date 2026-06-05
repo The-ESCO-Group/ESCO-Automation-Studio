@@ -1,10 +1,10 @@
 /**
  * Structured Text (IEC 61131-3 / Logix) lexer and lightweight structural syntax
- * checker. This NEVER executes ST and never claims to — Structured Text remains
- * preserved, read-only, and unsimulated. It only tokenizes the source and reports
- * unambiguous structural problems (unbalanced parentheses/brackets, unmatched
- * block keywords, unterminated comments/strings) so an import can warn the
- * engineer instead of silently swallowing malformed source.
+ * checker. This module only tokenizes source and reports unambiguous structural
+ * problems (unbalanced parentheses/brackets, unmatched block keywords,
+ * unterminated comments/strings) so an import can warn the engineer instead of
+ * silently swallowing malformed source. The limited offline ST execution subset
+ * lives in project-actions and deliberately reuses this tokenizer.
  *
  * Deliberately conservative: it flags only structural imbalances that are wrong
  * regardless of semantics. It does NOT guess at missing semicolons, undeclared

@@ -11,9 +11,40 @@ export function operandValue(node: LadderNode, index: number): string {
  * constants from tag references in operands like MOV(123, Dest).
  */
 export function isNumericLiteral(value: string): boolean {
+  return parseNumericLiteral(value) !== undefined;
+}
+
+/**
+ * Parse a Logix numeric literal. Supports decimal/float values plus radix
+ * literals such as `16#FF`, `2#1010`, and signed forms like `-16#10`. Underscore
+ * digit-group separators are accepted between digits, mirroring Studio 5000
+ * immediate operands (`16#00FF_00FF`, `2#1010_1010`, `1_000_000`); a leading,
+ * trailing, or doubled underscore is rejected, so a separator never turns a
+ * malformed token into a number.
+ */
+export function parseNumericLiteral(value: string): number | undefined {
   const trimmed = value.trim();
-  if (trimmed === "") return false;
-  return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(trimmed) || /^\d+#[0-9A-Fa-f]+$/.test(trimmed);
+  const radixMatch = trimmed.match(/^([+-]?)(\d+)#([0-9A-Fa-f](?:_?[0-9A-Fa-f])*)$/);
+  if (radixMatch) {
+    const sign = radixMatch[1] === "-" ? -1 : 1;
+    const radix = Number(radixMatch[2]);
+    const digits = radixMatch[3]!.replace(/_/g, "");
+    if (!Number.isInteger(radix) || radix < 2 || radix > 16) return undefined;
+    let parsed = 0;
+    for (const char of digits) {
+      const digit = Number.parseInt(char, 16);
+      if (!Number.isInteger(digit) || digit >= radix) return undefined;
+      parsed = parsed * radix + digit;
+    }
+    return sign * parsed;
+  }
+
+  if (/^[+-]?((\d(?:_?\d)*)(\.(\d(?:_?\d)*)?)?|\.(\d(?:_?\d)*))$/.test(trimmed)) {
+    const parsed = Number(trimmed.replace(/_/g, ""));
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
 }
 
 /**

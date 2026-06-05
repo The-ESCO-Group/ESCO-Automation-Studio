@@ -37,9 +37,9 @@ whole.
 - The key is never logged or shown back in the UI.
 - The public profile shape deliberately omits `apiKey`; only the transport layer
   receives the key, and only as the provider authorization header.
-- For the current web build, the saved workstation profile is local to the
-  browser profile. For the Windows desktop build, use OS credential storage
-  instead of browser local storage.
+- For the web build, the saved workstation profile is local to the browser
+  profile. For packaged Windows desktop builds, `secure_key_*` Tauri commands
+  store the key in Windows Credential Manager through the OS keychain adapter.
 
 ## What the online agent can and cannot do
 

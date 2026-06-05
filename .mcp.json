@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "esco": {
+      "command": "node",
+      "args": ["apps/mcp/dist/server.mjs"]
+    }
+  }
+}

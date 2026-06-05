@@ -2,7 +2,7 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { writeFileSync } from "node:fs";
-import { importL5XPath } from "./helpers.mjs";
+import { importL5XPath, openWatchPanel } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const URL = "http://localhost:5173/";
@@ -50,7 +50,7 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
   await importL5XPath(page, fixturePath);
-  await page.locator('.esco-titlebar__project:has-text("PlantController")').waitFor({ timeout: 8000 });
+  await page.locator('.esco-titlebar__name:has-text("PlantController")').waitFor({ timeout: 8000 });
 
   const notice = await page.locator(".esco-toast").innerText();
   check("import summary shows counts", /1 program\(s\),\s*1 routine\(s\),\s*2 rung\(s\),\s*5 tag\(s\)/.test(notice), notice);
@@ -60,9 +60,36 @@ try {
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung").length === 2);
   check("branch routine opens with 2 rungs", true);
   check("unknown unsupported branch fixture instruction renders read-only", (await page.locator(".esco-lad__box--unsupported:has-text('XUNKNOWN')").count()) === 1);
+  const branchGeometry = await page.evaluate(() => {
+    const bounds = (selector) => {
+      const element = document.querySelector(selector);
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return { x: Math.round(rect.x), right: Math.round(rect.right), width: Math.round(rect.width) };
+    };
+    return {
+      diagram: bounds(".esco-lad__diagram"),
+      leftRail: bounds(".esco-lad__rail--left"),
+      rightRail: bounds(".esco-lad__rail--right"),
+      branch: bounds(".esco-lad__parallel"),
+    };
+  });
+  check(
+    "seal-in branch renders directly off the left power rail",
+    branchGeometry.branch && branchGeometry.leftRail && branchGeometry.branch.x - branchGeometry.leftRail.x <= 32,
+    JSON.stringify(branchGeometry),
+  );
+  check(
+    "right power rail renders on the diagram edge",
+    branchGeometry.rightRail &&
+      branchGeometry.diagram &&
+      Math.abs(branchGeometry.rightRail.right - branchGeometry.diagram.right) <= 2,
+    JSON.stringify(branchGeometry),
+  );
   await page.screenshot({ path: join(here, "b1-imported.png") });
 
   // Seal-in branch: Start -> Run true; release Start -> Run stays true; Stop -> Run false.
+  await openWatchPanel(page);
   await page.locator('.esco-watch tr:has-text("Start") button:has-text("Toggle")').click();
   await page.locator('button:has-text("Scan Once")').click();
   await page.waitForTimeout(60);

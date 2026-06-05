@@ -87,7 +87,9 @@ export function compareReportHtml(
   ].join("");
 
   const structureSections = structure
-    ? namedDiffSection("Tags", structure.tags) +
+    ? namedDiffSection("Tasks", structure.tasks) +
+      namedDiffSection("Programs", structure.programs) +
+      namedDiffSection("Tags", structure.tags) +
       namedDiffSection("Data Types", structure.dataTypes) +
       namedDiffSection("Add-On Instructions", structure.addOnInstructions) +
       namedDiffSection("I/O Modules", structure.modules)
@@ -105,7 +107,7 @@ export function compareReportHtml(
 </style></head>
 <body>
 <h1>ESCO Automation Studio — Comparison Report</h1>
-<p class="note">Offline comparison. Generated for review; not a Studio 5000 document.</p>
+<p class="note">Offline comparison. Generated for review; not an original controller-editor document.</p>
 <section><h2>Routines</h2>
 <p>${result.summary.matched} identical · ${result.summary.changed} changed · ${result.summary.onlyInLeft} only-in-current · ${result.summary.onlyInRight} only-in-comparison</p>
 <table><thead><tr><th>Status</th><th>Current</th><th>Comparison</th><th>Match</th><th>Differences</th></tr></thead>

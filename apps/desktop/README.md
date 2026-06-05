@@ -32,13 +32,13 @@ without a compiler, and fails CI if any weaken:
 - the Tauri scaffold files and the `.ico` icon exist;
 - product identity is intact (productName, `com.scintilla.escogroup` identifier,
   bundle publisher);
-- the window opens at the compact startup-box size (758×558, non-resizable) and
-  the `promote_desktop_window_to_ide` command exists;
+- the window opens at the compact startup-box size (760×560, non-resizable,
+  undecorated) and the `promote_desktop_window_to_ide` command exists;
 - a restrictive **Content-Security-Policy** is set (no longer `null`) — see below;
 - the capability set stays minimal (**core permissions only** — no broad
   `fs`/`shell`/`http` grants);
 - the desktop capability report stays honest: `offline-simulation`,
-  `online_edits: false`, `acd_access: false`.
+  `online_edits: false`, `binary_project_access: false`.
 
 ## Real Windows delivery
 
@@ -77,78 +77,26 @@ sources it needs for IPC at build time.
 
 ## Secure key storage (OS keychain)
 
-AI API keys must move off browser `localStorage` to OS-backed encrypted storage
-before production desktop deployment. The web side already ships the abstraction:
-`apps/web/src/desktop-secret-store.ts` resolves a `SecretStore` that prefers the
-OS keychain on desktop and falls back to browser-local storage, exposing which
-backend is active (`backend` / `osEncrypted` / `label`) so the UI never claims
-"secure" storage when only the fallback is active.
+AI API keys are stored through `apps/web/src/desktop-secret-store.ts`, which
+prefers the desktop OS keychain and falls back to browser-local storage only when
+the secure desktop commands are unavailable. The active backend is surfaced via
+`backend` / `osEncrypted` / `label`, so the UI never claims "secure" storage
+when only the fallback is active.
 
 It calls these Tauri commands (the contract — see `SECURE_KEY_COMMANDS`):
 `secure_key_available`, `secure_key_get(name)`, `secure_key_set(name, value)`,
-`secure_key_delete(name)`. Until those commands are compiled in,
-`secure_key_available` is absent, so the abstraction degrades to browser-local —
-the app keeps working and auto-upgrades once the commands exist.
-
-**Ready-to-enable Rust implementation** (build-unverified here — needs the Rust
-toolchain to compile and a real run to validate against Windows Credential
-Manager). Add to `Cargo.toml`:
-
-```toml
-keyring = { version = "3", features = ["windows-native"] }
-```
-
-Add to `src-tauri/src/lib.rs` and register the four commands in
-`generate_handler!`:
-
-```rust
-const KEYRING_SERVICE: &str = "com.scintilla.escogroup.automationstudio";
-
-#[tauri::command]
-fn secure_key_available() -> bool {
-    keyring::Entry::new(KEYRING_SERVICE, "__availability_probe__")
-        .map(|entry| !matches!(entry.get_password(), Err(keyring::Error::PlatformFailure(_))))
-        .unwrap_or(false)
-}
-
-#[tauri::command]
-fn secure_key_get(name: String) -> Result<Option<String>, String> {
-    let entry = keyring::Entry::new(KEYRING_SERVICE, &name).map_err(|e| e.to_string())?;
-    match entry.get_password() {
-        Ok(secret) => Ok(Some(secret)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(other) => Err(other.to_string()),
-    }
-}
-
-#[tauri::command]
-fn secure_key_set(name: String, value: String) -> Result<(), String> {
-    keyring::Entry::new(KEYRING_SERVICE, &name)
-        .map_err(|e| e.to_string())?
-        .set_password(&value)
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn secure_key_delete(name: String) -> Result<(), String> {
-    let entry = keyring::Entry::new(KEYRING_SERVICE, &name).map_err(|e| e.to_string())?;
-    match entry.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(other) => Err(other.to_string()),
-    }
-}
-```
-
-After compiling, flip `desktop_capabilities.secure_key_storage` from
-`"pending-os-keychain-adapter"` to the active backend and have the web profile
-read/write the key through `createSecretStore()` instead of `localStorage`.
+`secure_key_delete(name)`. In the packaged Windows shell these are backed by the
+`keyring` crate with the `windows-native` feature, using Windows Credential
+Manager under the service name `com.scintilla.escogroup.automationstudio`.
+`desktop_capabilities.secure_key_storage` reports
+`"windows-credential-manager"` when this adapter is compiled in.
 
 ## Safety Boundaries
 
 - Offline Simulation is the only controller mode in this shell.
 - No PLC upload/download/go-online/online edits are added here.
-- No `.ACD` access is added here.
+- No proprietary binary controller-project access is added here.
 - Microsoft sign-in is not faked. Until Azure app registration and secure token
   handling exist, the desktop startup button opens the local profile setup path.
-- AI API keys must move to OS-backed secure storage (above) before production
-  desktop deployment. `desktop_capabilities` reports that adapter as pending.
+- AI API keys use OS-backed secure storage in the packaged desktop shell; browser
+  builds remain honest about local fallback storage.

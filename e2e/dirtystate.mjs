@@ -1,15 +1,27 @@
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { URL, importStarterProject } from "./helpers.mjs";
+import { URL, addRungViaProjectMenu, importStarterProject, ribbonButton } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const exportPath = join(here, "dirtystate-export.plcproj.json");
+const exportPath = join(here, "dirtystate-export.easproj");
 
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`); };
-const isDirty = (page) => page.locator(".esco-titlebar__saved.is-dirty").count().then((n) => n === 1);
-const isSaved = (page) => page.locator(".esco-titlebar__saved.is-saved").count().then((n) => n === 1);
+const titleText = (page) => page.locator(".esco-titlebar__name").innerText();
+const isDirty = async (page) => /\*$/.test(await titleText(page));
+const isSaved = async (page) => !/\*$/.test(await titleText(page));
+const confirmationText = (page) => page.locator(".esco-confirmation").innerText();
+const cancelConfirmation = async (page) => {
+  await page.locator(".esco-confirmation").waitFor({ timeout: 8000 });
+  await page.locator('.esco-confirmation .esco-btn:has-text("Cancel")').click();
+  await page.locator(".esco-confirmation").waitFor({ state: "detached", timeout: 8000 });
+};
+const acceptConfirmation = async (page) => {
+  await page.locator(".esco-confirmation").waitFor({ timeout: 8000 });
+  await page.locator('.esco-confirmation .esco-btn--primary').click();
+  await page.locator(".esco-confirmation").waitFor({ state: "detached", timeout: 8000 });
+};
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const context = await browser.newContext({ viewport: { width: 1400, height: 950 }, acceptDownloads: true });
@@ -21,27 +33,60 @@ try {
   check("fresh project shows Saved", await isSaved(page));
 
   // An edit marks the project dirty.
-  await page.locator('button:has-text("Add Rung")').click();
-  await page.waitForFunction(() => document.querySelector(".esco-titlebar__saved.is-dirty") !== null);
+  await addRungViaProjectMenu(page);
+  await page.waitForFunction(() => /\*$/.test(document.querySelector(".esco-titlebar__name")?.textContent ?? ""));
   check("an edit marks the project Unsaved", await isDirty(page));
 
   // Undo back to the saved baseline marks it clean again.
-  await page.locator('.esco-ribbon__button:has-text("Undo")').first().click();
-  await page.waitForFunction(() => document.querySelector(".esco-titlebar__saved.is-saved") !== null);
+  await ribbonButton(page, "Undo").click();
+  await page.waitForFunction(() => !/\*$/.test(document.querySelector(".esco-titlebar__name")?.textContent ?? ""));
   check("undo back to baseline marks it Saved", await isSaved(page));
 
   // Redo -> dirty; export -> saved.
-  await page.locator('.esco-ribbon__button:has-text("Redo")').first().click();
-  await page.waitForFunction(() => document.querySelector(".esco-titlebar__saved.is-dirty") !== null);
+  await ribbonButton(page, "Redo").click();
+  await page.waitForFunction(() => /\*$/.test(document.querySelector(".esco-titlebar__name")?.textContent ?? ""));
   check("redo marks it Unsaved again", await isDirty(page));
 
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.locator('.esco-ribbon__button:has-text("Save")').first().click(),
+    ribbonButton(page, "Save").click(),
   ]);
   await download.saveAs(exportPath);
-  await page.waitForFunction(() => document.querySelector(".esco-titlebar__saved.is-saved") !== null);
+  await page.waitForFunction(() => !/\*$/.test(document.querySelector(".esco-titlebar__name")?.textContent ?? ""));
   check("exporting marks the project Saved", await isSaved(page));
+
+  // New Project is destructive when dirty, so the OK path must be guarded.
+  await addRungViaProjectMenu(page);
+  await page.waitForFunction(() => /\*$/.test(document.querySelector(".esco-titlebar__name")?.textContent ?? ""));
+  const dirtyRungs = await page.locator(".esco-lad__rung").count();
+  await ribbonButton(page, "New").click();
+  await page.locator(".esco-new-project").waitFor({ timeout: 8000 });
+  await page.locator('.esco-new-project .esco-btn--primary:has-text("OK")').click();
+  const dismissText = await confirmationText(page);
+  check("New Project warns before discarding dirty work", /Unsaved changes will be lost/i.test(dismissText), dismissText);
+  await cancelConfirmation(page);
+  const dialogStillOpen = (await page.locator(".esco-new-project").count()) === 1;
+  const rungsAfterCancel = await page.locator(".esco-lad__rung").count();
+  const stillDirtyAfterCancel = await isDirty(page);
+  check(
+    "canceling New Project keeps the dirty project open",
+    dialogStillOpen && rungsAfterCancel === dirtyRungs && stillDirtyAfterCancel,
+    `rungs=${rungsAfterCancel}`,
+  );
+
+  await page.locator('.esco-new-project .esco-btn--primary:has-text("OK")').click();
+  await acceptConfirmation(page);
+  await page.waitForFunction(() =>
+    /Untitled Project.*\*$/.test(document.querySelector(".esco-titlebar__name")?.textContent ?? "") &&
+    document.querySelectorAll(".esco-lad__rung").length === 1,
+  );
+  check("confirming New Project creates an unsaved blank project", await isDirty(page) && (await page.locator(".esco-lad__rung").count()) === 1);
+
+  const [shortcutDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page.keyboard.press("Control+S"),
+  ]);
+  check("Ctrl+S invokes the ESCO project Save command", shortcutDownload.suggestedFilename().endsWith(".easproj"), shortcutDownload.suggestedFilename());
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

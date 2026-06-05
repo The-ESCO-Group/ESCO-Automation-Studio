@@ -2,7 +2,7 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
-import { dismissToasts, importL5XPath, ribbonButton } from "./helpers.mjs";
+import { dismissToasts, importL5XPath, openWatchPanel } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const URL = "http://localhost:5173/";
@@ -55,12 +55,11 @@ try {
   // Import a real L5X fixture through the app's L5X file input.
   await importL5XPath(page, fixturePath);
 
-  await page.locator('.esco-titlebar__project:has-text("DemoController")').waitFor({ timeout: 8000 });
+  await page.locator('.esco-titlebar__name:has-text("DemoController")').waitFor({ timeout: 8000 });
   check("imported project title shows DemoController", true);
 
-  // Imported tags appear in the Project Explorer.
-  const tagText = await page.locator(".esco-left").innerText();
-  check("imported tags appear in explorer (Timer1 : TIMER)", /Timer1\s*:\s*TIMER/.test(tagText));
+  await openWatchPanel(page);
+  check("imported TIMER tag appears in Watch", (await page.locator('.esco-watch tr:has-text("Timer1")').count()) === 1);
 
   // Import notice flags a truly unknown vendor block, not a process/PID instruction.
   const notice = await page.locator(".esco-toast").innerText().catch(() => "");
@@ -70,7 +69,9 @@ try {
   // Export the imported project back to review-only L5X, then re-import that generated file.
   const [l5xDownload] = await Promise.all([
     page.waitForEvent("download"),
-    ribbonButton(page, "Export L5X").click(),
+    page.locator('.esco-ribbon__tab:has-text("File")').click().then(() =>
+      page.locator('.esco-ribbon-menu__item:has-text("Export L5X")').click()
+    ),
   ]);
   await l5xDownload.saveAs(exportedPath);
   const generatedL5X = readFileSync(exportedPath, "utf-8");
@@ -79,11 +80,11 @@ try {
 
   await page.reload({ waitUntil: "networkidle" });
   await importL5XPath(page, exportedPath);
-  await page.locator('.esco-titlebar__project:has-text("DemoController")').waitFor({ timeout: 8000 });
+  await page.locator('.esco-titlebar__name:has-text("DemoController")').waitFor({ timeout: 8000 });
   check("generated L5X re-imports successfully", true);
 
   // Open the imported routine.
-  await page.locator('button:has-text("MainRoutine")').first().click();
+  await page.locator('.esco-tree__node--routine:has-text("MainRoutine")').first().click();
   await page.waitForFunction(() => document.querySelectorAll(".esco-lad__rung").length === 4);
   check("imported routine opens with 4 rungs", true);
   const operands = await page.locator("input.esco-lad__operand").evaluateAll((els) => els.map((e) => e.value));
@@ -91,12 +92,46 @@ try {
     JSON.stringify(operands));
   const unsupportedBox = page.locator(".esco-lad__box--unsupported:has-text('XUNKNOWN')").first();
   check("unknown unsupported instruction renders read-only", (await unsupportedBox.count()) === 1);
-  await unsupportedBox.click();
-  await page.locator(".esco-props").waitFor({ timeout: 5000 });
-  check("unknown unsupported instruction properties are labelled", /Unknown unsupported/.test(await page.locator(".esco-props").innerText()));
+  const unsupportedTitle = await unsupportedBox.getAttribute("title");
+  check("unknown unsupported instruction is labelled for review", /unsupported/i.test(unsupportedTitle ?? ""), unsupportedTitle ?? "");
+  const floatingTitles = await page.locator(".esco-lad__box").evaluateAll((boxes) =>
+    boxes.map((box) => ({
+      type: box.querySelector(".esco-lad__box-name")?.textContent?.trim() ?? "",
+      title: box.querySelector(".esco-lad__box-title")?.textContent?.trim() ?? "",
+    })),
+  );
+  check(
+    "generic ladder boxes do not float source operands as titles",
+    floatingTitles.some((box) => box.type === "TON" && box.title === "Timer1") &&
+      floatingTitles.some((box) => box.type === "MOV" && box.title === "") &&
+      floatingTitles.some((box) => box.type === "XUNKNOWN" && box.title === ""),
+    JSON.stringify(floatingTitles),
+  );
+  const unsupportedChrome = await unsupportedBox.evaluate((box) => {
+    const boxStyles = getComputedStyle(box);
+    const name = box.querySelector(".esco-lad__box-name");
+    const operand = box.querySelector(".esco-lad__operand");
+    return {
+      borderStyle: boxStyles.borderStyle,
+      borderColor: boxStyles.borderColor,
+      backgroundColor: boxStyles.backgroundColor,
+      nameColor: name ? getComputedStyle(name).color : "",
+      operandColor: operand ? getComputedStyle(operand).color : "",
+    };
+  });
+  check(
+    "unknown unsupported instruction preserves plain Studio ladder box chrome",
+    unsupportedChrome.borderStyle === "solid" &&
+      unsupportedChrome.borderColor === "rgb(17, 17, 17)" &&
+      unsupportedChrome.backgroundColor === "rgb(255, 255, 255)" &&
+      unsupportedChrome.nameColor === "rgb(17, 17, 17)" &&
+      unsupportedChrome.operandColor === "rgb(17, 17, 17)",
+    JSON.stringify(unsupportedChrome),
+  );
   await page.screenshot({ path: join(here, "l1-imported.png") });
 
   // Simulate: StartPB on, then scan (4× to let TON reach 1000ms).
+  await openWatchPanel(page);
   await page.locator('.esco-watch tr:has-text("StartPB") button:has-text("Toggle")').click();
   for (let i = 0; i < 4; i++) {
     await page.locator('button:has-text("Scan Once")').click();

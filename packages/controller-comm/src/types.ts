@@ -66,6 +66,18 @@ export interface TransportCapabilities {
   simulation: boolean;
   /** Can this transport read live tag values (real reads, or simulated reads). */
   canRead: boolean;
+  /** Can this transport browse a real controller network/path tree. */
+  canBrowseNetwork?: boolean;
+  /** Can this transport select or reuse a real controller communication path. */
+  canSelectPath?: boolean;
+  /** Can this transport inspect real path/route diagnostics. */
+  canPathDiagnostics?: boolean;
+  /** Can this transport upload/read a controller project image. */
+  canUpload?: boolean;
+  /** Can this transport monitor live controller tag values. */
+  canMonitor?: boolean;
+  /** Can this transport read live fault/status diagnostics. */
+  canReadFaults?: boolean;
   /**
    * Can this transport write to a controller? Even when true, writes still
    * require `verified` and explicit confirmation — capability alone is not
@@ -116,7 +128,29 @@ export interface ControllerTransport {
 }
 
 /** A guarded controller command (the actions that can touch a real controller). */
-export type ControllerCommandKind = "upload" | "download" | "online-edit" | "go-online" | "monitor";
+export type ControllerCommandKind =
+  | "network-browser"
+  | "select-recent-path"
+  | "path-diagnostics"
+  | "upload"
+  | "download"
+  | "online-edit"
+  | "test-edits"
+  | "assemble-edits"
+  | "finalize-edits"
+  | "cancel-edits"
+  | "go-online"
+  | "go-offline"
+  | "monitor"
+  | "program-mode"
+  | "run-mode"
+  | "remote-program-mode"
+  | "remote-run-mode"
+  | "test-mode"
+  | "lock-controller"
+  | "clear-faults"
+  | "fault-diagnostics"
+  | "go-to-faults";
 
 export interface ControllerCommand {
   kind: ControllerCommandKind;
@@ -124,11 +158,20 @@ export interface ControllerCommand {
   description: string;
   /** True when carrying this command out would read from / write to real hardware. */
   requiresRealIo: boolean;
-  /** True when this command writes to the controller (download, online edit). */
+  /** True when this command writes to or changes state on the controller. */
   isWrite: boolean;
   /** True when this command must be explicitly confirmed before running. */
   requiresConfirmation: boolean;
 }
+
+/**
+ * How dangerous a command is, for UI badging and the audit trail:
+ * - `read` — reads from the controller, never changes it (browse, monitor, upload).
+ * - `write` — changes controller state but does not overwrite logic (lock, clear faults).
+ * - `destructive` — overwrites the running program or live logic / changes run state
+ *   (download, online edit, mode changes). Always confirmation-gated.
+ */
+export type CommandRisk = "read" | "write" | "destructive";
 
 /** Why a command is unavailable. `null` means it is available to run. */
 export type BlockedReason =
@@ -138,6 +181,7 @@ export type BlockedReason =
   | "not-connected"
   | "safety-unverified"
   | "safety-blocked-state"
+  | "capability-missing"
   | "needs-confirmation"
   | "faulted";
 
@@ -150,6 +194,14 @@ export interface CommandAvailability {
   reason: BlockedReason;
   /** A user-facing explanation of the availability/blocked status. */
   explanation: string;
+  /** Read / write / destructive classification of the command, for UI + audit. */
+  risk: CommandRisk;
+  /**
+   * The exact next setup step required to enable this command (when blocked), or a
+   * confirmation note (when available). Never a vague "coming soon" — always the
+   * concrete action that would unblock it.
+   */
+  nextStep: string;
 }
 
 export type CommandOutcome = "ran" | "blocked";

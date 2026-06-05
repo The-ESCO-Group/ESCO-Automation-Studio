@@ -9,12 +9,17 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "test": "vitest run --root ../.. packages/controller-comm/src",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@esco/shared": "workspace:*"
+    "@esco/shared": "workspace:*",
+    "@esco/soft-controller": "workspace:*"
   },
   "devDependencies": {
+    "@esco/core": "workspace:*",
+    "@esco/ladder": "workspace:*",
+    "@esco/project-actions": "workspace:*",
     "typescript": "^5.7.2",
     "vitest": "^3.0.0"
   }

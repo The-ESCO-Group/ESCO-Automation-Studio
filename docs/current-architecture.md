@@ -16,8 +16,8 @@ apps/web depends on the packages above (never the reverse).
 ### `packages/core`
 The PLC domain model and single source of truth: `PlcProject`, `Controller`,
 `Task`, `Program`, `Routine`, `Tag`, plus the structured data-type catalog
-(`TIMER`/`COUNTER` members, atomic BOOL/DINT/REAL) and factories. `Routine.ladder`
-is `unknown` to avoid a hard dependency on `@esco/ladder`.
+(`TIMER`/`COUNTER`/`CONTROL` members, atomic BOOL/DINT/REAL/STRING) and factories.
+`Routine.ladder` is `unknown` to avoid a hard dependency on `@esco/ladder`.
 
 ### `packages/ladder`
 The semantic ladder AST (`LadderRoutine` → `LadderRung` → `LadderBranch` →
@@ -28,9 +28,9 @@ and immutable edit helpers (`addRung`, `appendNode`, `setOperandValue`,
 
 ### `packages/instructions`
 The instruction registry — the single definition of each instruction (XIC, XIO,
-OTE, TON, CTU, MOV, EQU, GRT, LES): operands (with `direction` + `allowedTypes`),
-runtime `execute`, render style. Plus operand helpers (`isNumericLiteral`,
-`baseTagName`, `isPlainTag`).
+OTE, TON, CTU, MOV, COP/FLL, SQO/SQI/SQL, JMP/LBL, CONCAT/LEN, EQU, GRT, LES): operands (with
+`direction` + `allowedTypes`), runtime `execute`, render style. Plus operand
+helpers (`isNumericLiteral`, `parseNumericLiteral`, `baseTagName`, `isPlainTag`).
 
 ### `packages/simulator`
 The scan-cycle runtime: `TagMemory`, `RungExecutor` (series + parallel + `next`,
@@ -48,9 +48,10 @@ missing main routine, duplicate tags, and registry-driven ladder operand checks
 [project-actions.md](./project-actions.md).
 
 ### `packages/parser-l5x`
-Studio 5000 `.L5X` (XML) import: `parseL5X`, extractors (controller, programs,
-routines, tags), a branch-aware `parseRungText`, and `importL5X` → domain
-project + warnings + summary. Import-only; no L5X export.
+Studio 5000 `.L5X` (XML) import/export: `parseL5X`, extractors (controller,
+programs, routines, tags), a branch-aware `parseRungText`, `importL5X` → domain
+project + warnings + summary, and review-only `exportL5X` generation with
+explicit offline warnings.
 
 ### `packages/project-actions`
 The controlled mutation layer — the only sanctioned way to change a project.
@@ -70,6 +71,7 @@ through `@esco/project-actions`.
 ## Safety boundaries
 
 - No PLC/controller communication, download, or online editing.
-- No `.ACD` editing; only `.plcproj.json` (read/write) and `.L5X` (read).
+- No `.ACD` editing; only `.plcproj.json` (read/write) and review-only `.L5X`
+  import/export.
 - The AI assistant changes the project only through `project-actions`, only on
   explicit user Apply.

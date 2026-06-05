@@ -146,7 +146,7 @@ describe("program-tag rules", () => {
 function controllerProject(opts: {
   controllerTags?: { name: string; type: string; aliasFor?: string }[];
   programTags?: { name: string; type: string }[];
-  udts?: { name: string; members: string[] }[];
+  udts?: { name: string; members: (string | { name: string; dataType: string; dimension?: number })[] }[];
   nodes: LadderNode[];
 }): PlcProject {
   const project = createProject("Test");
@@ -171,7 +171,15 @@ function controllerProject(opts: {
     controller.dataTypes.push({
       id: `udt-${u.name}`,
       name: u.name,
-      members: u.members.map((m) => ({ name: m, dataType: "BOOL" })),
+      members: u.members.map((m) =>
+        typeof m === "string"
+          ? { name: m, dataType: "BOOL" }
+          : {
+              name: m.name,
+              dataType: m.dataType,
+              ...(m.dimension && m.dimension > 0 ? { dimension: m.dimension } : {}),
+            },
+      ),
     });
   }
   project.controllers.push(controller);
@@ -203,6 +211,76 @@ describe("tag scope, members, and aliases", () => {
     expect(createDefaultEngine().run(good).some((f) => f.ruleId === "unknown-member")).toBe(false);
   });
 
+  it("recognises ALARM_DIGITAL/ALARM_ANALOG members, flags unknown ones", () => {
+    // ALMD/ALMA are model-only, but their control tags can be referenced by
+    // ordinary instructions (e.g. XIC of an alarm status bit), which are validated.
+    const good = controllerProject({
+      controllerTags: [
+        { name: "MotorAlarm", type: "ALARM_DIGITAL" },
+        { name: "LevelAlarm", type: "ALARM_ANALOG" },
+      ],
+      nodes: [
+        createNode("XIC", [tagOperand("tag", "MotorAlarm.InAlarm")]),
+        createNode("XIC", [tagOperand("tag", "MotorAlarm.Acked")]),
+        createNode("XIC", [tagOperand("tag", "LevelAlarm.HHInAlarm")]),
+      ],
+    });
+    expect(createDefaultEngine().run(good).some((f) => f.ruleId === "unknown-member")).toBe(false);
+
+    const bad = controllerProject({
+      controllerTags: [{ name: "MotorAlarm", type: "ALARM_DIGITAL" }],
+      nodes: [createNode("XIC", [tagOperand("tag", "MotorAlarm.Nope")])],
+    });
+    expect(createDefaultEngine().run(bad).some((f) => f.ruleId === "unknown-member" && f.message.includes("Nope"))).toBe(true);
+  });
+
+  it("recognises MOTION_INSTRUCTION status members, flags unknown ones", () => {
+    // Motion instructions are model-only, but their Motion Control status tags
+    // are read by ordinary (validated) instructions to sequence motion, e.g. an
+    // XIC of the .DN / .ER status bits after an MAM.
+    const good = controllerProject({
+      controllerTags: [{ name: "MoveCtl", type: "MOTION_INSTRUCTION" }],
+      nodes: [
+        createNode("XIC", [tagOperand("tag", "MoveCtl.DN")]),
+        createNode("XIC", [tagOperand("tag", "MoveCtl.ER")]),
+        createNode("XIC", [tagOperand("tag", "MoveCtl.PC")]),
+      ],
+    });
+    expect(createDefaultEngine().run(good).some((f) => f.ruleId === "unknown-member")).toBe(false);
+
+    const bad = controllerProject({
+      controllerTags: [{ name: "MoveCtl", type: "MOTION_INSTRUCTION" }],
+      nodes: [createNode("XIC", [tagOperand("tag", "MoveCtl.Nope")])],
+    });
+    expect(createDefaultEngine().run(bad).some((f) => f.ruleId === "unknown-member" && f.message.includes("Nope"))).toBe(true);
+  });
+
+  it("recognises EQUIPMENT_PHASE / PHASE_INSTRUCTION members, flags unknown ones", () => {
+    // The equipment-phase blocks (PCMD/PATT/PXRQ/…) are model-only, but the phase
+    // and PXRQ control tags they own are read by ordinary (validated) ladder to
+    // gate sequence flow, e.g. an XIC of MyPhase.Complete or of a PXRQ control's
+    // .DN. Their structures must be modelled so those members are recognised.
+    const good = controllerProject({
+      controllerTags: [
+        { name: "MyPhase", type: "EQUIPMENT_PHASE" },
+        { name: "PhaseReq", type: "PHASE_INSTRUCTION" },
+      ],
+      nodes: [
+        createNode("XIC", [tagOperand("tag", "MyPhase.Running")]),
+        createNode("XIC", [tagOperand("tag", "MyPhase.Complete")]),
+        createNode("XIC", [tagOperand("tag", "PhaseReq.DN")]),
+        createNode("XIC", [tagOperand("tag", "PhaseReq.ER")]),
+      ],
+    });
+    expect(createDefaultEngine().run(good).some((f) => f.ruleId === "unknown-member")).toBe(false);
+
+    const bad = controllerProject({
+      controllerTags: [{ name: "MyPhase", type: "EQUIPMENT_PHASE" }],
+      nodes: [createNode("XIC", [tagOperand("tag", "MyPhase.Nope")])],
+    });
+    expect(createDefaultEngine().run(bad).some((f) => f.ruleId === "unknown-member" && f.message.includes("Nope"))).toBe(true);
+  });
+
   it("flags an unknown member on a UDT tag, accepts a defined one", () => {
     const bad = controllerProject({
       controllerTags: [{ name: "Motor", type: "MotorUdt" }],
@@ -219,6 +297,46 @@ describe("tag scope, members, and aliases", () => {
     expect(createDefaultEngine().run(good).some((f) => f.ruleId === "unknown-member")).toBe(false);
   });
 
+  it("checks UDT member-array bounds and accepts in-range member elements", () => {
+    const bad = controllerProject({
+      controllerTags: [{ name: "Motor", type: "MotorUdt" }],
+      udts: [{ name: "MotorUdt", members: [{ name: "Faults", dataType: "BOOL", dimension: 2 }] }],
+      nodes: [createNode("XIC", [tagOperand("tag", "Motor.Faults[2]")])],
+    });
+    expect(createDefaultEngine().run(bad).some((f) => f.ruleId === "array-index-out-of-range")).toBe(true);
+
+    const good = controllerProject({
+      controllerTags: [{ name: "Motor", type: "MotorUdt" }],
+      udts: [{ name: "MotorUdt", members: [{ name: "Faults", dataType: "BOOL", dimension: 2 }] }],
+      nodes: [createNode("XIC", [tagOperand("tag", "Motor.Faults[1]")])],
+    });
+    const findings = createDefaultEngine().run(good);
+    expect(findings.some((f) => f.ruleId === "array-index-out-of-range")).toBe(false);
+    expect(findings.some((f) => f.ruleId === "unknown-member")).toBe(false);
+  });
+
+  it("validates nested UDT member paths", () => {
+    const bad = controllerProject({
+      controllerTags: [{ name: "Motor", type: "MotorUdt" }],
+      udts: [
+        { name: "MotorUdt", members: [{ name: "Drive", dataType: "DriveUdt" }] },
+        { name: "DriveUdt", members: ["Ready"] },
+      ],
+      nodes: [createNode("XIC", [tagOperand("tag", "Motor.Drive.Bogus")])],
+    });
+    expect(createDefaultEngine().run(bad).some((f) => f.ruleId === "unknown-member" && f.message.includes("Bogus"))).toBe(true);
+
+    const good = controllerProject({
+      controllerTags: [{ name: "Motor", type: "MotorUdt" }],
+      udts: [
+        { name: "MotorUdt", members: [{ name: "Drive", dataType: "DriveUdt" }] },
+        { name: "DriveUdt", members: ["Ready"] },
+      ],
+      nodes: [createNode("XIC", [tagOperand("tag", "Motor.Drive.Ready")])],
+    });
+    expect(createDefaultEngine().run(good).some((f) => f.ruleId === "unknown-member")).toBe(false);
+  });
+
   it("resolves an alias to its base type (no undefined / type mismatch)", () => {
     const project = controllerProject({
       controllerTags: [
@@ -229,6 +347,21 @@ describe("tag scope, members, and aliases", () => {
     });
     const findings = createDefaultEngine().run(project);
     expect(findings.some((f) => f.ruleId === "undefined-tag")).toBe(false);
+    expect(findings.some((f) => f.ruleId === "operand-type-mismatch")).toBe(false);
+  });
+
+  it("resolves an alias to a UDT member path for operand type checks", () => {
+    const project = controllerProject({
+      controllerTags: [
+        { name: "Motor", type: "MotorUdt" },
+        { name: "MotorRun", type: "BOOL", aliasFor: "Motor.Run" },
+      ],
+      udts: [{ name: "MotorUdt", members: ["Run"] }],
+      nodes: [createNode("XIC", [tagOperand("tag", "MotorRun")])],
+    });
+    const findings = createDefaultEngine().run(project);
+    expect(findings.some((f) => f.ruleId === "undefined-tag")).toBe(false);
+    expect(findings.some((f) => f.ruleId === "unknown-member")).toBe(false);
     expect(findings.some((f) => f.ruleId === "operand-type-mismatch")).toBe(false);
   });
 });
@@ -263,5 +396,73 @@ describe("operand validation for the new instructions", () => {
     expect(findings.filter((f) => f.ruleId === "operand-type-mismatch")).toHaveLength(0);
     expect(findings.filter((f) => f.ruleId === "undefined-tag")).toHaveLength(0);
     expect(findings.filter((f) => f.ruleId === "missing-operand")).toHaveLength(0);
+  });
+});
+
+describe("JSR/SBR/RET parameter validation", () => {
+  function projectWithSubroutine(
+    mainNodes: LadderNode[],
+    subRungs: LadderNode[][],
+    tags: { name: string; type: string }[],
+  ): PlcProject {
+    const project = createProject("RoutineParams");
+    const controller = createController(project.id, "Ctrl");
+    const program = createProgram(controller.id, "MainProgram");
+    const main = createRoutine(program.id, "Main", "ladder");
+    const sub = createRoutine(program.id, "Sub", "ladder");
+    program.mainRoutineId = main.id;
+
+    const mainLadder = createLadderRoutine();
+    mainLadder.rungs.push(createRung(mainLadder.id, 0, mainNodes));
+    main.ladder = mainLadder;
+
+    const subLadder = createLadderRoutine();
+    subRungs.forEach((nodes, index) => subLadder.rungs.push(createRung(subLadder.id, index, nodes)));
+    sub.ladder = subLadder;
+
+    program.routines.push(main, sub);
+    controller.programs.push(program);
+    for (const tag of tags) controller.controllerTags.push(createTag(controller.id, tag.name, tag.type));
+    project.controllers.push(controller);
+    return project;
+  }
+
+  it("accepts matching Studio-style JSR input count, SBR inputs, and RET returns", () => {
+    const project = projectWithSubroutine(
+      [createNode("JSR", [
+        tagOperand("routine", "Sub"),
+        tagOperand("op1", "2"),
+        tagOperand("op2", "A"),
+        tagOperand("op3", "B"),
+        tagOperand("op4", "Result"),
+      ])],
+      [
+        [createNode("SBR", [tagOperand("op0", "InA"), tagOperand("op1", "InB")])],
+        [createNode("RET", [tagOperand("op0", "Sum")])],
+      ],
+      ["A", "B", "Result", "InA", "InB", "Sum"].map((name) => ({ name, type: "DINT" })),
+    );
+    const findings = createDefaultEngine().run(project);
+    expect(findings.some((f) => f.ruleId === "instruction-validation")).toBe(false);
+    expect(findings.some((f) => f.ruleId === "undefined-tag")).toBe(false);
+  });
+
+  it("flags JSR/SBR count mismatches and literal return destinations", () => {
+    const project = projectWithSubroutine(
+      [createNode("JSR", [
+        tagOperand("routine", "Sub"),
+        tagOperand("op1", "1"),
+        tagOperand("op2", "A"),
+        tagOperand("op3", "5"),
+      ])],
+      [
+        [createNode("SBR", [tagOperand("op0", "InA"), tagOperand("op1", "InB")])],
+        [createNode("RET", [tagOperand("op0", "Sum")])],
+      ],
+      ["A", "InA", "InB", "Sum"].map((name) => ({ name, type: "DINT" })),
+    );
+    const findings = createDefaultEngine().run(project);
+    expect(findings.some((f) => f.ruleId === "instruction-validation" && f.message.includes("SBR accepts 2"))).toBe(true);
+    expect(findings.some((f) => f.ruleId === "invalid-write-target" && f.message.includes('"5"'))).toBe(true);
   });
 });

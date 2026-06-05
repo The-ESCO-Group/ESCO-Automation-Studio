@@ -20,11 +20,12 @@ export * from "./exportL5X";
  */
 export function importL5X(
   xml: string,
-  registry: InstructionRegistry = createDefaultRegistry(),
+  registry?: InstructionRegistry,
 ): ImportResult {
   const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
   const start = now();
-  const result = toDomainProject(parseL5X(xml), registry);
+  const root = parseL5X(xml);
+  const result = toDomainProject(root, registry ?? createDefaultRegistry());
   result.summary.durationMs = Math.round((now() - start) * 100) / 100;
   return result;
 }

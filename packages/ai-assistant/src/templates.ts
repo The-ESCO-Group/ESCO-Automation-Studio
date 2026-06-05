@@ -30,7 +30,7 @@ function createHmiScreenAction(name: string, screenId = createId("hmiscreen")): 
     id: createId("act"),
     kind: "createHmiScreen",
     label: `Create HMI screen ${name}`,
-    description: `Create a View Designer screen named ${name}.`,
+    description: `Create an HMI screen named ${name}.`,
     input: { name, screenId },
   };
 }
@@ -40,7 +40,7 @@ function createHmiPopupAction(name: string, popupId = createId("hmipopup")): Pro
     id: createId("act"),
     kind: "createHmiPopup",
     label: `Create HMI popup ${name}`,
-    description: `Create a View Designer popup named ${name}.`,
+    description: `Create an HMI popup named ${name}.`,
     input: { name, popupId },
   };
 }
@@ -126,6 +126,110 @@ export function motorStarterPlan(project: PlcProject, selection?: AssistantSelec
   );
 }
 
+export function motorInterlockPlan(project: PlcProject, selection?: AssistantSelection): AssistantPlan {
+  const routineId = resolveRoutineId(project, selection) ?? "";
+  const actions = [
+    ...missingTagActions(project, [
+      ["StartPB", "BOOL"],
+      ["StopPB", "BOOL"],
+      ["EStopOK", "BOOL"],
+      ["OverloadOK", "BOOL"],
+      ["PermissiveOK", "BOOL"],
+      ["MotorRun", "BOOL"],
+    ]),
+    addRungAction(
+      routineId,
+      "[XIC(StartPB),XIC(MotorRun)]XIO(StopPB)XIC(EStopOK)XIC(OverloadOK)XIC(PermissiveOK)OTE(MotorRun)",
+      "Seal-in motor starter with stop, E-stop, overload, and permissive interlocks",
+    ),
+  ];
+  return plan(
+    "Motor starter with interlocks",
+    "Creates a seal-in motor starter that holds MotorRun only while StopPB is clear and EStopOK, OverloadOK, and PermissiveOK are true.",
+    actions,
+    routineWarnings(routineId),
+  );
+}
+
+export function debounceInputPlan(project: PlcProject, selection?: AssistantSelection): AssistantPlan {
+  const routineId = resolveRoutineId(project, selection) ?? "";
+  const actions = [
+    ...missingTagActions(project, [
+      ["RawInput", "BOOL"],
+      ["DebounceTimer", "TIMER"],
+      ["DebouncedInput", "BOOL"],
+    ]),
+    addRungAction(routineId, "XIC(RawInput)TON(DebounceTimer,500)", "Debounce RawInput for 500 ms"),
+    addRungAction(
+      routineId,
+      "XIC(DebounceTimer.DN)OTE(DebouncedInput)",
+      "DebouncedInput follows the timer done bit",
+    ),
+  ];
+  return plan(
+    "Debounce input",
+    "Creates a 500 ms on-delay debounce: RawInput must remain true before DebouncedInput turns on.",
+    actions,
+    routineWarnings(routineId),
+  );
+}
+
+export function motorStartCounterPlan(project: PlcProject, selection?: AssistantSelection): AssistantPlan {
+  const routineId = resolveRoutineId(project, selection) ?? "";
+  const actions = [
+    ...missingTagActions(project, [
+      ["MotorRun", "BOOL"],
+      ["MotorStartONS", "BOOL"],
+      ["MotorStartCounter", "COUNTER"],
+      ["StartsDone", "BOOL"],
+    ]),
+    addRungAction(
+      routineId,
+      "XIC(MotorRun)ONS(MotorStartONS)CTU(MotorStartCounter,100)",
+      "Count one motor start on each rising edge of MotorRun",
+    ),
+    addRungAction(
+      routineId,
+      "XIC(MotorStartCounter.DN)OTE(StartsDone)",
+      "StartsDone follows MotorStartCounter.DN",
+    ),
+  ];
+  return plan(
+    "Motor start counter",
+    "Creates an ONS-backed start counter so MotorStartCounter increments once per MotorRun rising edge, not once per scan.",
+    actions,
+    routineWarnings(routineId),
+  );
+}
+
+export function unitConversionPlan(project: PlcProject, selection?: AssistantSelection): AssistantPlan {
+  const routineId = resolveRoutineId(project, selection) ?? "";
+  const actions = [
+    ...missingTagActions(project, [
+      ["ConvertToF", "BOOL"],
+      ["ConvertToC", "BOOL"],
+      ["TempC", "REAL"],
+      ["TempF", "REAL"],
+    ]),
+    addRungAction(
+      routineId,
+      "XIC(ConvertToF)CPT(TempF,TempC*1.8+32)",
+      "Convert Celsius to Fahrenheit",
+    ),
+    addRungAction(
+      routineId,
+      "XIC(ConvertToC)CPT(TempC,(TempF-32)*0.5555555556)",
+      "Convert Fahrenheit to Celsius",
+    ),
+  ];
+  return plan(
+    "Temperature unit conversion",
+    "Creates CPT-based Celsius/Fahrenheit conversion rungs: TempF = TempC * 1.8 + 32 and TempC = (TempF - 32) * 5 / 9.",
+    actions,
+    routineWarnings(routineId),
+  );
+}
+
 export function timerPlan(project: PlcProject, selection?: AssistantSelection): AssistantPlan {
   const routineId = resolveRoutineId(project, selection) ?? "";
   const actions = [
@@ -190,7 +294,7 @@ export function hmiScreenPlan(project: PlcProject, name = "Overview"): Assistant
     "Create HMI screen",
     exists
       ? `HMI screen "${name}" already exists; no screen creation is needed.`
-      : `Create a reviewed View Designer screen named "${name}".`,
+      : `Create a reviewed HMI screen named "${name}".`,
     actions,
   );
 }
@@ -203,7 +307,7 @@ export function hmiPopupPlan(project: PlcProject, name = "Details"): AssistantPl
     "Create HMI popup",
     exists
       ? `HMI popup "${name}" already exists; no popup creation is needed.`
-      : `Create a reviewed View Designer popup named "${name}".`,
+      : `Create a reviewed HMI popup named "${name}".`,
     actions,
   );
 }

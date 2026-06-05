@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createDefaultRegistry,
-  isNumericLiteral,
+  parseNumericLiteral,
   type InstructionRuntimeContext,
 } from "@esco/instructions";
 import {
@@ -35,8 +35,10 @@ function contextFor(
     writeBool: (path, value) => memory.writeBool(path, value),
     readNumber: (path) => memory.readNumber(path),
     writeNumber: (path, value) => memory.write(path, value),
+    readString: (path) => String(memory.read(path) ?? ""),
+    writeString: (path, value) => memory.write(path, value),
     numeric: (operand) =>
-      isNumericLiteral(operand) ? Number(operand.trim()) : memory.readNumber(operand.trim()),
+      parseNumericLiteral(operand) ?? memory.readNumber(operand.trim()),
   };
 }
 
@@ -110,6 +112,43 @@ describe("OTE - Output Energize", () => {
     memory.writeBool("Out", true);
     expect(ote.execute(node, contextFor(memory, false))).toBe(false);
     expect(memory.readBool("Out")).toBe(false);
+  });
+});
+
+describe("TagMemory - indirect array subscripts", () => {
+  it("resolves tag-driven reads and writes to the concrete array element", () => {
+    const memory = new TagMemory();
+    memory.write("Index", 1);
+    memory.writeBool("Flags[1]", true);
+
+    expect(memory.readBool("Flags[Index]")).toBe(true);
+
+    memory.writeBool("Outputs[Index]", true);
+    expect(memory.readBool("Outputs[1]")).toBe(true);
+  });
+
+  it("resolves multi-dimensional and member-driven subscripts during a scan", () => {
+    const memory = new TagMemory();
+    memory.write("Row", 1);
+    memory.write("Selector.Col", 2);
+    memory.writeBool("Matrix[1,2]", true);
+    const executor = new RungExecutor(registry);
+    const rung = singleRung([node("XIC", "Matrix[Row,Selector.Col]"), node("OTE", "Out")]);
+
+    executor.execute(rung, memory);
+
+    expect(memory.readBool("Out")).toBe(true);
+  });
+
+  it("evaluates arithmetic subscript expressions against live tag memory", () => {
+    const memory = new TagMemory();
+    memory.write("Index", 1);
+    memory.writeBool("Flags[2]", true);
+
+    expect(memory.readBool("Flags[Index+1]")).toBe(true);
+
+    memory.writeBool("Outputs[Index+1]", true);
+    expect(memory.readBool("Outputs[2]")).toBe(true);
   });
 });
 
@@ -282,6 +321,14 @@ describe("MOV - Move", () => {
     memory.write("Src", 42);
     mov.execute(node("MOV", "Src", "Dest"), contextFor(memory, true));
     expect(memory.readNumber("Dest")).toBe(42);
+  });
+
+  it("parses Logix radix literals as numeric sources", () => {
+    const memory = new TagMemory();
+    mov.execute(node("MOV", "16#FF", "Dest"), contextFor(memory, true));
+    expect(memory.readNumber("Dest")).toBe(255);
+    mov.execute(node("MOV", "-2#1010", "Dest"), contextFor(memory, true));
+    expect(memory.readNumber("Dest")).toBe(-10);
   });
 });
 

@@ -22,9 +22,10 @@ function runtimeFor(routine: LadderRoutine): PlcRuntime {
 
 describe("data-movement instructions are registered", () => {
   it("registers COP/CPS/FLL/MVM so they parse, validate, and simulate (not 'unsupported')", () => {
-    for (const type of ["COP", "CPS", "FLL", "MVM"]) {
+    for (const type of ["COP", "CPS", "FLL", "MVM", "MVMT"]) {
       expect(registry.has(type)).toBe(true);
       expect(registry.get(type)?.category).toBe("move");
+      expect(registry.get(type)?.modelOnly).toBeUndefined();
     }
   });
 });
@@ -43,6 +44,19 @@ describe("COP / CPS — block copy", () => {
     expect(rt.readTag("Dst[3]")).toBe(false); // untouched (missing => default)
   });
 
+  it("preserves BOOL and STRING element values", () => {
+    const rt = runtimeFor(routineWith("COP", [["source", "Src"], ["dest", "Dst"], ["length", "3"]]));
+    rt.writeTag("Src[0]", true);
+    rt.writeTag("Src[1]", "ready");
+    rt.writeTag("Src[2]", false);
+
+    rt.scanOnce(0);
+
+    expect(rt.readTag("Dst[0]")).toBe(true);
+    expect(rt.readTag("Dst[1]")).toBe("ready");
+    expect(rt.readTag("Dst[2]")).toBe(false);
+  });
+
   it("honors an explicit start index on both sides (CPS behaves like COP)", () => {
     const rt = runtimeFor(routineWith("CPS", [["source", "Src[2]"], ["dest", "Dst[1]"], ["length", "2"]]));
     rt.writeTag("Src[2]", 7);
@@ -50,6 +64,17 @@ describe("COP / CPS — block copy", () => {
     rt.scanOnce(0);
     expect(rt.readTag("Dst[1]")).toBe(7);
     expect(rt.readTag("Dst[2]")).toBe(8);
+  });
+
+  it("honors expression-driven indirect start indices on both sides", () => {
+    const rt = runtimeFor(routineWith("COP", [["source", "Src[SrcIndex+1]"], ["dest", "Dst[DstIndex+1]"], ["length", "2"]]));
+    rt.writeTag("SrcIndex", 2);
+    rt.writeTag("DstIndex", 1);
+    rt.writeTag("Src[3]", 8);
+    rt.writeTag("Src[4]", 9);
+    rt.scanOnce(0);
+    expect(rt.readTag("Dst[2]")).toBe(8);
+    expect(rt.readTag("Dst[3]")).toBe(9);
   });
 
   it("does not copy when the rung is false", () => {
@@ -78,6 +103,29 @@ describe("FLL — fill", () => {
     expect(rt.readTag("Buf[3]")).toBe(42);
     expect(rt.readTag("Buf[4]")).toBe(false); // beyond Length
   });
+
+  it("fills BOOL destinations from a BOOL tag without numeric coercion", () => {
+    const rt = runtimeFor(routineWith("FLL", [["source", "Flag"], ["dest", "BoolBuf"], ["length", "2"]]));
+    rt.writeTag("Flag", true);
+
+    rt.scanOnce(0);
+
+    expect(rt.readTag("BoolBuf[0]")).toBe(true);
+    expect(rt.readTag("BoolBuf[1]")).toBe(true);
+  });
+
+  it("fills STRING destinations from literals and tags without numeric coercion", () => {
+    const literal = runtimeFor(routineWith("FLL", [["source", "'hold'"], ["dest", "TextBuf"], ["length", "2"]]));
+    literal.scanOnce(0);
+    expect(literal.readTag("TextBuf[0]")).toBe("hold");
+    expect(literal.readTag("TextBuf[1]")).toBe("hold");
+
+    const tagged = runtimeFor(routineWith("FLL", [["source", "Message"], ["dest", "TextBuf"], ["length", "2"]]));
+    tagged.writeTag("Message", "ready");
+    tagged.scanOnce(0);
+    expect(tagged.readTag("TextBuf[0]")).toBe("ready");
+    expect(tagged.readTag("TextBuf[1]")).toBe("ready");
+  });
 });
 
 describe("MVM — masked move", () => {
@@ -88,6 +136,29 @@ describe("MVM — masked move", () => {
     rt.scanOnce(0);
     // (0x00FF & ~0x0F0F) | (0xAA55 & 0x0F0F) = 0x00F0 | 0x0A05 = 0x0AF5
     expect(rt.readTag("Word")).toBe(0x0af5);
+  });
+});
+
+describe("MVMT — masked move with target", () => {
+  it("executes the target-style variant instead of preserving it as model-only", () => {
+    const rt = runtimeFor(routineWith("MVMT", [["source", "43605"], ["mask", "3855"], ["target", "Word"]]));
+    rt.writeTag("Word", 0x00ff);
+    rt.scanOnce(0);
+    expect(rt.readTag("Word")).toBe(0x0af5);
+  });
+
+  it("does not write the target when the rung is false", () => {
+    const ladder = createLadderRoutine();
+    ladder.rungs.push(
+      createRung(ladder.id, 0, [
+        createNode("XIC", [tagOperand("operand", "Enable")]),
+        createNode("MVMT", [tagOperand("source", "43605"), tagOperand("mask", "3855"), tagOperand("target", "Word")]),
+      ]),
+    );
+    const rt = runtimeFor(ladder);
+    rt.writeTag("Word", 0x00ff);
+    rt.scanOnce(0);
+    expect(rt.readTag("Word")).toBe(0x00ff);
   });
 });
 

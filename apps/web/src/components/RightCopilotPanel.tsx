@@ -6,10 +6,12 @@ import type { AiProvider } from "../ai-profile";
 import type { Selection } from "../selection";
 import type { TagValues } from "../simulation";
 import { CopilotLiveAgent } from "./CopilotLiveAgent";
+import { HelpPanel } from "./HelpPanel";
 import { HistoryPanel } from "./HistoryPanel";
+import { ModelSummaryPanel } from "./ModelSummaryPanel";
 import { PropertiesPanel } from "./PropertiesPanel";
 
-export type CopilotTab = "chat" | "history";
+export type CopilotTab = "chat" | "model" | "history" | "help";
 
 interface Props {
   tab: CopilotTab;
@@ -21,6 +23,7 @@ interface Props {
   values: TagValues;
   findings: ValidationFinding[];
   selectedRoutineId?: string;
+  openRoutineName?: string;
   aiProvider?: AiProvider;
   modelId?: string;
   apiKey?: string;
@@ -43,6 +46,7 @@ export function RightCopilotPanel({
   values,
   findings,
   selectedRoutineId,
+  openRoutineName,
   aiProvider,
   modelId,
   apiKey,
@@ -78,10 +82,24 @@ export function RightCopilotPanel({
         </button>
         <button
           type="button"
+          className={`esco-copilot__tab${tab === "model" ? " is-active" : ""}`}
+          onClick={() => onTabChange("model")}
+        >
+          Model
+        </button>
+        <button
+          type="button"
           className={`esco-copilot__tab${tab === "history" ? " is-active" : ""}`}
           onClick={() => onTabChange("history")}
         >
           History
+        </button>
+        <button
+          type="button"
+          className={`esco-copilot__tab${tab === "help" ? " is-active" : ""}`}
+          onClick={() => onTabChange("help")}
+        >
+          Help
         </button>
       </nav>
 
@@ -100,11 +118,15 @@ export function RightCopilotPanel({
               empty={empty}
             />
           </div>
-        ) : (
+        ) : tab === "model" ? (
+          <ModelSummaryPanel project={project} findings={findings} openRoutineName={openRoutineName} />
+        ) : tab === "history" ? (
           <div className="esco-copilot__history">
             <PropertiesPanel project={project} selection={selection} values={values} findings={findings} />
             <HistoryPanel undoDepth={undoDepth} redoDepth={redoDepth} dirty={dirty} activity={activity} />
           </div>
+        ) : (
+          <HelpPanel />
         )}
       </div>
     </section>

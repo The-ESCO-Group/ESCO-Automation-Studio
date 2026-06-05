@@ -1,25 +1,26 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
-import { arrayElementNames, isStructuredType, memberDefs, type PlcProject, type Routine } from "@esco/core";
-import {
-  baseTagName,
-  createDefaultRegistry,
-  isNumericLiteral,
-  type InstructionCategory,
-  type InstructionDefinition,
-} from "@esco/instructions";
-import { routineNodes, type LadderBranch, type LadderNode, type LadderRung, type LadderRoutine } from "@esco/ladder";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { arrayDimensionsOf, arrayElementNames, isStructuredType, memberDefs, type AddOnInstruction, type PlcProject, type Routine } from "@esco/core";
+import { baseTagName } from "@esco/instructions";
+import { routineNodes, rungToText, type LadderBranch, type LadderNode, type LadderRung, type LadderRoutine } from "@esco/ladder";
+import { analyzeStructuredText } from "@esco/parser-l5x";
+import { reviewFbdRoutineSource, type FbdReviewBlock, type FbdReviewParameter } from "@esco/project-actions";
 import type { ValidationFinding } from "@esco/validator";
-import { tagExists } from "../project-edit";
-import { capList } from "../windowing";
-import { RungDiagram } from "./LadderView";
+import { getTags } from "../project-edit";
+import { virtualWindow } from "../windowing";
+import type { ControllerCommunicationAction } from "../controller-session";
+import { RungDiagram, type LadderDisplayOptions, type OperandMetadata } from "./LadderView";
 
-const registry = createDefaultRegistry();
-
-/** Above this many rungs the editor collapses to the first N until "Show all". */
+/** Above this many rungs the editor renders only the visible scroll window. */
 const LARGE_ROUTINE_LIMIT = 100;
+const VIRTUAL_RUNG_HEIGHT = 154;
+const VIRTUAL_RUNG_OVERSCAN = 8;
+type OfflineEditLifecycleState = "none" | "test" | "assembled" | "finalized" | "canceled";
 
-/** Instructions offered inside a branch leg (input conditioning + simple output). */
-const BRANCH_INSTRUCTIONS = ["XIC", "XIO", "OTE"];
+interface SuggestionMember {
+  name: string;
+  dimension?: number;
+  dimensions?: number[];
+}
 
 interface Props {
   project: PlcProject;
@@ -33,141 +34,54 @@ interface Props {
   onAddRung: () => void;
   onDeleteRung: (rungId: string) => void;
   onCopyRung: (rungId: string) => void;
-  onDuplicateRung: (rungId: string) => void;
+  onCutRung: (rungId: string) => void;
   onPasteRung: () => void;
   canPaste: boolean;
-  onAddInstruction: (rungId: string, instructionType: string) => void;
-  onEditOperand: (rungId: string, nodeId: string, index: number, value: string) => void;
+  onDuplicateRung: (rungId: string) => void;
+  /** Insert a new empty rung directly above/below the target rung. */
+  onInsertRung?: (rungId: string, position: "above" | "below") => void;
+  /** Paste the clipboard rung directly above/below the target rung. */
+  onPasteRungRelative?: (rungId: string, position: "above" | "below") => void;
+  /** Add another empty parallel leg to the rung's branch group. */
+  onAddBranchLeg?: (rungId: string, branchId?: string) => void;
+  /** Remove an empty parallel branch leg from the rung. */
+  onRemoveBranchLeg?: (rungId: string, branchId: string) => void;
+  /** Validate just this rung (offline rung verify). */
+  onVerifyRung?: (rungId: string) => void;
+  /** Open cross-reference results for the tags used on this rung. */
+  onCrossReferenceRung?: (rungId: string) => void;
+  /** Insert a new instruction immediately before/after an existing one. */
+  onInsertInstruction?: (rungId: string, nodeId: string, position: "before" | "after") => void;
+  /** Clear a simulated force on a tag. */
+  onUnforceTag?: (tagName: string) => void;
+  onSetRungComment: (rungId: string, comment: string, routineId?: string) => void;
+  onEditOperand: (rungId: string, nodeId: string, index: number, value: string, routineId?: string) => void;
   onRemoveInstruction: (rungId: string, nodeId: string) => void;
+  /** Open the Add Ladder Element picker for a specific empty branch leg. */
+  onPickInstructionForBranch?: (rungId: string, branchId: string) => void;
   onCreateTag: (name: string, dataType: string) => void;
+  /** Open the New Tag dialog prefilled from a missing operand (name + inferred type). */
+  onCreateTagFromOperand?: (instructionType: string, baseName: string, operandIndex?: number) => void;
+  /** Open the Add Ladder Element picker for the given rung. */
+  onAddLadderElement?: (rungId: string) => void;
   onSelectRung: (rungId: string) => void;
   onSelectNode: (rungId: string, nodeId: string) => void;
-  onSetRungComment: (rungId: string, comment: string) => void;
-  onAddParallelBranch: (rungId: string) => void;
-  onAddBranchLeg: (rungId: string) => void;
-  onRemoveBranchLeg: (rungId: string, branchId: string) => void;
-  onAddToBranch: (rungId: string, branchId: string, instructionType: string) => void;
-  onSetStructuredTextSource: (routineId: string, source: string) => void;
-  onOpenRoutine?: (routineId: string) => void;
-}
-
-/**
- * Branch-editing controls for the selected rung. Presents the rung's parallel
- * legs (the main line plus each alternate) with per-leg add buttons, so a
- * seal-in / OR structure can be built by hand. Single-level parallels only.
- */
-interface BranchRow {
-  branch: LadderBranch;
-  depth: number;
-  /** A parallel leg (vs the main line) — only legs can be removed. */
-  isLeg: boolean;
-}
-
-/** Flatten the rung's branch tree into editable rows (main line, then nested legs). */
-function collectBranchRows(root: LadderBranch): BranchRow[] {
-  const rows: BranchRow[] = [];
-  const walk = (branch: LadderBranch, depth: number, isLeg: boolean) => {
-    rows.push({ branch, depth, isLeg });
-    for (const leg of branch.parallelBranches ?? []) walk(leg, depth + 1, true);
-  };
-  walk(root, 0, false);
-  return rows;
-}
-
-function BranchEditor({
-  rung,
-  onAddParallelBranch,
-  onAddBranchLeg,
-  onRemoveBranchLeg,
-  onAddToBranch,
-}: {
-  rung: LadderRung;
   onAddParallelBranch: (rungId: string, branchId?: string) => void;
-  onAddBranchLeg: (rungId: string, branchId?: string) => void;
-  onRemoveBranchLeg: (rungId: string, branchId: string) => void;
-  onAddToBranch: (rungId: string, branchId: string, instructionType: string) => void;
-}) {
-  const rows = collectBranchRows(rung.root);
-
-  return (
-    <div className="esco-branch-edit" onClick={(event) => event.stopPropagation()}>
-      <div className="esco-branch-edit__head">
-        <span className="esco-branch-edit__title">Branches</span>
-        <span className="esco-branch-edit__hint">
-          + Parallel makes a seal-in / OR branch; add a parallel inside a leg to nest.
-        </span>
-      </div>
-
-      <div className="esco-branch-edit__legs">
-        {rows.map((row) => {
-          const { branch, depth, isLeg } = row;
-          const empty =
-            branch.nodes.length === 0 && !(branch.parallelBranches?.length ?? 0) && !branch.next;
-          const hasParallel = (branch.parallelBranches?.length ?? 0) > 0;
-          return (
-            <div
-              className="esco-branch-leg"
-              key={branch.id}
-              style={{ marginLeft: `${depth * 16}px` }}
-            >
-              <span className="esco-branch-leg__name">{depth === 0 ? "Main line" : "Leg"}</span>
-              {branch.nodes.length === 0 ? (
-                <span className="esco-branch-leg__empty">Empty branch leg — add instruction</span>
-              ) : null}
-              {BRANCH_INSTRUCTIONS.map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  className="esco-btn esco-btn--instr"
-                  onClick={() => onAddToBranch(rung.id, branch.id, type)}
-                >
-                  + {type}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="esco-btn esco-btn--instr"
-                title={depth === 0 ? "Add a parallel branch" : "Add a nested parallel branch"}
-                onClick={() => onAddParallelBranch(rung.id, branch.id)}
-              >
-                + Parallel
-              </button>
-              {hasParallel ? (
-                <button
-                  type="button"
-                  className="esco-btn esco-btn--instr"
-                  onClick={() => onAddBranchLeg(rung.id, branch.id)}
-                >
-                  + Leg
-                </button>
-              ) : null}
-              {isLeg ? (
-                <button
-                  type="button"
-                  className="esco-btn esco-btn--danger"
-                  disabled={!empty}
-                  title={empty ? "Remove this leg" : "Only empty legs can be removed"}
-                  onClick={() => onRemoveBranchLeg(rung.id, branch.id)}
-                >
-                  Remove
-                </button>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-interface UndefinedTag {
-  name: string;
-  inferredType: string;
-}
-
-interface InstructionGroup {
-  label: string;
-  definitions: InstructionDefinition[];
+  onSetStructuredTextSource: (routineId: string, source: string) => void;
+  onEditTagProperties?: (tagName: string) => void;
+  onWatchTag?: (tagName: string) => void;
+  onCrossReferenceTag?: (tagName: string) => void;
+  onForceTag?: (tagName: string) => void;
+  onToggleBit?: (tagName: string) => void;
+  onTrendTag?: (tagName: string) => void;
+  onInstructionHelp?: (instructionType: string, operand: string) => void;
+  onOpenRoutine?: (routineId: string) => void;
+  onCloseRoutine?: (routineId: string) => void;
+  onControllerAction?: (action: ControllerCommunicationAction) => void;
+  /** Session-local offline review state for imported pending online edits. */
+  editState?: OfflineEditLifecycleState;
+  /** True when the ESCO Virtual Controller is scanning and project edits are read-only. */
+  editLocked?: boolean;
 }
 
 type LadderContextMenu =
@@ -177,8 +91,10 @@ type LadderContextMenu =
       y: number;
       rungId: string;
       nodeId: string;
+      branchId?: string;
       instructionType: string;
       operand: string;
+      operandIndex: number;
     }
   | {
       kind: "rung";
@@ -188,143 +104,20 @@ type LadderContextMenu =
       rungNumber: number;
     };
 
-const CATEGORY_LABELS: Partial<Record<InstructionCategory, string>> = {
-  bit: "Bit",
-  timer: "Timer",
-  counter: "Counter",
-  compare: "Compare",
-  math: "Math",
-  move: "Move",
-  "program-control": "Program",
-  sequencer: "Sequencer",
-  shift: "Shift",
-  file: "File",
-  message: "Message",
-  alarm: "Alarm",
-  motion: "Motion",
-};
-
-const CATEGORY_ORDER: InstructionCategory[] = [
-  "bit",
-  "timer",
-  "counter",
-  "move",
-  "math",
-  "compare",
-  "program-control",
-  "sequencer",
-  "shift",
-  "file",
-  "message",
-  "alarm",
-  "motion",
-];
-
-function buildInstructionGroups(): InstructionGroup[] {
-  const byCategory = new Map<InstructionCategory, InstructionDefinition[]>();
-  for (const definition of registry.all()) {
-    const current = byCategory.get(definition.category) ?? [];
-    current.push(definition);
-    byCategory.set(definition.category, current);
-  }
-  const ordered = CATEGORY_ORDER.flatMap((category) => {
-    const definitions = byCategory.get(category);
-    if (!definitions?.length) return [];
-    byCategory.delete(category);
-    return [{
-      label: CATEGORY_LABELS[category] ?? category,
-      definitions: definitions.sort((a, b) => a.type.localeCompare(b.type)),
-    }];
-  });
-  const remaining = [...byCategory.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([category, definitions]) => ({
-      label: CATEGORY_LABELS[category] ?? category,
-      definitions: definitions.sort((a, b) => a.type.localeCompare(b.type)),
-    }));
-  return [...ordered, ...remaining];
-}
-
-/** Instruction palette follows the registry so backend instruction additions appear automatically. */
-const INSTRUCTION_GROUPS = buildInstructionGroups();
-
-function InstructionButton({
-  definition,
-  disabled,
-  onAdd,
-}: {
-  definition: InstructionDefinition;
-  disabled: boolean;
-  onAdd: (instructionType: string) => void;
-}) {
-  return (
-    <button
-      key={definition.type}
-      type="button"
-      className={`esco-btn esco-btn--instr${definition.modelOnly ? " esco-btn--model-only" : ""}`}
-      disabled={disabled}
-      aria-label={definition.type}
-      title={
-        disabled
-          ? "Select a rung first"
-          : `Add ${definition.displayName}${definition.modelOnly ? " (model-only)" : ""} to the selected rung`
-      }
-      onClick={(event) => {
-        if (!disabled) onAdd(definition.type);
-        event.currentTarget.closest("details.esco-palette__group")?.removeAttribute("open");
-      }}
-    >
-      <span>{definition.type}</span>
-      {definition.modelOnly ? <span className="esco-palette__model" aria-hidden="true">M</span> : null}
-    </button>
-  );
-}
-
-function InstructionPalette({
-  selectedRungId,
-  onAddInstruction,
-}: {
-  selectedRungId?: string;
-  onAddInstruction: (rungId: string, instructionType: string) => void;
-}) {
-  const disabled = !selectedRungId;
-  const add = (instructionType: string) => {
-    if (selectedRungId) onAddInstruction(selectedRungId, instructionType);
-  };
-  const closeSiblings = (current: HTMLDetailsElement) => {
-    if (!current.open) return;
-    current.parentElement
-      ?.querySelectorAll<HTMLDetailsElement>("details.esco-palette__group[open]")
-      .forEach((details) => {
-        if (details !== current) details.removeAttribute("open");
-      });
-  };
-
-  return (
-    <div className="esco-palette" aria-label="Instruction palette">
-      {INSTRUCTION_GROUPS.map((group) => (
-        <details className="esco-palette__group" key={group.label} onToggle={(event) => closeSiblings(event.currentTarget)}>
-          <summary
-            className="esco-palette__summary"
-            title={disabled ? "Select a rung first" : `${group.label} instructions (${group.definitions.length})`}
-          >
-            <span>{group.label}</span>
-          </summary>
-          <div className="esco-palette__menu" role="menu" aria-label={`${group.label} instructions`}>
-            {group.definitions.map((definition) => (
-              <InstructionButton
-                key={definition.type}
-                definition={definition}
-                disabled={disabled}
-                onAdd={add}
-              />
-            ))}
-          </div>
-        </details>
-      ))}
-    </div>
-  );
-}
+type RoutineCommand =
+  | { kind: "find"; value: string; message?: string }
+  | { kind: "goto"; value: string; message?: string }
+  | {
+      kind: "operand";
+      routineId: string;
+      rungId: string;
+      nodeId: string;
+      instructionType: string;
+      operandIndex: number;
+      value: string;
+      message?: string;
+    }
+  | { kind: "comment"; routineId: string; rungId: string; rungNumber: number; value: string; message?: string };
 
 const LANGUAGE_LABEL: Record<Routine["language"], string> = {
   ladder: "Ladder",
@@ -338,28 +131,350 @@ function RoutineTabs({
   activeRoutineId,
   fallbackRoutineId,
   onOpenRoutine,
+  onCloseRoutine,
 }: {
   routines: Routine[];
   activeRoutineId?: string;
   fallbackRoutineId?: string;
   onOpenRoutine?: (routineId: string) => void;
+  onCloseRoutine?: (routineId: string) => void;
 }) {
+  const currentRoutineId = activeRoutineId ?? fallbackRoutineId;
   return (
     <div className="esco-editor__tabs">
       {routines.map((candidate) => (
-        <button
+        <span
           key={candidate.id}
-          type="button"
-          className={`esco-editor__tab${(activeRoutineId ?? fallbackRoutineId) === candidate.id ? " is-active" : ""}`}
-          onClick={() => onOpenRoutine?.(candidate.id)}
+          className={`esco-editor__tab${currentRoutineId === candidate.id ? " is-active" : ""}`}
         >
-          {candidate.name}
-          <span className="esco-editor__tab-lang">{candidate.language === "ladder" ? "LD" : LANGUAGE_LABEL[candidate.language]}</span>
-        </button>
+          <button type="button" className="esco-editor__tab-main" onClick={() => onOpenRoutine?.(candidate.id)}>
+            <span className="esco-editor__tab-icon" aria-hidden="true" />
+            <span className="esco-editor__tab-title">MainTask.MainProgram.{candidate.name}</span>
+          </button>
+          <button
+            type="button"
+            className="esco-editor__tab-close"
+            tabIndex={currentRoutineId === candidate.id ? 0 : -1}
+            aria-label={`Close ${candidate.name}`}
+            title="Close"
+            onClick={(event) => {
+              event.stopPropagation();
+              onCloseRoutine?.(candidate.id);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              event.stopPropagation();
+              onCloseRoutine?.(candidate.id);
+            }}
+          />
+        </span>
       ))}
-      <button type="button" className="esco-editor__tab esco-editor__tab--disabled" disabled title="Open another routine">
-        +
-      </button>
+      <span className="esco-editor__tab-controls" aria-hidden="true">
+        <span className="esco-editor__tab-control esco-editor__tab-control--list" />
+        <span className="esco-editor__tab-control esco-editor__tab-control--close" />
+      </span>
+    </div>
+  );
+}
+
+const ONLINE_EDIT_GUARD =
+  "Online edit assemble/finalize runs on a controller; it stays blocked because no tested controller transport is configured.";
+const ONLINE_EDIT_COMMANDS = [
+  { label: "Test Edits", action: "test-edits" },
+  { label: "Assemble Edits", action: "assemble-edits" },
+  { label: "Finalize All Edits", action: "finalize-edits" },
+  { label: "Cancel Edits", action: "cancel-edits" },
+] as const satisfies readonly { label: string; action: ControllerCommunicationAction }[];
+
+function onlineEditTitle(editState: OfflineEditLifecycleState): string {
+  if (editState === "assembled") return "Offline Edits Assembled";
+  return "Pending Test Edits";
+}
+
+function onlineEditLegend(editState: OfflineEditLifecycleState): string {
+  if (editState === "assembled") return "assembled locally; finalize/cancel is review-only";
+  return "marks rungs in this edit";
+}
+
+/** Classic online-edit state strip: surfaces pending test edits with guarded Studio-style controls. */
+function RoutineOnlineEditBar({
+  editState,
+  onControllerAction,
+}: {
+  editState: OfflineEditLifecycleState;
+  onControllerAction?: (action: ControllerCommunicationAction) => void;
+}) {
+  return (
+    <div className="esco-editor__onlineedit-bar" aria-label="Pending online edit state" data-edit-state={editState}>
+      <span className="esco-editor__onlineedit-title">{onlineEditTitle(editState)}</span>
+      <span className="esco-editor__onlineedit-legend">
+        <span className="esco-editor__onlineedit-marker" aria-hidden="true">e</span>
+        {onlineEditLegend(editState)}
+      </span>
+      <span className="esco-editor__onlineedit-spacer" aria-hidden="true" />
+      <div className="esco-editor__onlineedit-actions" aria-label="Online edit commands">
+        {ONLINE_EDIT_COMMANDS.map((command) => (
+          <button
+            key={command.action}
+            type="button"
+            className="esco-editor__onlineedit-btn"
+            disabled={!onControllerAction}
+            onClick={() => onControllerAction?.(command.action)}
+            title={ONLINE_EDIT_GUARD}
+          >
+            {command.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function commandTitle(command: RoutineCommand): string {
+  if (command.kind === "find") return "Find In Routine";
+  if (command.kind === "goto") return "Go To Rung";
+  if (command.kind === "comment") return `Rung ${command.rungNumber} Comment`;
+  return `${command.instructionType} Operand`;
+}
+
+function commandLabel(command: RoutineCommand): string {
+  if (command.kind === "find") return "Find text";
+  if (command.kind === "goto") return "Rung number";
+  if (command.kind === "comment") return "Rung comment";
+  return "Operand value";
+}
+
+function commandAction(command: RoutineCommand): string {
+  if (command.kind === "find") return "Find Next";
+  if (command.kind === "goto") return "Go";
+  return "Apply";
+}
+
+function RoutineCommandBar({
+  command,
+  onChange,
+  onApply,
+  onCancel,
+}: {
+  command: RoutineCommand;
+  onChange: (value: string) => void;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const focusKey =
+    command.kind === "operand"
+      ? `${command.kind}:${command.nodeId}:${command.operandIndex}`
+      : command.kind === "comment"
+        ? `${command.kind}:${command.rungId}`
+        : command.kind;
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [focusKey]);
+
+  return (
+    <form
+      className={`esco-routine-command esco-routine-command--${command.kind}`}
+      aria-label={commandTitle(command)}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onApply();
+      }}
+    >
+      <div className="esco-routine-command__label">
+        <strong>{commandTitle(command)}</strong>
+        {command.message ? <span className="esco-routine-command__message">{command.message}</span> : null}
+      </div>
+      <label className="esco-routine-command__field">
+        <span>{commandLabel(command)}</span>
+        {command.kind === "comment" ? (
+          <textarea
+            ref={(node) => {
+              inputRef.current = node;
+            }}
+            aria-label="Rung comment"
+            value={command.value}
+            rows={2}
+            onChange={(event) => onChange(event.target.value)}
+          />
+        ) : (
+          <input
+            ref={(node) => {
+              inputRef.current = node;
+            }}
+            aria-label={commandLabel(command)}
+            type={command.kind === "goto" ? "number" : "text"}
+            value={command.value}
+            onChange={(event) => onChange(event.target.value)}
+          />
+        )}
+      </label>
+      <div className="esco-routine-command__actions">
+        <button type="submit" className="esco-btn esco-btn--primary">{commandAction(command)}</button>
+        <button type="button" className="esco-btn" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+function RoutineLocalToolbar({
+  selectedRungId,
+  canPaste,
+  editLocked = false,
+  display,
+  inspector,
+  onToggleTagDescriptions,
+  onToggleOperandMeta,
+  onPlainOperandMode,
+  onToggleInspector,
+  onAddRung,
+  onDeleteRung,
+  onCopyRung,
+  onCutRung,
+  onPasteRung,
+  onDuplicateRung,
+  onAddParallelBranch,
+  onFindInRoutine,
+  onGoToRung,
+}: {
+  selectedRungId?: string;
+  canPaste: boolean;
+  editLocked?: boolean;
+  display: { tagDescriptions: boolean; operandMeta: boolean };
+  inspector: "branch" | "source" | null;
+  onToggleTagDescriptions: () => void;
+  onToggleOperandMeta: () => void;
+  onPlainOperandMode: () => void;
+  onToggleInspector: (mode: "branch" | "source") => void;
+  onAddRung: () => void;
+  onDeleteRung: (rungId: string) => void;
+  onCopyRung: (rungId: string) => void;
+  onCutRung: (rungId: string) => void;
+  onPasteRung: () => void;
+  onDuplicateRung: (rungId: string) => void;
+  onAddParallelBranch: (rungId: string) => void;
+  onFindInRoutine: () => void;
+  onGoToRung: () => void;
+}) {
+  const withSelectedRung = (action: (rungId: string) => void) => () => {
+    if (selectedRungId) action(selectedRungId);
+  };
+  const selected = Boolean(selectedRungId);
+  const button = (
+    label: string,
+    icon: string,
+    action?: () => void,
+    options: { disabled?: boolean; pressed?: boolean; text?: boolean } = {},
+  ) => (
+    <button
+      key={label}
+      type="button"
+      className={`esco-editor__tool-btn${options.pressed ? " is-pressed" : ""}${options.text ? " esco-editor__tool-btn--text" : ""}`}
+      aria-label={label}
+      title={label}
+      aria-pressed={options.pressed || undefined}
+      disabled={options.disabled}
+      onClick={action}
+    >
+      <span className={`esco-editor__tool-icon esco-editor__tool-icon--${icon}`} aria-hidden="true">
+        {options.text ? icon : ""}
+      </span>
+    </button>
+  );
+
+  return (
+    <div className="esco-editor__local-toolbar" aria-label="Routine toolbar">
+      <div className="esco-editor__tool-group">
+        {button("Find in routine", "search", onFindInRoutine)}
+        {button("Go to rung", "goto", onGoToRung)}
+      </div>
+      <div className="esco-editor__tool-group">
+        {button("Add rung", "rung-add", onAddRung, { disabled: editLocked })}
+        {button("Delete rung", "rung-delete", withSelectedRung(onDeleteRung), { disabled: !selected || editLocked })}
+        {button("Copy rung", "copy", withSelectedRung(onCopyRung), { disabled: !selected })}
+        {button("Cut rung", "cut", withSelectedRung(onCutRung), { disabled: !selected || editLocked })}
+        {button("Paste rung", "paste", onPasteRung, { disabled: !canPaste })}
+        {button("Duplicate rung", "duplicate", withSelectedRung(onDuplicateRung), { disabled: !selected || editLocked })}
+        {button("Add parallel branch", "branch", withSelectedRung(onAddParallelBranch), { disabled: !selected || editLocked })}
+      </div>
+      <div className="esco-editor__tool-group">
+        {button("Operand text mode", "abc", onPlainOperandMode, {
+          pressed: !display.tagDescriptions && !display.operandMeta,
+          text: true,
+        })}
+        {button("Tag description display", "tag", onToggleTagDescriptions, {
+          pressed: display.tagDescriptions,
+          text: true,
+        })}
+        {button("Operand inline display", "ab", onToggleOperandMeta, {
+          pressed: display.operandMeta,
+          text: true,
+        })}
+      </div>
+      <div className="esco-editor__tool-group">
+        {button("Show branch structure", "tree", () => onToggleInspector("branch"), { pressed: inspector === "branch" })}
+        {button("Show instruction source", "angle", () => onToggleInspector("source"), { pressed: inspector === "source" })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Studio-style rung inspection drawer. Shows either the branch/tree structure of
+ * the selected rung or its serialized neutral instruction source (via the
+ * @esco/ladder serializer), so the two display-mode toolbar buttons surface real
+ * project state instead of decorative output.
+ */
+function RungInspector({
+  mode,
+  rung,
+  onClose,
+}: {
+  mode: "branch" | "source";
+  rung: LadderRung | undefined;
+  onClose: () => void;
+}) {
+  const title = mode === "branch" ? "Branch Structure" : "Instruction Source";
+  const copySource = (text: string) => {
+    void navigator.clipboard?.writeText(text);
+  };
+  return (
+    <div className="esco-rung-inspector" aria-label={`Rung ${title}`} role="region">
+      <header className="esco-rung-inspector__head">
+        <strong>
+          {title}
+          {rung ? ` — Rung ${rung.number}` : ""}
+        </strong>
+        <button type="button" className="esco-rung-inspector__close" aria-label="Close inspector" title="Close" onClick={onClose}>
+          ×
+        </button>
+      </header>
+      {!rung ? (
+        <p className="esco-empty">Select a rung to inspect its {mode === "branch" ? "branch structure" : "instruction source"}.</p>
+      ) : mode === "branch" ? (
+        <div className="esco-rung-inspector__tree">
+          {branchOutline(rung.root).map((row) => (
+            <div
+              className="esco-rung-inspector__row"
+              key={row.id}
+              style={{ paddingLeft: `${row.depth * 18 + 8}px` }}
+            >
+              <span className="esco-rung-inspector__glyph" aria-hidden="true" />
+              <strong>{row.label}</strong>
+              <code>{row.detail}</code>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="esco-rung-inspector__source">
+          <pre aria-label="Serialized rung source">{rungToText(rung) || "(empty rung)"}</pre>
+          <button type="button" className="esco-btn" onClick={() => copySource(rungToText(rung))}>
+            Copy source
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -407,12 +522,293 @@ function GraphicalRoutineOutline({ source, query }: { source: string; query: str
   );
 }
 
+function compactAttributes(attributes: Record<string, unknown> | undefined): string {
+  if (!attributes) return "";
+  return Object.entries(attributes)
+    .filter(([, value]) => value != null && String(value).length > 0)
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join(" ");
+}
+
+function fbdPosition(x?: number, y?: number): string {
+  if (x == null && y == null) return "-";
+  return `${x ?? "-"}, ${y ?? "-"}`;
+}
+
+function fbdParameterDirectionLabel(direction: string): string {
+  return direction === "input" ? "In" : direction === "output" ? "Out" : direction === "inout" ? "InOut" : "Param";
+}
+
+type FbdParameterRow = {
+  block: FbdReviewBlock;
+  parameter: FbdReviewParameter;
+};
+
+function FbdRoutineReview({ source, query }: { source: string; query: string }) {
+  const review = useMemo(() => reviewFbdRoutineSource(source), [source]);
+  const term = query.trim().toLowerCase();
+  const matches = (...parts: unknown[]) =>
+    !term || parts.map((part) => String(part ?? "")).join(" ").toLowerCase().includes(term);
+  const visibleSheets = review.sheets
+    .map((sheet) => {
+      const sheetText = [sheet.name, sheet.number, compactAttributes(sheet.attributes)].join(" ");
+      const sheetMatches = matches(sheetText);
+      const blocks = sheet.blocks.filter((block) =>
+        sheetMatches ||
+        matches(
+          block.type,
+          block.operand,
+          block.id,
+          compactAttributes(block.attributes),
+          block.x,
+          block.y,
+        ),
+      );
+      const parameters = sheet.blocks.flatMap((block): FbdParameterRow[] =>
+        block.parameters
+          .map((parameter) => ({ block, parameter }))
+          .filter(
+            ({ block, parameter }) =>
+              sheetMatches ||
+              matches(
+                block.type,
+                block.id,
+                parameter.direction,
+                parameter.name,
+                parameter.value,
+                parameter.id,
+                compactAttributes(parameter.attributes),
+                parameter.x,
+                parameter.y,
+              ),
+          ),
+      );
+      const inputRefs = sheet.inputRefs.filter((ref) =>
+        sheetMatches || matches(ref.operand, ref.id, compactAttributes(ref.attributes), ref.x, ref.y),
+      );
+      const outputRefs = sheet.outputRefs.filter((ref) =>
+        sheetMatches || matches(ref.operand, ref.id, compactAttributes(ref.attributes), ref.x, ref.y),
+      );
+      const wires = sheet.wires.filter((wire) =>
+        sheetMatches ||
+        matches(
+          wire.id,
+          wire.fromId,
+          wire.toId,
+          wire.fromOperand,
+          wire.toOperand,
+          compactAttributes(wire.attributes),
+        ),
+      );
+      const textBoxes = sheet.textBoxes.filter((textBox) =>
+        sheetMatches || matches(textBox.text, textBox.id, compactAttributes(textBox.attributes), textBox.x, textBox.y),
+      );
+      const unknownElements = sheet.unknownElements.filter((element) =>
+        sheetMatches || matches(element.name, compactAttributes(element.attributes)),
+      );
+      return { sheet, blocks, parameters, inputRefs, outputRefs, wires, textBoxes, unknownElements };
+    })
+    .filter((sheet) =>
+      !term ||
+      sheet.blocks.length ||
+      sheet.parameters.length ||
+      sheet.inputRefs.length ||
+      sheet.outputRefs.length ||
+      sheet.wires.length ||
+      sheet.textBoxes.length ||
+      sheet.unknownElements.length,
+    );
+
+  return (
+    <div className="esco-fbd-review" aria-label="Function Block Diagram review">
+      <div className="esco-fbd-review__summary">
+        <span className="esco-fbd-review__pill">Model-only review</span>
+        <span>{review.parseable ? "XML parseable" : "Preserved source only"}</span>
+        <span>{review.summary.sheetCount} sheet{review.summary.sheetCount === 1 ? "" : "s"}</span>
+        <span>{review.summary.blockCount} block{review.summary.blockCount === 1 ? "" : "s"}</span>
+        {review.summary.parameterCount ? (
+          <span>{review.summary.parameterCount} parameter{review.summary.parameterCount === 1 ? "" : "s"}</span>
+        ) : null}
+        <span>{review.summary.inputRefCount} input ref{review.summary.inputRefCount === 1 ? "" : "s"}</span>
+        <span>{review.summary.outputRefCount} output ref{review.summary.outputRefCount === 1 ? "" : "s"}</span>
+        <span>{review.summary.wireCount} wire{review.summary.wireCount === 1 ? "" : "s"}</span>
+        {review.summary.blockTypes.length ? (
+          <span>
+            Blocks {review.summary.blockTypes.slice(0, 4).map((row) => `${row.name} x${row.count}`).join(", ")}
+          </span>
+        ) : null}
+        {review.summary.wireEndpointGapCount ? (
+          <span>{review.summary.wireEndpointGapCount} wire endpoint gap{review.summary.wireEndpointGapCount === 1 ? "" : "s"}</span>
+        ) : null}
+        {review.summary.diagnosticWarningCount ? (
+          <span>{review.summary.diagnosticWarningCount} semantic warning{review.summary.diagnosticWarningCount === 1 ? "" : "s"}</span>
+        ) : null}
+        <span>{review.summary.textCount} text note{review.summary.textCount === 1 ? "" : "s"}</span>
+        {review.sheetSize ? <span>Sheet size {review.sheetSize}</span> : null}
+      </div>
+      <div className="esco-fbd-review__boundary">{review.boundary}</div>
+      {review.warnings.length ? (
+        <ul className="esco-fbd-review__warnings">
+          {review.warnings.slice(0, 5).map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+          {review.warnings.length > 5 ? <li>{review.warnings.length - 5} more review warning(s).</li> : null}
+        </ul>
+      ) : null}
+      {review.diagnostics.length ? (
+        <div className="esco-fbd-review__diagnostics" aria-label="Function Block Diagram semantic diagnostics">
+          <strong>Semantic review diagnostics</strong>
+          <ul className="esco-fbd-review__warnings">
+            {review.diagnostics.slice(0, 8).map((diagnostic, index) => (
+              <li key={`${diagnostic.code}-${diagnostic.subject ?? index}`}>
+                {diagnostic.severity}: {diagnostic.message}
+              </li>
+            ))}
+            {review.diagnostics.length > 8 ? <li>{review.diagnostics.length - 8} more semantic diagnostic(s).</li> : null}
+          </ul>
+        </div>
+      ) : null}
+      {visibleSheets.length === 0 ? (
+        <p className="esco-empty">No FBD sheet items match the current search.</p>
+      ) : (
+        visibleSheets.map(({ sheet, blocks, parameters, inputRefs, outputRefs, wires, textBoxes, unknownElements }) => (
+          <section className="esco-fbd-sheet" key={`${sheet.number ?? "sheet"}-${sheet.name ?? ""}`}>
+            <header className="esco-fbd-sheet__head">
+              <strong>Sheet {sheet.number ?? "-"}</strong>
+              {sheet.name ? <span>{sheet.name}</span> : null}
+              {compactAttributes(sheet.attributes) ? <code>{compactAttributes(sheet.attributes)}</code> : null}
+            </header>
+            <div className="esco-fbd-sheet__grid">
+              <div className="esco-fbd-sheet__panel">
+                <h2>Blocks</h2>
+                <table className="esco-fbd-table">
+                  <thead>
+                    <tr><th>Type</th><th>Operand</th><th>Position</th><th>ID</th><th>Attributes</th></tr>
+                  </thead>
+                  <tbody>
+                    {blocks.length ? blocks.map((block, index) => (
+                      <tr key={`${block.id ?? block.type}-${index}`}>
+                        <td><strong>{block.type}</strong></td>
+                        <td>{block.operand ?? "-"}</td>
+                        <td>{fbdPosition(block.x, block.y)}</td>
+                        <td>{block.id ?? "-"}</td>
+                        <td><code>{compactAttributes(block.attributes) || "-"}</code></td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan={5}>No blocks on this sheet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="esco-fbd-sheet__panel">
+                <h2>Block Parameters</h2>
+                <table className="esco-fbd-table">
+                  <thead>
+                    <tr><th>Block</th><th>Direction</th><th>Name</th><th>Value</th><th>Position</th><th>ID</th><th>Attributes</th></tr>
+                  </thead>
+                  <tbody>
+                    {parameters.length ? parameters.map(({ block, parameter }, index) => {
+                      const direction = fbdParameterDirectionLabel(parameter.direction);
+                      const name = parameter.name ?? "?";
+                      return (
+                        <tr key={`${block.id ?? block.type}-${parameter.id ?? parameter.name ?? index}`}>
+                          <td>{block.type}{block.id ? ` #${block.id}` : ""}</td>
+                          <td>{direction}</td>
+                          <td>{name}</td>
+                          <td>{parameter.value ?? "-"}</td>
+                          <td>{fbdPosition(parameter.x, parameter.y)}</td>
+                          <td>{parameter.id ?? "-"}</td>
+                          <td><code>{compactAttributes(parameter.attributes) || "-"}</code></td>
+                        </tr>
+                      );
+                    }) : (
+                      <tr><td colSpan={7}>No block parameters on this sheet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="esco-fbd-sheet__panel">
+                <h2>References</h2>
+                <table className="esco-fbd-table">
+                  <thead>
+                    <tr><th>Kind</th><th>Operand</th><th>Position</th><th>ID</th><th>Attributes</th></tr>
+                  </thead>
+                  <tbody>
+                    {[...inputRefs.map((ref) => ({ ...ref, kind: "Input" })), ...outputRefs.map((ref) => ({ ...ref, kind: "Output" }))].length ? (
+                      [...inputRefs.map((ref) => ({ ...ref, kind: "Input" })), ...outputRefs.map((ref) => ({ ...ref, kind: "Output" }))].map((ref, index) => (
+                        <tr key={`${ref.kind}-${ref.id ?? ref.operand ?? index}`}>
+                          <td>{ref.kind}</td>
+                          <td>{ref.operand ?? "-"}</td>
+                          <td>{fbdPosition(ref.x, ref.y)}</td>
+                          <td>{ref.id ?? "-"}</td>
+                          <td><code>{compactAttributes(ref.attributes) || "-"}</code></td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={5}>No input/output references on this sheet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="esco-fbd-sheet__panel">
+                <h2>Wires</h2>
+                <table className="esco-fbd-table">
+                  <thead>
+                    <tr><th>From</th><th>To</th><th>ID</th><th>Attributes</th></tr>
+                  </thead>
+                  <tbody>
+                    {wires.length ? wires.map((wire, index) => (
+                      <tr key={`${wire.id ?? "wire"}-${index}`}>
+                        <td>{wire.fromOperand ?? wire.fromId ?? "-"}</td>
+                        <td>{wire.toOperand ?? wire.toId ?? "-"}</td>
+                        <td>{wire.id ?? "-"}</td>
+                        <td><code>{compactAttributes(wire.attributes) || "-"}</code></td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan={4}>No wires on this sheet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="esco-fbd-sheet__panel">
+                <h2>Text / Unknown</h2>
+                {textBoxes.length || unknownElements.length ? (
+                  <ul className="esco-fbd-list">
+                    {textBoxes.map((textBox, index) => (
+                      <li key={`${textBox.id ?? "text"}-${index}`}>
+                        <strong>Text</strong>
+                        <span>{textBox.text || "-"}</span>
+                        <code>{compactAttributes(textBox.attributes)}</code>
+                      </li>
+                    ))}
+                    {unknownElements.map((element, index) => (
+                      <li key={`${element.name}-${index}`}>
+                        <strong>{element.name}</strong>
+                        <span>Preserved unknown FBD element.</span>
+                        <code>{compactAttributes(element.attributes)}</code>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="esco-empty">No text or unknown elements on this sheet.</p>
+                )}
+              </div>
+            </div>
+          </section>
+        ))
+      )}
+    </div>
+  );
+}
+
 function NonLadderRoutineView({
   routine,
   onSetStructuredTextSource,
+  editLocked = false,
 }: {
   routine: Routine;
   onSetStructuredTextSource: (routineId: string, source: string) => void;
+  editLocked?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const source = routineText(routine);
@@ -421,6 +817,12 @@ function NonLadderRoutineView({
   const lines = source ? source.split(/\r?\n/) : [];
   const draftLines = draftSource ? draftSource.split(/\r?\n/).length : 0;
   const dirty = editable && draftSource !== source;
+  const canEditSource = editable && !editLocked;
+  const stAnalysis = useMemo(
+    () => (editable ? analyzeStructuredText(draftSource) : undefined),
+    [draftSource, editable],
+  );
+  const stFindings = stAnalysis?.findings ?? [];
   const term = query.trim().toLowerCase();
   const visible = term
     ? lines
@@ -442,22 +844,31 @@ function NonLadderRoutineView({
           <h1>{routine.name}</h1>
           <p>
             {editable
-              ? "Structured Text source is editable and exports with the project. It is not executed by Offline Simulation yet."
+              ? "Structured Text source is editable, exports with the project, and runs a conservative Offline Simulation subset for assignments, branches, loops, CASE, JSR/SBR/RET, and positional/named registered instruction calls."
               : `${LANGUAGE_LABEL[routine.language]} imported routine is preserved read-only for review. It is not executed by Offline Simulation.`}
           </p>
         </div>
         <div className="esco-nonladder__badges">
-          <span className="esco-detail__readonly">{editable ? "Editable ST" : "Read-only"}</span>
+          <span className="esco-detail__readonly">{editable ? (editLocked ? "Read-only while scanning" : "Editable ST") : "Read-only"}</span>
           <span className="esco-detail__readonly">
             {editable ? draftLines : lines.length} line{(editable ? draftLines : lines.length) === 1 ? "" : "s"}
           </span>
+          {editable ? (
+            <span className={`esco-detail__readonly${stFindings.length ? " esco-detail__readonly--warning" : ""}`}>
+              {stFindings.length ? `${stFindings.length} ST warning${stFindings.length === 1 ? "" : "s"}` : "ST syntax OK"}
+            </span>
+          ) : null}
           {dirty ? <span className="esco-detail__readonly">Unsaved ST edit</span> : null}
           {!editable && term ? <span className="esco-detail__readonly">{visible.length} match{visible.length === 1 ? "" : "es"}</span> : null}
         </div>
       </header>
       <div className="esco-nonladder__toolbar">
         {editable ? (
-          <span className="esco-nonladder__hint">Apply saves through project-actions; simulation continues to skip ST routines.</span>
+          <span className="esco-nonladder__hint">
+            {editLocked
+              ? "ESCO Virtual Controller is scanning; switch to Program mode or go Offline before editing Structured Text."
+              : "Apply saves through project-actions; simulation continues to skip ST routines."}
+          </span>
         ) : (
           <input
             className="esco-tags__search"
@@ -483,7 +894,7 @@ function NonLadderRoutineView({
             <button
               type="button"
               className="esco-btn esco-btn--primary"
-              disabled={!dirty}
+              disabled={!dirty || editLocked}
               onClick={() => onSetStructuredTextSource(routine.id, draftSource)}
             >
               Apply ST
@@ -492,16 +903,39 @@ function NonLadderRoutineView({
         ) : null}
       </div>
       {editable ? (
+        <div className={`esco-st-analysis${stFindings.length ? " has-warning" : " is-ok"}`} role="status" aria-live="polite">
+          <strong>{stFindings.length ? "Structured Text structural warnings" : "Structured Text structural check passed"}</strong>
+          {stFindings.length ? (
+            <ul>
+              {stFindings.slice(0, 5).map((finding, index) => (
+                <li key={`${finding.line ?? "unknown"}-${index}`}>
+                  {finding.line ? `Line ${finding.line}: ` : ""}
+                  {finding.message}
+                </li>
+              ))}
+              {stFindings.length > 5 ? <li>{stFindings.length - 5} more warning(s).</li> : null}
+            </ul>
+          ) : (
+            <span>No unmatched blocks, parentheses, brackets, comments, or strings detected.</span>
+          )}
+        </div>
+      ) : null}
+      {editable ? (
         <textarea
           className="esco-st-editor"
           value={draftSource}
           spellCheck={false}
           aria-label={`${routine.name} Structured Text source`}
           placeholder="Enter Structured Text source..."
+          readOnly={!canEditSource}
           onChange={(event) => setDraftSource(event.target.value)}
         />
       ) : source ? (
-        <GraphicalRoutineOutline source={source} query={query} />
+        routine.language === "function-block" ? (
+          <FbdRoutineReview source={source} query={query} />
+        ) : (
+          <GraphicalRoutineOutline source={source} query={query} />
+        )
       ) : (
         <div className="esco-nonladder__empty">
           <p>Readonly imported routine. Editing/simulation not supported yet.</p>
@@ -514,7 +948,29 @@ function NonLadderRoutineView({
 
 function operandSuggestions(project: PlcProject): string[] {
   const suggestions = new Set<string>();
-  const udts = new Map(project.controllers.flatMap((controller) => controller.dataTypes.map((udt) => [udt.name, udt.members])));
+  const typeMembers = new Map<string, SuggestionMember[]>();
+  for (const controller of project.controllers) {
+    for (const udt of controller.dataTypes) {
+      typeMembers.set(
+        udt.name,
+        udt.members.map((member) => ({
+          name: member.name,
+          ...(member.dimension && member.dimension > 0 ? { dimension: member.dimension } : {}),
+          ...(member.dimensions?.length ? { dimensions: member.dimensions } : {}),
+        })),
+      );
+    }
+    for (const aoi of controller.addOnInstructions) {
+      typeMembers.set(aoi.name, [
+        ...aoi.parameters.map((parameter) => ({ name: parameter.name })),
+        ...aoi.localTags.map((localTag) => ({
+          name: localTag.name,
+          ...(localTag.dimension && localTag.dimension > 0 ? { dimension: localTag.dimension } : {}),
+          ...(localTag.dimensions?.length ? { dimensions: localTag.dimensions } : {}),
+        })),
+      ]);
+    }
+  }
   const tags = project.controllers.flatMap((controller) => [
     ...controller.controllerTags,
     ...controller.programs.flatMap((program) => program.programTags),
@@ -522,18 +978,21 @@ function operandSuggestions(project: PlcProject): string[] {
 
   for (const tag of tags) {
     suggestions.add(tag.name);
-    if (tag.dimension && tag.dimension > 0 && !isStructuredType(tag.dataType)) {
-      for (const element of arrayElementNames(tag.name, Math.min(tag.dimension, 32))) suggestions.add(element);
+    const tagDimensions = arrayDimensionsOf(tag);
+    if (tagDimensions.length > 0 && !isStructuredType(tag.dataType)) {
+      const capped = tagDimensions.map((dimension) => Math.min(dimension, 8));
+      for (const element of arrayElementNames(tag.name, capped).slice(0, 32)) suggestions.add(element);
     }
-    const members = isStructuredType(tag.dataType)
-      ? memberDefs(tag.dataType)
-      : udts.get(tag.dataType) ?? [];
+    const members: SuggestionMember[] = isStructuredType(tag.dataType)
+      ? memberDefs(tag.dataType).map((member) => ({ name: member.name }))
+      : typeMembers.get(tag.dataType) ?? [];
     for (const member of members) {
       suggestions.add(`${tag.name}.${member.name}`);
-      const memberDimension = "dimension" in member ? member.dimension : undefined;
-      if (memberDimension && memberDimension > 0) {
-        for (let i = 0; i < Math.min(memberDimension, 16); i += 1) {
-          suggestions.add(`${tag.name}.${member.name}[${i}]`);
+      const memberDimensions = arrayDimensionsOf(member);
+      if (memberDimensions.length > 0) {
+        const capped = memberDimensions.map((dimension) => Math.min(dimension, 8));
+        for (const element of arrayElementNames(`${tag.name}.${member.name}`, capped).slice(0, 32)) {
+          suggestions.add(element);
         }
       }
     }
@@ -556,30 +1015,85 @@ function rungText(rung: LadderRung): string {
   ].join(" ");
 }
 
+/**
+ * Resolve an operand value to its project tag metadata (description, data type,
+ * engineering units). Handles plain tags as well as member / array-element
+ * operands by matching the operand suffix against the tag's per-element comments
+ * and engineering units, exactly as Logix authors them in `<Comments>` /
+ * `<EngineeringUnits>`.
+ */
+function operandMetadata(project: PlcProject, value: string): OperandMetadata | undefined {
+  const trimmed = value.trim();
+  const base = baseTagName(trimmed);
+  if (!base) return undefined;
+  const tag = getTags(project).find((candidate) => candidate.name === base);
+  if (!tag) return undefined;
+  const suffix = trimmed.slice(base.length);
+  const norm = (operand: string) => operand.trim().toLowerCase();
+  const key = norm(suffix);
+  const description =
+    tag.comments?.find((comment) => norm(comment.operand) === key)?.text ??
+    (suffix ? undefined : tag.description) ??
+    tag.description;
+  const units =
+    tag.engineeringUnits?.find((unit) => norm(unit.operand) === key)?.text ??
+    tag.engineeringUnits?.find((unit) => !unit.operand.trim())?.text;
+  return { description, dataType: tag.dataType, units };
+}
+
+interface BranchOutlineRow {
+  id: string;
+  depth: number;
+  label: string;
+  detail: string;
+}
+
+/** Flatten a rung's branch tree into indented rows for the branch-structure inspector. */
+function branchOutline(branch: LadderBranch, depth = 0, path = "root"): BranchOutlineRow[] {
+  const rows: BranchOutlineRow[] = [];
+  const seriesText = branch.nodes
+    .map((node) => `${node.instructionType}(${node.operands.map((operand) => operand.value).join(", ")})`)
+    .join("  →  ");
+  rows.push({
+    id: `${path}-seg`,
+    depth,
+    label: branch.nodes.length ? "Series" : "Empty segment",
+    detail: seriesText || "(no instructions)",
+  });
+  if (branch.parallelBranches?.length) {
+    rows.push({ id: `${path}-par`, depth, label: "Parallel group", detail: `${branch.parallelBranches.length} leg(s)` });
+    branch.parallelBranches.forEach((leg, index) => {
+      rows.push(...branchOutline(leg, depth + 1, `${path}-leg${index}`));
+    });
+  }
+  if (branch.next) {
+    rows.push(...branchOutline(branch.next, depth, `${path}-next`));
+  }
+  return rows;
+}
+
 function findingMatchesRung(finding: ValidationFinding, rung: LadderRung): boolean {
   const text = rungText(rung);
   const quoted = [...finding.message.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
   return quoted.length > 0 ? quoted.some((part) => part && text.includes(part)) : false;
 }
 
-/** Collect tag references that don't exist yet, with the type they should be. */
-function findUndefinedTags(ladder: LadderRoutine, project: PlcProject): UndefinedTag[] {
-  const found = new Map<string, string>();
-  for (const node of routineNodes(ladder)) {
-    const definition = registry.get(node.instructionType);
-    node.operands.forEach((operand, index) => {
-      const value = operand.value.trim();
-      if (!value || isNumericLiteral(value)) return;
-      const base = baseTagName(value);
-      if (!base || tagExists(project, base) || found.has(base)) return;
-      found.set(base, definition?.operands[index]?.allowedTypes?.[0] ?? "BOOL");
-    });
-  }
-  return [...found].map(([name, inferredType]) => ({ name, inferredType }));
+function isLadderRoutine(value: unknown): value is LadderRoutine {
+  return !!value && typeof value === "object" && Array.isArray((value as { rungs?: unknown }).rungs);
 }
 
-function ContextShortcut({ children }: { children: string }) {
-  return <span className="esco-context-menu__shortcut">{children}</span>;
+function aoiHasExecutableRll(aoi: AddOnInstruction): boolean {
+  if (aoi.protected) return false;
+  return (aoi.routines ?? []).some((routine) => isLadderRoutine(routine.ladder));
+}
+
+function routineHasPendingTestEdits(project: PlcProject, routineId?: string): boolean {
+  if (!routineId) return false;
+  return project.controllers.some((controller) =>
+    controller.programs.some((program) =>
+      program.testEdits === true && program.routines.some((candidate) => candidate.id === routineId),
+    ),
+  );
 }
 
 export function EditorArea({
@@ -594,26 +1108,89 @@ export function EditorArea({
   onAddRung,
   onDeleteRung,
   onCopyRung,
-  onDuplicateRung,
+  onCutRung,
   onPasteRung,
   canPaste,
-  onAddInstruction,
-  onEditOperand,
-  onRemoveInstruction,
-  onCreateTag,
-  onSelectRung,
-  onSelectNode,
-  onSetRungComment,
-  onAddParallelBranch,
+  onDuplicateRung,
+  onInsertRung,
+  onPasteRungRelative,
   onAddBranchLeg,
   onRemoveBranchLeg,
-  onAddToBranch,
+  onVerifyRung,
+  onCrossReferenceRung,
+  onInsertInstruction,
+  onUnforceTag,
+  onSetRungComment,
+  onEditOperand,
+  onRemoveInstruction,
+  onPickInstructionForBranch,
+  onCreateTagFromOperand,
+  onAddLadderElement,
+  onSelectRung,
+  onSelectNode,
+  onAddParallelBranch,
   onSetStructuredTextSource,
+  onEditTagProperties,
+  onWatchTag,
+  onCrossReferenceTag,
+  onForceTag,
+  onToggleBit,
+  onTrendTag,
+  onInstructionHelp,
   onOpenRoutine,
+  onCloseRoutine,
+  onControllerAction,
+  editState = "none",
+  editLocked = false,
 }: Props) {
-  const [showAllRungs, setShowAllRungs] = useState(false);
+  const editorSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const contextMenuReturnFocusRef = useRef<HTMLElement | null>(null);
+  const [virtualMetrics, setVirtualMetrics] = useState({ scrollTop: 0, viewportHeight: 720 });
   const [contextMenu, setContextMenu] = useState<LadderContextMenu | null>(null);
+  const [routineCommand, setRoutineCommand] = useState<RoutineCommand | null>(null);
+  const [lastFindTerm, setLastFindTerm] = useState("");
+  const [operandDisplay, setOperandDisplay] = useState({ tagDescriptions: false, operandMeta: false });
+  const [rungInspector, setRungInspector] = useState<"branch" | "source" | null>(null);
   const suggestions = useMemo(() => operandSuggestions(project), [project]);
+  // Base tag names known to the project (controller- and program-scoped). The
+  // ladder flags an operand as undefined only when its base tag isn't in here,
+  // so a freshly-created program tag clears the diagnostic immediately.
+  const knownTagNames = useMemo(() => new Set(getTags(project).map((tag) => tag.name)), [project]);
+  const displayOptions = useMemo<LadderDisplayOptions>(
+    () => ({
+      tagDescriptions: operandDisplay.tagDescriptions,
+      operandMeta: operandDisplay.operandMeta,
+      lookup: (value: string) => operandMetadata(project, value),
+    }),
+    [operandDisplay, project],
+  );
+  const importedRoutinePendingTestEdits = useMemo(
+    () => routineHasPendingTestEdits(project, routine?.id),
+    [project, routine?.id],
+  );
+  const routinePendingTestEdits = editState === "test" || editState === "assembled" || (editState === "none" && importedRoutinePendingTestEdits);
+  const effectiveEditState: OfflineEditLifecycleState =
+    editState === "none" && importedRoutinePendingTestEdits ? "test" : editState;
+  const routineCommandRoutineId = activeRoutineId ?? routine?.id;
+  useEffect(() => {
+    setRoutineCommand(null);
+    setContextMenu(null);
+  }, [routineCommandRoutineId]);
+  const knownInstructionTypes = useMemo(
+    () => new Set(project.controllers.flatMap((controller) =>
+      controller.addOnInstructions.map((aoi) => aoi.name.toUpperCase()),
+    )),
+    [project],
+  );
+  const modelOnlyInstructionTypes = useMemo(
+    () => new Set(project.controllers.flatMap((controller) =>
+      controller.addOnInstructions
+        .filter((aoi) => !aoiHasExecutableRll(aoi))
+        .map((aoi) => aoi.name.toUpperCase()),
+    )),
+    [project],
+  );
   const routineFindings = useMemo(
     () => (routine ? findings.filter((finding) => findingForRoutine(finding, routine)) : []),
     [findings, routine],
@@ -627,52 +1204,255 @@ export function EditorArea({
     }
     return map;
   }, [ladder, routineFindings]);
-  const undefinedTags = useMemo(
-    () => (ladder ? findUndefinedTags(ladder, project) : []),
-    [ladder, project],
-  );
-
+  const scrollToRungIndex = (index: number) => {
+    const surface = editorSurfaceRef.current;
+    if (!surface) return;
+    const nextScrollTop = Math.max(0, index * VIRTUAL_RUNG_HEIGHT);
+    surface.scrollTop = nextScrollTop;
+    setVirtualMetrics((current) => ({
+      scrollTop: nextScrollTop,
+      viewportHeight: surface.clientHeight || current.viewportHeight || 720,
+    }));
+  };
+  const selectRungAtIndex = (index: number) => {
+    const rung = ladder?.rungs[index];
+    if (!rung) return;
+    onSelectRung(rung.id);
+    scrollToRungIndex(index);
+  };
+  const handleFindInRoutine = () => {
+    if (!ladder) return;
+    setRoutineCommand({ kind: "find", value: lastFindTerm });
+  };
+  const applyFindInRoutine = (command: Extract<RoutineCommand, { kind: "find" }>) => {
+    if (!ladder) return;
+    const term = command.value.trim().toLowerCase();
+    if (!term) {
+      setRoutineCommand({ ...command, message: "Enter text to search this routine." });
+      return;
+    }
+    const startIndex = Math.max(0, ladder.rungs.findIndex((rung) => rung.id === selectedRungId));
+    const ordered = [...ladder.rungs.slice(startIndex + 1), ...ladder.rungs.slice(0, startIndex + 1)];
+    const found = ordered.find((rung) => rungText(rung).toLowerCase().includes(term));
+    if (!found) {
+      setRoutineCommand({ ...command, message: `No rung match found for "${command.value}".` });
+      return;
+    }
+    setLastFindTerm(command.value);
+    selectRungAtIndex(ladder.rungs.findIndex((rung) => rung.id === found.id));
+    setRoutineCommand(null);
+  };
+  const handleGoToRung = () => {
+    if (!ladder) return;
+    const current = ladder.rungs.find((rung) => rung.id === selectedRungId)?.number ?? ladder.rungs[0]?.number ?? 0;
+    setRoutineCommand({ kind: "goto", value: String(current) });
+  };
+  const applyGoToRung = (command: Extract<RoutineCommand, { kind: "goto" }>) => {
+    if (!ladder) return;
+    const requested = Number(command.value.trim());
+    if (!Number.isFinite(requested)) {
+      setRoutineCommand({ ...command, message: "Enter a valid rung number." });
+      return;
+    }
+    const index = ladder.rungs.findIndex((rung) => rung.number === requested);
+    if (index < 0) {
+      setRoutineCommand({ ...command, message: `Rung ${command.value.trim()} was not found.` });
+      return;
+    }
+    selectRungAtIndex(index);
+    setRoutineCommand(null);
+  };
+  const applyRoutineCommand = () => {
+    if (!routineCommand) return;
+    if (routineCommand.kind === "find") {
+      applyFindInRoutine(routineCommand);
+      return;
+    }
+    if (routineCommand.kind === "goto") {
+      applyGoToRung(routineCommand);
+      return;
+    }
+    if (routineCommand.kind === "operand") {
+      if (editLocked) {
+        setRoutineCommand({ ...routineCommand, message: "Read-only while the ESCO Virtual Controller is scanning." });
+        return;
+      }
+      onEditOperand(
+        routineCommand.rungId,
+        routineCommand.nodeId,
+        routineCommand.operandIndex,
+        routineCommand.value,
+        routineCommand.routineId,
+      );
+      setRoutineCommand(null);
+      return;
+    }
+    if (editLocked) {
+      setRoutineCommand({ ...routineCommand, message: "Read-only while the ESCO Virtual Controller is scanning." });
+      return;
+    }
+    onSetRungComment(routineCommand.rungId, routineCommand.value, routineCommand.routineId);
+    setRoutineCommand(null);
+  };
   const editing = {
     onEditOperand,
     onRemoveInstruction,
+    onPickInstructionForBranch,
+    onRemoveBranchLeg,
     onSelectNode,
     selectedNodeId,
     operandSuggestions: suggestions,
-    onOpenInstructionMenu: (event: MouseEvent<HTMLElement>, rungId: string, node: LadderNode) => {
+    knownInstructionTypes,
+    modelOnlyInstructionTypes,
+    display: displayOptions,
+    onOpenInstructionMenu: (
+      request: { clientX: number; clientY: number; focusTarget?: HTMLElement | null },
+      rungId: string,
+      node: LadderNode,
+      operandIndex = 0,
+      branchId?: string,
+    ) => {
+      contextMenuReturnFocusRef.current = request.focusTarget ?? null;
+      const normalizedOperandIndex =
+        operandIndex >= 0 && operandIndex < Math.max(node.operands.length, 1) ? operandIndex : 0;
       setContextMenu({
         kind: "instruction",
-        x: event.clientX,
-        y: event.clientY,
+        x: request.clientX,
+        y: request.clientY,
         rungId,
         nodeId: node.id,
+        branchId,
         instructionType: node.instructionType,
-        operand: node.operands[0]?.value ?? "",
+        operand: node.operands[normalizedOperandIndex]?.value ?? "",
+        operandIndex: normalizedOperandIndex,
       });
     },
     isUndefinedTag: (value: string) => {
       const base = baseTagName(value);
-      return base !== "" && !tagExists(project, base);
+      return base !== "" && !knownTagNames.has(base);
     },
+  };
+
+  const closeContextMenu = useCallback((restoreFocus = false) => {
+    setContextMenu(null);
+    if (restoreFocus) {
+      const target = contextMenuReturnFocusRef.current;
+      window.setTimeout(() => target?.focus(), 0);
+    }
+  }, []);
+
+  const contextMenuItems = () =>
+    Array.from(contextMenuRef.current?.querySelectorAll<HTMLButtonElement>(".esco-context-menu__item:not(:disabled)") ?? []);
+
+  const focusContextMenuItem = (index: number) => {
+    const items = contextMenuItems();
+    if (!items.length) return;
+    items[(index + items.length) % items.length]?.focus();
+  };
+
+  const handleContextMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = contextMenuItems();
+    const activeIndex = items.findIndex((item) => item === document.activeElement);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeContextMenu(true);
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusContextMenuItem(activeIndex < 0 ? 0 : activeIndex + 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusContextMenuItem(activeIndex < 0 ? items.length - 1 : activeIndex - 1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      focusContextMenuItem(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      focusContextMenuItem(items.length - 1);
+    }
   };
 
   useEffect(() => {
     if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
+    const id = window.setTimeout(() => {
+      const menu = contextMenuRef.current;
+      if (!menu) return;
+      menu.querySelectorAll<HTMLElement>(".esco-context-menu__item").forEach((item) => {
+        item.setAttribute("role", "menuitem");
+        item.tabIndex = -1;
+      });
+      menu.querySelectorAll<HTMLElement>(".esco-context-menu__sep").forEach((separator) => {
+        separator.setAttribute("role", "separator");
+      });
+      contextMenuItems()[0]?.focus();
+    }, 0);
+    const close = () => closeContextMenu(false);
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") closeContextMenu(true);
     };
     window.addEventListener("click", close);
     window.addEventListener("keydown", onKey);
     return () => {
+      window.clearTimeout(id);
       window.removeEventListener("click", close);
       window.removeEventListener("keydown", onKey);
     };
-  }, [contextMenu]);
+  }, [closeContextMenu, contextMenu]);
+
+  useEffect(() => {
+    if (!routineCommand) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setRoutineCommand(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [routineCommand]);
+
+  useEffect(() => {
+    const surface = editorSurfaceRef.current;
+    if (!surface) return;
+    surface.scrollTop = 0;
+    setVirtualMetrics({ scrollTop: 0, viewportHeight: surface.clientHeight || 720 });
+  }, [routine?.id]);
+
+  useEffect(() => {
+    const surface = editorSurfaceRef.current;
+    if (!surface) return;
+
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      setVirtualMetrics((current) => {
+        const next = {
+          scrollTop: surface.scrollTop,
+          viewportHeight: surface.clientHeight || current.viewportHeight || 720,
+        };
+        return next.scrollTop === current.scrollTop && next.viewportHeight === current.viewportHeight
+          ? current
+          : next;
+      });
+    };
+    const scheduleMeasure = () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(measure);
+    };
+
+    measure();
+    surface.addEventListener("scroll", scheduleMeasure, { passive: true });
+    window.addEventListener("resize", scheduleMeasure);
+    return () => {
+      surface.removeEventListener("scroll", scheduleMeasure);
+      window.removeEventListener("resize", scheduleMeasure);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [routine?.id, ladder?.rungs.length]);
 
   if (!routine) {
     return (
       <div className="esco-editor">
-        <div className="esco-editor__empty">
+        <div className="esco-editor__empty" aria-label="No routine window open">
           <h1>ESCO Automation Studio</h1>
           <p>Select a routine in the Project Explorer to edit its ladder.</p>
         </div>
@@ -688,11 +1468,20 @@ export function EditorArea({
           activeRoutineId={activeRoutineId}
           fallbackRoutineId={routine.id}
           onOpenRoutine={onOpenRoutine}
+          onCloseRoutine={onCloseRoutine}
         />
-        <NonLadderRoutineView routine={routine} onSetStructuredTextSource={onSetStructuredTextSource} />
+        <NonLadderRoutineView routine={routine} onSetStructuredTextSource={onSetStructuredTextSource} editLocked={editLocked} />
       </div>
     );
   }
+
+  const rungWindow = virtualWindow(ladder.rungs, {
+    scrollTop: virtualMetrics.scrollTop,
+    viewportHeight: virtualMetrics.viewportHeight,
+    rowHeight: VIRTUAL_RUNG_HEIGHT,
+    overscan: VIRTUAL_RUNG_OVERSCAN,
+    minimumTotal: LARGE_ROUTINE_LIMIT,
+  });
 
   return (
     <div className="esco-editor">
@@ -701,52 +1490,94 @@ export function EditorArea({
         activeRoutineId={activeRoutineId}
         fallbackRoutineId={routine.id}
         onOpenRoutine={onOpenRoutine}
+        onCloseRoutine={onCloseRoutine}
       />
-
-      <div className="esco-editor__surface">
-        {routineFindings.length > 0 ? (
-          <div className="esco-editor__validation">
-            <strong>{routineFindings.length} validation finding{routineFindings.length === 1 ? "" : "s"}</strong>
-            <span>Rung badges highlight findings that can be associated with referenced tags.</span>
-          </div>
-        ) : null}
-        <div className="esco-editor__toolbar">
-          <button type="button" className="esco-btn esco-btn--primary" onClick={onAddRung}>
-            + Add Rung
-          </button>
-          <button
-            type="button"
-            className="esco-btn"
-            disabled={!canPaste}
-            title={canPaste ? "Paste the copied rung" : "Copy a rung first"}
-            onClick={onPasteRung}
-          >
-            Paste Rung
-          </button>
-          <InstructionPalette selectedRungId={selectedRungId} onAddInstruction={onAddInstruction} />
+      <RoutineLocalToolbar
+        selectedRungId={selectedRungId}
+        canPaste={canPaste && !editLocked}
+        editLocked={editLocked}
+        display={operandDisplay}
+        inspector={rungInspector}
+        onToggleTagDescriptions={() =>
+          setOperandDisplay((current) => ({ ...current, tagDescriptions: !current.tagDescriptions }))
+        }
+        onToggleOperandMeta={() =>
+          setOperandDisplay((current) => ({ ...current, operandMeta: !current.operandMeta }))
+        }
+        onPlainOperandMode={() => setOperandDisplay({ tagDescriptions: false, operandMeta: false })}
+        onToggleInspector={(mode) => setRungInspector((current) => (current === mode ? null : mode))}
+        onAddRung={onAddRung}
+        onDeleteRung={onDeleteRung}
+        onCopyRung={onCopyRung}
+        onCutRung={onCutRung}
+        onPasteRung={onPasteRung}
+        onDuplicateRung={onDuplicateRung}
+        onAddParallelBranch={onAddParallelBranch}
+        onFindInRoutine={handleFindInRoutine}
+        onGoToRung={handleGoToRung}
+      />
+      {editLocked ? (
+        <div className="esco-editor__edit-lock" role="status">
+          ESCO Virtual Controller is scanning. Logic edits are read-only until Program mode or Offline.
         </div>
+      ) : null}
+      {rungInspector ? (
+        <RungInspector
+          mode={rungInspector}
+          rung={ladder.rungs.find((candidate) => candidate.id === selectedRungId) ?? ladder.rungs[0]}
+          onClose={() => setRungInspector(null)}
+        />
+      ) : null}
+      {routineCommand ? (
+        <RoutineCommandBar
+          command={routineCommand}
+          onChange={(value) => setRoutineCommand((current) => (current ? { ...current, value, message: undefined } : current))}
+          onApply={applyRoutineCommand}
+          onCancel={() => setRoutineCommand(null)}
+        />
+      ) : null}
+      {routinePendingTestEdits ? <RoutineOnlineEditBar editState={effectiveEditState} onControllerAction={onControllerAction} /> : null}
+      {rungWindow.active ? (
+        <div className="esco-editor__largebanner">
+          Virtualized large routine: showing rungs {rungWindow.startIndex + 1}-{rungWindow.endIndex} of {rungWindow.total}.
+        </div>
+      ) : null}
 
+      <div className="esco-editor__surface" ref={editorSurfaceRef}>
         {ladder.rungs.length === 0 ? (
-          <div className="esco-editor__norungs">
-            <p className="esco-empty">This routine has no rungs yet.</p>
-            <button type="button" className="esco-btn esco-btn--primary" onClick={onAddRung}>
-              + Add first rung
+          <div className="esco-editor__norungs" aria-label="Empty ladder routine">
+            <button
+              type="button"
+              className="esco-lad__rung esco-lad__rung--empty"
+              onClick={onAddRung}
+              disabled={editLocked}
+              aria-label="Add first rung"
+              title="Add first rung"
+            >
+              <div className="esco-lad__rung-head">
+                <span className="esco-lad__rung-no">0</span>
+              </div>
+              <div className="esco-lad__diagram esco-lad__diagram--empty">
+                <span className="esco-lad__rail esco-lad__rail--left" />
+                <span className="esco-lad__series" aria-hidden="true">
+                  <span className="esco-lad__row">
+                    <span className="esco-lad__wire" />
+                  </span>
+                </span>
+                <span className="esco-lad__rail esco-lad__rail--right" />
+              </div>
             </button>
           </div>
         ) : (
-          (() => {
-            const rungCap = capList(ladder.rungs, showAllRungs ? 0 : LARGE_ROUTINE_LIMIT);
-            return (
           <>
-          {rungCap.truncated ? (
-            <div className="esco-editor__largebanner">
-              Large routine — showing the first {rungCap.items.length} of {rungCap.total} rungs.
-              <button type="button" className="esco-btn" onClick={() => setShowAllRungs(true)}>
-                Show all rungs
-              </button>
-            </div>
+          {rungWindow.beforePx > 0 ? (
+            <div
+              className="esco-editor__virtual-spacer"
+              style={{ height: `${rungWindow.beforePx}px` }}
+              aria-hidden="true"
+            />
           ) : null}
-          {rungCap.items.map((rung) => (
+          {rungWindow.items.map((rung) => (
             (() => {
               const rungFindings = findingsByRung.get(rung.id) ?? [];
               return (
@@ -754,11 +1585,37 @@ export function EditorArea({
               key={rung.id}
               className={`esco-lad__rung${selectedRungId === rung.id ? " is-selected" : ""}${
                 rungFindings.length ? " has-finding" : ""
-              }`}
+              }${routinePendingTestEdits ? " is-test-edit" : ""}`}
+              tabIndex={0}
+              aria-label={`Rung ${rung.number}`}
+              onFocus={(event) => {
+                if (event.target === event.currentTarget) onSelectRung(rung.id);
+              }}
               onClick={() => onSelectRung(rung.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelectRung(rung.id);
+                  return;
+                }
+                if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                  event.preventDefault();
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  onSelectRung(rung.id);
+                  contextMenuReturnFocusRef.current = event.currentTarget;
+                  setContextMenu({
+                    kind: "rung",
+                    x: rect.left + 36,
+                    y: rect.top + 24,
+                    rungId: rung.id,
+                    rungNumber: rung.number,
+                  });
+                }
+              }}
               onContextMenu={(event) => {
                 event.preventDefault();
                 onSelectRung(rung.id);
+                contextMenuReturnFocusRef.current = event.currentTarget;
                 setContextMenu({
                   kind: "rung",
                   x: event.clientX,
@@ -770,6 +1627,7 @@ export function EditorArea({
             >
               <div className="esco-lad__rung-head">
                 <span className="esco-lad__rung-no">{rung.number}</span>
+                {routinePendingTestEdits ? <span className="esco-lad__edit-marker" title="Pending test edit">e</span> : null}
                 {rungFindings.length > 0 ? (
                   <span
                     className={`esco-lad__finding esco-lad__finding--${rungFindings.some((finding) => finding.severity === "error") ? "error" : "warning"}`}
@@ -778,180 +1636,332 @@ export function EditorArea({
                     {rungFindings.length}
                   </span>
                 ) : null}
-                <input
-                  className="esco-lad__comment-input"
-                  defaultValue={rung.comment ?? ""}
-                  placeholder="Rung comment…"
-                  spellCheck={false}
-                  onClick={(event) => event.stopPropagation()}
-                  onBlur={(event) => {
-                    if (event.target.value !== (rung.comment ?? "")) {
-                      onSetRungComment(rung.id, event.target.value);
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  className="esco-btn esco-lad__rung-btn"
-                  title="Copy this rung"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onCopyRung(rung.id);
-                  }}
-                >
-                  Copy
-                </button>
-                <button
-                  type="button"
-                  className="esco-btn esco-lad__rung-btn"
-                  title="Duplicate this rung"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDuplicateRung(rung.id);
-                  }}
-                >
-                  Duplicate
-                </button>
-                <button
-                  type="button"
-                  className="esco-btn esco-btn--danger esco-lad__rung-delete"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDeleteRung(rung.id);
-                  }}
-                >
-                  Delete Rung
-                </button>
               </div>
               <RungDiagram rung={rung} editing={editing} />
-              {selectedRungId === rung.id ? (
-                <BranchEditor
-                  rung={rung}
-                  onAddParallelBranch={onAddParallelBranch}
-                  onAddBranchLeg={onAddBranchLeg}
-                  onRemoveBranchLeg={onRemoveBranchLeg}
-                  onAddToBranch={onAddToBranch}
-                />
-              ) : null}
             </div>
               );
             })()
           ))}
+          {rungWindow.afterPx > 0 ? (
+            <div
+              className="esco-editor__virtual-spacer"
+              style={{ height: `${rungWindow.afterPx}px` }}
+              aria-hidden="true"
+            />
+          ) : null}
           </>
-            );
-          })()
         )}
 
-        {undefinedTags.length > 0 ? (
-          <div className="esco-undef">
-            <span className="esco-undef__label">Undefined tags:</span>
-            {undefinedTags.map(({ name, inferredType }) => (
-              <button
-                key={name}
-                type="button"
-                className="esco-btn esco-btn--create"
-                onClick={() => onCreateTag(name, inferredType)}
-              >
-                + Create {inferredType} “{name}”
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
       {contextMenu ? (
         <div
+          ref={contextMenuRef}
           className="esco-context-menu"
+          role="menu"
+          aria-label={
+            contextMenu.kind === "instruction"
+              ? `${contextMenu.instructionType} ${contextMenu.operand}`.trim()
+              : `Rung ${String(contextMenu.rungNumber).padStart(3, "0")}`
+          }
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(event) => event.stopPropagation()}
+          onKeyDown={handleContextMenuKeyDown}
         >
-          <div className="esco-context-menu__title">
-            {contextMenu.kind === "instruction"
-              ? `${contextMenu.instructionType} ${contextMenu.operand}`.trim()
-              : `Rung ${String(contextMenu.rungNumber).padStart(3, "0")}`}
-          </div>
           {contextMenu.kind === "instruction" ? (
+            (() => {
+              const tagName = baseTagName(contextMenu.operand);
+              const hasOperandTag = tagName !== "" && knownTagNames.has(tagName);
+              return (
             <>
-              <button type="button" className="esco-context-menu__item" onClick={() => setContextMenu(null)}>
-                <span className="esco-context-menu__icon">✎</span>
-                Edit Operand
-                <ContextShortcut>Enter</ContextShortcut>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={editLocked}
+                onClick={() => {
+                  setRoutineCommand({
+                    kind: "operand",
+                    routineId: routineCommandRoutineId ?? "",
+                    rungId: contextMenu.rungId,
+                    nodeId: contextMenu.nodeId,
+                    instructionType: contextMenu.instructionType,
+                    operandIndex: contextMenu.operandIndex,
+                    value: contextMenu.operand,
+                  });
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Edit Operand...
               </button>
-              <button type="button" className="esco-context-menu__item" disabled>
-                <span className="esco-context-menu__icon">◉</span>
-                Toggle XIC / XIO
-                <ContextShortcut>T</ContextShortcut>
+              {tagName !== "" && !hasOperandTag && onCreateTagFromOperand ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={editLocked}
+                  onClick={() => {
+                    onCreateTagFromOperand(contextMenu.instructionType, tagName, contextMenu.operandIndex);
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Create Tag “{tagName}”...
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={editLocked}
+                onClick={() => {
+                  onAddParallelBranch(contextMenu.rungId, contextMenu.branchId);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Add Parallel Branch
+              </button>
+              {onInsertInstruction ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={editLocked}
+                  onClick={() => {
+                    onInsertInstruction(contextMenu.rungId, contextMenu.nodeId, "before");
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Insert Instruction Before...
+                </button>
+              ) : null}
+              {onInsertInstruction ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={editLocked}
+                  onClick={() => {
+                    onInsertInstruction(contextMenu.rungId, contextMenu.nodeId, "after");
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Insert Instruction After...
+                </button>
+              ) : null}
+              {onAddLadderElement ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={editLocked}
+                  onClick={() => {
+                    onAddLadderElement(contextMenu.rungId);
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Add Ladder Element...
+                </button>
+              ) : null}
+              <div className="esco-context-menu__sep" />
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={editLocked || !hasOperandTag || !onEditTagProperties}
+                onClick={() => {
+                  onEditTagProperties?.(tagName);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Edit Tag Properties...
               </button>
               <button
                 type="button"
                 className="esco-context-menu__item"
+                disabled={!hasOperandTag || !onWatchTag}
                 onClick={() => {
-                  onAddParallelBranch(contextMenu.rungId);
+                  onWatchTag?.(tagName);
                   setContextMenu(null);
                 }}
               >
-                <span className="esco-context-menu__icon">⑂</span>
-                Add Parallel Branch
-                <ContextShortcut>›</ContextShortcut>
-              </button>
-              <button type="button" className="esco-context-menu__item" disabled>
-                <span className="esco-context-menu__icon">{"{}"}</span>
-                Replace Instruction
-                <ContextShortcut>Ctrl+R ›</ContextShortcut>
-              </button>
-              <div className="esco-context-menu__sep" />
-              <button type="button" className="esco-context-menu__item" disabled>
-                <span className="esco-context-menu__icon">◌</span>
+                <span className="esco-context-menu__icon" aria-hidden="true" />
                 Watch Tag
-                <ContextShortcut>Ctrl+W</ContextShortcut>
               </button>
-              <button type="button" className="esco-context-menu__item" disabled>
-                <span className="esco-context-menu__icon">⌕</span>
-                Cross Reference Tag
-                <ContextShortcut>Shift+F12</ContextShortcut>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={!hasOperandTag || !onToggleBit}
+                onClick={() => {
+                  onToggleBit?.(tagName);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Toggle Bit
               </button>
-              <button type="button" className="esco-context-menu__item" disabled>
-                <span className="esco-context-menu__icon">⚙</span>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={!hasOperandTag || !onTrendTag}
+                onClick={() => {
+                  onTrendTag?.(tagName);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Trend
+              </button>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={!hasOperandTag || !onCrossReferenceTag}
+                onClick={() => {
+                  onCrossReferenceTag?.(tagName);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Cross Reference
+              </button>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={!hasOperandTag || !onForceTag}
+                onClick={() => {
+                  onForceTag?.(tagName);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
                 Force Value
+              </button>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={!hasOperandTag || !onUnforceTag}
+                onClick={() => {
+                  onUnforceTag?.(tagName);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Unforce
+              </button>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={!onInstructionHelp}
+                onClick={() => {
+                  onInstructionHelp?.(contextMenu.instructionType, contextMenu.operand);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Instruction Help
               </button>
               <div className="esco-context-menu__sep" />
               <button
                 type="button"
                 className="esco-context-menu__item esco-context-menu__item--danger"
+                disabled={editLocked}
                 onClick={() => {
                   onRemoveInstruction(contextMenu.rungId, contextMenu.nodeId);
                   setContextMenu(null);
                 }}
               >
-                <span className="esco-context-menu__icon">⌫</span>
+                <span className="esco-context-menu__icon" aria-hidden="true" />
                 Delete Instruction
-                <ContextShortcut>Del</ContextShortcut>
               </button>
             </>
+              );
+            })()
           ) : (
             <>
+              {!onInsertRung ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={editLocked}
+                  onClick={() => {
+                    onAddRung();
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Add Rung
+                </button>
+              ) : null}
+              {onInsertRung ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={editLocked}
+                  onClick={() => {
+                    onInsertRung(contextMenu.rungId, "above");
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Insert Rung Above
+                </button>
+              ) : null}
+              {onInsertRung ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={editLocked}
+                  onClick={() => {
+                    onInsertRung(contextMenu.rungId, "below");
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Insert Rung Below
+                </button>
+              ) : null}
+              {onAddLadderElement ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={editLocked}
+                  onClick={() => {
+                    onAddLadderElement(contextMenu.rungId);
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Add Ladder Element...
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="esco-context-menu__item"
+                disabled={editLocked}
                 onClick={() => {
-                  onAddRung();
+                  const rung = ladder?.rungs.find((candidate) => candidate.id === contextMenu.rungId);
+                  setRoutineCommand({
+                    kind: "comment",
+                    routineId: routineCommandRoutineId ?? "",
+                    rungId: contextMenu.rungId,
+                    rungNumber: contextMenu.rungNumber,
+                    value: rung?.comment ?? "",
+                  });
                   setContextMenu(null);
                 }}
               >
-                <span className="esco-context-menu__icon">+</span>
-                Add Rung Below
-                <ContextShortcut>Ctrl+I</ContextShortcut>
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Edit Rung Comment...
               </button>
               <button
                 type="button"
                 className="esco-context-menu__item"
+                disabled={editLocked}
                 onClick={() => {
                   onDuplicateRung(contextMenu.rungId);
                   setContextMenu(null);
                 }}
               >
-                <span className="esco-context-menu__icon">⧉</span>
+                <span className="esco-context-menu__icon" aria-hidden="true" />
                 Duplicate Rung
-                <ContextShortcut>Ctrl+D</ContextShortcut>
               </button>
               <button
                 type="button"
@@ -961,21 +1971,146 @@ export function EditorArea({
                   setContextMenu(null);
                 }}
               >
-                <span className="esco-context-menu__icon">□</span>
+                <span className="esco-context-menu__icon" aria-hidden="true" />
                 Copy Rung
               </button>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={editLocked}
+                onClick={() => {
+                  onCutRung(contextMenu.rungId);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Cut Rung
+              </button>
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={!canPaste || editLocked}
+                onClick={() => {
+                  onPasteRung();
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Paste Rung
+              </button>
+              {onPasteRungRelative ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={!canPaste || editLocked}
+                  onClick={() => {
+                    onPasteRungRelative(contextMenu.rungId, "above");
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Paste Rung Above
+                </button>
+              ) : null}
+              {onPasteRungRelative ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={!canPaste || editLocked}
+                  onClick={() => {
+                    onPasteRungRelative(contextMenu.rungId, "below");
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Paste Rung Below
+                </button>
+              ) : null}
+              <div className="esco-context-menu__sep" />
+              <button
+                type="button"
+                className="esco-context-menu__item"
+                disabled={editLocked}
+                onClick={() => {
+                  onAddParallelBranch(contextMenu.rungId);
+                  setContextMenu(null);
+                }}
+              >
+                <span className="esco-context-menu__icon" aria-hidden="true" />
+                Add Parallel Branch
+              </button>
+              {onAddBranchLeg ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={
+                    editLocked ||
+                    !(ladder?.rungs.find((candidate) => candidate.id === contextMenu.rungId)?.root.parallelBranches?.length)
+                  }
+                  onClick={() => {
+                    onAddBranchLeg(contextMenu.rungId);
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Add Branch Leg
+                </button>
+              ) : null}
+              {onVerifyRung ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  onClick={() => {
+                    onVerifyRung(contextMenu.rungId);
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Verify Rung
+                </button>
+              ) : null}
+              {onCrossReferenceRung ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  onClick={() => {
+                    onCrossReferenceRung(contextMenu.rungId);
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Cross Reference Rung
+                </button>
+              ) : null}
+              <div className="esco-context-menu__sep" />
+              {ONLINE_EDIT_COMMANDS.map((command) => (
+                <button
+                  key={command.action}
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={!onControllerAction}
+                  onClick={() => {
+                    onControllerAction?.(command.action);
+                    setContextMenu(null);
+                  }}
+                  title={ONLINE_EDIT_GUARD}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  {command.label}
+                </button>
+              ))}
               <div className="esco-context-menu__sep" />
               <button
                 type="button"
                 className="esco-context-menu__item esco-context-menu__item--danger"
+                disabled={editLocked}
                 onClick={() => {
                   onDeleteRung(contextMenu.rungId);
                   setContextMenu(null);
                 }}
               >
-                <span className="esco-context-menu__icon">⌫</span>
+                <span className="esco-context-menu__icon" aria-hidden="true" />
                 Delete Rung
-                <ContextShortcut>Del</ContextShortcut>
               </button>
             </>
           )}

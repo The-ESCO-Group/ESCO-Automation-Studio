@@ -1,5 +1,7 @@
 import type { InstructionDefinition } from "./types";
 
+export { instructionFidelity, instructionFidelityLabel, supportLevel } from "./types";
+
 /** Every instruction is defined exactly once and registered here. */
 export class InstructionRegistry {
   private byType = new Map<string, InstructionDefinition>();

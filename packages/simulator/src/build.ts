@@ -3,6 +3,7 @@ import {
   isNumericLiteral,
   type InstructionRegistry,
 } from "@esco/instructions";
+import type { AddOnInstruction } from "@esco/core";
 import { routineNodes, type LadderRoutine } from "@esco/ladder";
 import { PlcRuntime, type TagDescriptor } from "./runtime";
 
@@ -33,6 +34,8 @@ export function createRuntime(options: {
   routine?: LadderRoutine;
   /** Sibling routines by name, so a JSR in `routine` can resolve subroutines. */
   routines?: Map<string, LadderRoutine>;
+  /** Project-defined AOIs whose imported RLL routines can execute offline. */
+  addOnInstructions?: AddOnInstruction[];
   /** Alias tag name → base tag, so alias reads/writes resolve to the base. */
   aliases?: Map<string, string>;
   tags: TagDescriptor[];
@@ -48,6 +51,9 @@ export function createRuntime(options: {
   }
   if (options.routines) {
     runtime.loadRoutines(options.routines);
+  }
+  if (options.addOnInstructions) {
+    runtime.loadAddOnInstructions(options.addOnInstructions);
   }
   if (options.routine) {
     runtime.loadRoutine(options.routine);

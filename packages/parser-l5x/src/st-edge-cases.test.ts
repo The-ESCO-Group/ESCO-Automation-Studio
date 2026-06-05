@@ -84,10 +84,10 @@ ${lines.map((l, i) => `              <Line Number="${i}"><![CDATA[${l}]]></Line>
     expect(warnings.some((w) => w.includes("BadST") && w.includes("syntax") && w.includes("END_IF"))).toBe(true);
   });
 
-  it("does not emit syntax warnings for well-formed ST (only the read-only note)", () => {
+  it("does not emit syntax warnings for well-formed ST (only the import capability note)", () => {
     const xml = stRoutineXml("GoodST", ["IF Start THEN", "  X := 1;", "END_IF;"]);
     const { warnings } = importL5X(xml);
     expect(warnings.some((w) => w.includes("GoodST") && w.includes("syntax"))).toBe(false);
-    expect(warnings.some((w) => w.includes("GoodST") && w.includes("read-only"))).toBe(true);
+    expect(warnings.some((w) => w.includes("GoodST") && w.includes("limited offline execution subset"))).toBe(true);
   });
 });

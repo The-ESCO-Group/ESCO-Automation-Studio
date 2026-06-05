@@ -1,0 +1,130 @@
+{
+  "checksum": {
+    "algorithm": "sha256",
+    "value": "a9bc004369b07c1993f36ed72c5535330de88b21a9d0ae7f8e3668d09e94908b"
+  },
+  "extension": ".easruntime",
+  "formatName": "ESCO Automation Studio Runtime",
+  "runtime": {
+    "build": {
+      "controllerCount": 1,
+      "executionOrder": [
+        "rtn_f62e9353-1062-4665-8748-a58420f9640a"
+      ],
+      "instructionFidelity": {
+        "byStatus": {
+          "executable-partial": 0,
+          "executable-simulation": 3,
+          "model-only": 0,
+          "review-only": 0,
+          "unsupported": 0
+        },
+        "executable": 3,
+        "modelOnly": 0,
+        "preserved": [],
+        "total": 3,
+        "unsupported": 0
+      },
+      "ioModuleCount": 0,
+      "programCount": 1,
+      "routineCount": 1,
+      "rungCount": 1,
+      "tagCount": 3,
+      "taskCount": 1,
+      "validation": {
+        "error": 0,
+        "info": 0,
+        "warning": 0
+      },
+      "warnings": []
+    },
+    "controllers": [
+      {
+        "addOnInstructions": [],
+        "dataTypes": [],
+        "id": "ctrl_e21af9ff-0797-4b15-a427-6105d0ed0c8b",
+        "io": [],
+        "name": "E2E_Starter",
+        "tasks": [
+          {
+            "id": "task_66f913ac-0645-4efb-8ad5-f3c67ba34802",
+            "inhibited": false,
+            "name": "MainTask",
+            "programs": [
+              {
+                "id": "prog_d81e6539-6e9a-4ad3-8382-e5e941471e1c",
+                "inhibited": false,
+                "mainRoutineId": "rtn_f62e9353-1062-4665-8748-a58420f9640a",
+                "name": "MainProgram",
+                "routines": [
+                  {
+                    "executable": true,
+                    "executionIndex": 0,
+                    "id": "rtn_f62e9353-1062-4665-8748-a58420f9640a",
+                    "language": "ladder",
+                    "name": "MainRoutine",
+                    "payload": {
+                      "kind": "ladder",
+                      "rungs": [
+                        {
+                          "number": 0,
+                          "text": "XIC(StartPB)XIO(StopPB)OTE(MotorRun)"
+                        }
+                      ]
+                    },
+                    "scheduled": true
+                  }
+                ]
+              }
+            ],
+            "type": "continuous"
+          }
+        ]
+      }
+    ],
+    "extension": ".easruntime",
+    "formatName": "ESCO Automation Studio Runtime",
+    "identity": {
+      "description": "Imported from an L5X file.",
+      "projectId": "proj_1b3933cf-0be5-4451-8990-bf590c89574b",
+      "projectName": "E2E_Starter"
+    },
+    "initialValues": {
+      "MotorRun": false,
+      "StartPB": false,
+      "StopPB": false
+    },
+    "provenance": {
+      "appVersion": "0.1.0",
+      "builtAt": "2026-06-05T16:59:23.838Z",
+      "builtBy": "ESCO Automation Studio",
+      "source": "esco-native"
+    },
+    "runtimeVersion": "1.0.0",
+    "schemaVersion": 1,
+    "tags": [
+      {
+        "dataType": "BOOL",
+        "initialValue": false,
+        "name": "StartPB",
+        "path": "StartPB",
+        "scope": "controller"
+      },
+      {
+        "dataType": "BOOL",
+        "initialValue": false,
+        "name": "StopPB",
+        "path": "StopPB",
+        "scope": "controller"
+      },
+      {
+        "dataType": "BOOL",
+        "initialValue": false,
+        "name": "MotorRun",
+        "path": "MotorRun",
+        "scope": "controller"
+      }
+    ]
+  },
+  "schemaVersion": 1
+}

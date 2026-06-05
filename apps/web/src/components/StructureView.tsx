@@ -4,14 +4,35 @@ import type {
   AoiLocalTag,
   AoiParameter,
   Controller,
+  ControllerTrend,
+  IoModule,
   PlcProject,
   Program,
   Task,
   UdtMember,
   UserDefinedType,
 } from "@esco/core";
-import { aoiReferences, tagsUsingType, udtMemberPaths } from "@esco/project-actions";
+import { arrayDimensionSuffix, arrayDimensionsOf } from "@esco/core";
+import {
+  aoiReferences,
+  aoiReviewBoundaryLabel,
+  aoiRoutineReviewBehaviorLabel,
+  describeAoiExecutionReview,
+  ioModuleReviewReport,
+  tagsUsingType,
+  udtMemberPaths,
+  type AddIoModuleInput,
+  type IoModuleReviewRow,
+  type RemoveIoModuleInput,
+  type UpdateIoModuleInput,
+} from "@esco/project-actions";
 import type { Selection } from "../selection";
+import { escoBrandText } from "../branding";
+import { deviceImageUrl } from "../device-image-assets";
+import {
+  findIoDeviceCatalogEntry,
+  ioDeviceProfileSummary,
+} from "../io-device-catalog";
 import "./StructureView.css";
 
 /** Reviewed-action callbacks for editing controller-database structures. */
@@ -25,6 +46,9 @@ export interface StructureEditing {
   addAoiLocalTag: (aoiId: string, localTag: AoiLocalTag) => void;
   updateAoiLocalTag: (aoiId: string, localTagName: string, patch: Partial<AoiLocalTag>) => void;
   removeAoiLocalTag: (aoiId: string, localTagName: string) => void;
+  addIoModule: (input: AddIoModuleInput) => void;
+  updateIoModule: (input: UpdateIoModuleInput) => void;
+  removeIoModule: (input: RemoveIoModuleInput) => void;
 }
 
 interface Props {
@@ -32,6 +56,11 @@ interface Props {
   selection: Selection;
   onOpenRoutine: (routineId: string) => void;
   editing?: StructureEditing;
+  onNewIoModule?: (controllerId: string, initialQuery?: string, initialSlot?: number) => void;
+  onSelectIoModule?: (controllerId: string, moduleId: string) => void;
+  onIoModuleProperties?: (controllerId: string, moduleId: string) => void;
+  onToggleIoModuleInhibit?: (controllerId: string, moduleId: string) => void;
+  onDeleteIoModule?: (controllerId: string, moduleId: string) => void;
 }
 
 const AOI_USAGES = ["Input", "Output", "InOut"];
@@ -84,6 +113,14 @@ function findUdt(project: PlcProject, id: string): UserDefinedType | undefined {
   return undefined;
 }
 
+function findTrend(project: PlcProject, id: string): { controller: Controller; trend: ControllerTrend } | undefined {
+  for (const controller of project.controllers) {
+    const trend = controller.trends?.find((candidate) => candidate.id === id);
+    if (trend) return { controller, trend };
+  }
+  return undefined;
+}
+
 function findController(project: PlcProject, id: string): Controller | undefined {
   return project.controllers.find((controller) => controller.id === id);
 }
@@ -107,7 +144,18 @@ function findTask(project: PlcProject, id: string): { controller: Controller; ta
 function meta(value: unknown): string {
   if (value === undefined || value === null || value === "") return "-";
   if (typeof value === "boolean") return value ? "yes" : "no";
-  return String(value);
+  return escoBrandText(String(value));
+}
+
+function dimensionText(value: { dimension?: number; dimensions?: readonly number[] }): string {
+  return arrayDimensionsOf(value).join(",");
+}
+
+function dimensionPatch(value: string): { dimension?: number; dimensions?: number[] } {
+  const text = value.trim();
+  if (!text) return { dimensions: [] };
+  const dimensions = text.split(/[\s,]+/).filter(Boolean).map((part) => Number(part));
+  return dimensions.length > 1 ? { dimensions } : { dimension: dimensions[0] ?? 0 };
 }
 
 function ProjectDetail({ project }: { project: PlcProject }) {
@@ -133,7 +181,7 @@ function ProjectDetail({ project }: { project: PlcProject }) {
             <tr><th>Description</th><td>{meta(project.description)}</td></tr>
             <tr><th>Created</th><td>{meta(project.createdAt ? new Date(project.createdAt).toLocaleString() : undefined)}</td></tr>
             <tr><th>Updated</th><td>{meta(project.updatedAt ? new Date(project.updatedAt).toLocaleString() : undefined)}</td></tr>
-            <tr><th>Storage</th><td>ESCO project file (.plcproj.json)</td></tr>
+            <tr><th>Storage</th><td>ESCO project file (.easproj)</td></tr>
           </tbody>
         </table>
       </section>
@@ -281,11 +329,10 @@ function AddUdtMemberRow({ onAdd }: { onAdd: (member: UdtMember) => void }) {
   const [description, setDescription] = useState("");
   const submit = () => {
     if (!name.trim()) return;
-    const dim = parseInt(dimension, 10);
     onAdd({
       name: name.trim(),
       dataType: dataType.trim() || "BOOL",
-      ...(Number.isFinite(dim) && dim > 0 ? { dimension: dim } : {}),
+      ...dimensionPatch(dimension),
       ...(description.trim() ? { description: description.trim() } : {}),
     });
     setName("");
@@ -296,7 +343,7 @@ function AddUdtMemberRow({ onAdd }: { onAdd: (member: UdtMember) => void }) {
     <tr className="esco-edit__add-row">
       <td><input aria-label="New member name" className="esco-edit__input" value={name} placeholder="Member" spellCheck={false} onChange={(e) => setName(e.target.value)} /></td>
       <td><input aria-label="New member type" className="esco-edit__input" value={dataType} spellCheck={false} onChange={(e) => setDataType(e.target.value)} /></td>
-      <td><input aria-label="New member dimension" className="esco-edit__input" type="number" value={dimension} placeholder="0" onChange={(e) => setDimension(e.target.value)} /></td>
+      <td><input aria-label="New member dimension" className="esco-edit__input" value={dimension} placeholder="0 or 2,3" spellCheck={false} onChange={(e) => setDimension(e.target.value)} /></td>
       <td><input aria-label="New member description" className="esco-edit__input" value={description} spellCheck={false} onChange={(e) => setDescription(e.target.value)} /></td>
       <td><button type="button" className="esco-btn esco-btn--primary esco-btn--xs" disabled={!name.trim()} onClick={submit}>Add</button></td>
     </tr>
@@ -329,7 +376,7 @@ function UdtDetail({ udt, project, editing }: { udt: UserDefinedType; project: P
                     <>
                       <td><CommitCell ariaLabel={`Member ${m.name} name`} value={m.name} onCommit={(v) => editing.updateUdtMember(udt.id, m.name, { name: v })} /></td>
                       <td><CommitCell ariaLabel={`Member ${m.name} type`} value={m.dataType} onCommit={(v) => editing.updateUdtMember(udt.id, m.name, { dataType: v })} /></td>
-                      <td><CommitCell ariaLabel={`Member ${m.name} dimension`} type="number" value={m.dimension ? String(m.dimension) : ""} onCommit={(v) => { const n = parseInt(v, 10); editing.updateUdtMember(udt.id, m.name, { dimension: Number.isFinite(n) && n > 0 ? n : 0 }); }} /></td>
+                      <td><CommitCell ariaLabel={`Member ${m.name} dimension`} value={dimensionText(m)} placeholder="0 or 2,3" onCommit={(v) => editing.updateUdtMember(udt.id, m.name, dimensionPatch(v))} /></td>
                       <td><CommitCell ariaLabel={`Member ${m.name} description`} value={m.description ?? ""} onCommit={(v) => editing.updateUdtMember(udt.id, m.name, { description: v })} /></td>
                       <td><button type="button" className="esco-btn esco-btn--danger esco-btn--xs" aria-label={`Remove member ${m.name}`} onClick={() => editing.removeUdtMember(udt.id, m.name)}>Remove</button></td>
                     </>
@@ -337,7 +384,7 @@ function UdtDetail({ udt, project, editing }: { udt: UserDefinedType; project: P
                     <>
                       <td>{m.name}</td>
                       <td>{m.dataType}</td>
-                      <td>{m.dimension ? `[${m.dimension}]` : "—"}</td>
+                      <td>{arrayDimensionSuffix(m) || "—"}</td>
                       <td>{m.description ?? ""}</td>
                     </>
                   )}
@@ -367,7 +414,7 @@ function UdtDetail({ udt, project, editing }: { udt: UserDefinedType; project: P
             {tags.map((t) => (
               <li key={`${t.scope}:${t.name}`}>
                 {t.name}
-                {t.dimension ? `[${t.dimension}]` : ""}
+                {arrayDimensionSuffix(t)}
                 <span className="esco-detail__muted"> · {t.programName ? `program ${t.programName}` : "controller"}</span>
               </li>
             ))}
@@ -419,21 +466,25 @@ function AddAoiParameterRow({ onAdd }: { onAdd: (parameter: AoiParameter) => voi
 function AddAoiLocalTagRow({ onAdd }: { onAdd: (localTag: AoiLocalTag) => void }) {
   const [name, setName] = useState("");
   const [dataType, setDataType] = useState("BOOL");
+  const [dimension, setDimension] = useState("");
   const [description, setDescription] = useState("");
   const submit = () => {
     if (!name.trim()) return;
     onAdd({
       name: name.trim(),
       dataType: dataType.trim() || "BOOL",
+      ...dimensionPatch(dimension),
       ...(description.trim() ? { description: description.trim() } : {}),
     });
     setName("");
+    setDimension("");
     setDescription("");
   };
   return (
     <tr className="esco-edit__add-row">
       <td><input aria-label="New local tag name" className="esco-edit__input" value={name} placeholder="Tag" spellCheck={false} onChange={(e) => setName(e.target.value)} /></td>
       <td><input aria-label="New local tag type" className="esco-edit__input" value={dataType} spellCheck={false} onChange={(e) => setDataType(e.target.value)} /></td>
+      <td><input aria-label="New local tag dimension" className="esco-edit__input" value={dimension} placeholder="0 or 2,3" spellCheck={false} onChange={(e) => setDimension(e.target.value)} /></td>
       <td><input aria-label="New local tag description" className="esco-edit__input" value={description} spellCheck={false} onChange={(e) => setDescription(e.target.value)} /></td>
       <td><button type="button" className="esco-btn esco-btn--primary esco-btn--xs" disabled={!name.trim()} onClick={submit}>Add</button></td>
     </tr>
@@ -443,6 +494,7 @@ function AddAoiLocalTagRow({ onAdd }: { onAdd: (localTag: AoiLocalTag) => void }
 /** Add-On Instruction detail: parameters and local tags are editable unless source-protected. */
 function AoiDetail({ aoi, project, onOpenRoutine, editing }: { aoi: AddOnInstruction; project: PlcProject; onOpenRoutine: (id: string) => void; editing?: StructureEditing }) {
   const references = aoiReferences(project, aoi.name);
+  const review = describeAoiExecutionReview(aoi);
   const canEdit = editing && !aoi.protected ? editing : undefined;
   return (
     <div className="esco-detail">
@@ -451,6 +503,7 @@ function AoiDetail({ aoi, project, onOpenRoutine, editing }: { aoi: AddOnInstruc
         {aoi.revision ? <span className="esco-detail__tag">Rev {aoi.revision}</span> : null}
         {aoi.signature ? <span className="esco-detail__tag">Sig {aoi.signature}</span> : null}
         {aoi.protected ? <span className="esco-detail__tag esco-detail__tag--protected">Protected</span> : null}
+        <span className="esco-detail__tag">{review.offlineExecutable ? "Offline RLL executable" : "Model-only pass-through"}</span>
         <span className="esco-detail__readonly">{canEdit ? "Offline editable" : "Read-only"}</span>
       </header>
       {aoi.description ? <p className="esco-detail__desc">{aoi.description}</p> : null}
@@ -460,6 +513,34 @@ function AoiDetail({ aoi, project, onOpenRoutine, editing }: { aoi: AddOnInstruc
           export and cannot be inspected; parameters and tags are shown where the export includes them.
         </p>
       ) : null}
+
+      <section className="esco-detail__section" aria-label="AOI signature and source protection review">
+        <h2>Signature / Source Protection</h2>
+        <table className="esco-detail__table">
+          <tbody>
+            <tr><th>Signature ID</th><td>{meta(aoi.signature)}</td></tr>
+            <tr><th>Source protected</th><td>{aoi.protected ? "yes" : "no"}</td></tr>
+            <tr><th>Protection type</th><td>{meta(aoi.protectionType)}</td></tr>
+            <tr><th>Safety class</th><td>{meta(aoi.safetyClass)}</td></tr>
+            <tr><th>Revision</th><td>{meta([aoi.revision, aoi.revisionExtension].filter(Boolean).join("."))}</td></tr>
+            <tr><th>Software revision</th><td>{meta(aoi.softwareRevision)}</td></tr>
+            <tr><th>Vendor</th><td>{meta(aoi.vendor)}</td></tr>
+            <tr><th>Created</th><td>{meta([aoi.createdDate, aoi.createdBy].filter(Boolean).join(" by "))}</td></tr>
+            <tr><th>Edited</th><td>{meta([aoi.editedDate, aoi.editedBy].filter(Boolean).join(" by "))}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section className="esco-detail__section">
+        <h2>Execution review</h2>
+        <table className="esco-detail__table">
+          <tbody>
+            <tr><th>Status</th><td>{review.status}</td></tr>
+            <tr><th>Selected scan body</th><td>{review.selectedRoutineName ?? "—"}</td></tr>
+            <tr><th>Boundary</th><td>{review.boundaries.map(aoiReviewBoundaryLabel).join("; ")}</td></tr>
+          </tbody>
+        </table>
+      </section>
 
       <section className="esco-detail__section">
         <h2>Parameters ({aoi.parameters.length})</h2>
@@ -511,7 +592,7 @@ function AoiDetail({ aoi, project, onOpenRoutine, editing }: { aoi: AddOnInstruc
           <p className="esco-empty">No local tags imported.</p>
         ) : (
           <table className="esco-detail__table">
-            <thead><tr><th>Name</th><th>Type</th><th>Description</th>{canEdit ? <th /> : null}</tr></thead>
+            <thead><tr><th>Name</th><th>Type</th><th>Dimension</th><th>Description</th>{canEdit ? <th /> : null}</tr></thead>
             <tbody>
               {aoi.localTags.map((t) => (
                 <tr key={t.name}>
@@ -519,12 +600,13 @@ function AoiDetail({ aoi, project, onOpenRoutine, editing }: { aoi: AddOnInstruc
                     <>
                       <td><CommitCell ariaLabel={`Local tag ${t.name} name`} value={t.name} onCommit={(v) => canEdit.updateAoiLocalTag(aoi.id, t.name, { name: v })} /></td>
                       <td><CommitCell ariaLabel={`Local tag ${t.name} type`} value={t.dataType} onCommit={(v) => canEdit.updateAoiLocalTag(aoi.id, t.name, { dataType: v })} /></td>
+                      <td><CommitCell ariaLabel={`Local tag ${t.name} dimension`} value={dimensionText(t)} placeholder="0 or 2,3" onCommit={(v) => canEdit.updateAoiLocalTag(aoi.id, t.name, dimensionPatch(v))} /></td>
                       <td><CommitCell ariaLabel={`Local tag ${t.name} description`} value={t.description ?? ""} onCommit={(v) => canEdit.updateAoiLocalTag(aoi.id, t.name, { description: v })} /></td>
                       <td><button type="button" className="esco-btn esco-btn--danger esco-btn--xs" aria-label={`Remove local tag ${t.name}`} onClick={() => canEdit.removeAoiLocalTag(aoi.id, t.name)}>Remove</button></td>
                     </>
                   ) : (
                     <>
-                      <td>{t.name}</td><td>{t.dataType}</td><td>{t.description ?? ""}</td>
+                      <td>{t.name}</td><td>{t.dataType}</td><td>{arrayDimensionSuffix(t) || "—"}</td><td>{t.description ?? ""}</td>
                     </>
                   )}
                 </tr>
@@ -546,7 +628,13 @@ function AoiDetail({ aoi, project, onOpenRoutine, editing }: { aoi: AddOnInstruc
         ) : (
           <ul className="esco-detail__list">
             {aoi.routineNames.map((name) => (
-              <li key={name}>{name} <span className="esco-detail__muted">(logic preserved read-only)</span></li>
+              <li key={name}>{name}{" "}
+                <span className="esco-detail__muted">
+                  ({aoiRoutineReviewBehaviorLabel(
+                    review.routines.find((routine) => routine.name === name)?.behavior ?? "non-ladder-preserved-read-only",
+                  )})
+                </span>
+              </li>
             ))}
           </ul>
         )}
@@ -572,50 +660,396 @@ function AoiDetail({ aoi, project, onOpenRoutine, editing }: { aoi: AddOnInstruc
   );
 }
 
-/** Read-only I/O module tree: modules by slot, with an offline-only warning. */
-function IoDetail({ project, controllerId, moduleId }: { project: PlcProject; controllerId: string; moduleId?: string }) {
-  const controller = project.controllers.find((c) => c.id === controllerId) ?? project.controllers[0];
-  const modules = [...(controller?.ioConfiguration.modules ?? [])].sort(
-    (a, b) => (a.slot ?? 0) - (b.slot ?? 0),
-  );
+function TrendDetail({ controller, trend }: { controller: Controller; trend: ControllerTrend }) {
+  const attributeRows = Object.entries(trend.attributes ?? {});
   return (
     <div className="esco-detail">
       <header className="esco-detail__head">
-        <h1 className="esco-detail__title">I/O Configuration{controller ? ` · ${controller.name}` : ""}</h1>
-        <span className="esco-detail__readonly">Read-only</span>
+        <h1 className="esco-detail__title">Trend · {trend.name}</h1>
+        <span className="esco-detail__tag">Controller trend</span>
+        <span className="esco-detail__readonly">Offline editable metadata</span>
       </header>
-      <p className="esco-detail__warning">
-        I/O configuration is imported metadata only. No controller communication.
-      </p>
+      {trend.description ? <p className="esco-detail__desc">{trend.description}</p> : null}
 
       <section className="esco-detail__section">
-        <h2>Modules ({modules.length})</h2>
-        {modules.length === 0 ? (
-          <p className="esco-empty">No I/O modules imported.</p>
-        ) : (
+        <h2>Properties</h2>
+        <table className="esco-detail__table">
+          <tbody>
+            <tr><th>Controller</th><td>{controller.name}</td></tr>
+            <tr><th>Pens</th><td>{trend.pens.length}</td></tr>
+            <tr><th>Template payload</th><td>{trend.template ? "Preserved" : "—"}</td></tr>
+            <tr><th>Imported attributes</th><td>{attributeRows.length}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section className="esco-detail__section">
+        <h2>Pens ({trend.pens.length})</h2>
+        {trend.pens.length ? (
           <table className="esco-detail__table">
-            <thead><tr><th>Name</th><th>Catalog / type</th><th>Slot</th><th>Parent</th><th>Comm path</th><th>Description</th></tr></thead>
+            <thead><tr><th>Pen</th><th>Description</th><th>Attributes</th></tr></thead>
             <tbody>
-              {modules.map((m) => (
-                <tr key={m.id} className={m.id === moduleId ? "is-selected" : undefined}>
-                  <td>{m.name}</td>
-                  <td>{m.catalogNumber ?? "—"}</td>
-                  <td>{m.slot != null ? m.slot : "—"}</td>
-                  <td>{m.parentModule ?? "—"}</td>
-                  <td>{m.commPath ?? "—"}</td>
-                  <td>{m.description ?? ""}</td>
+              {trend.pens.map((pen) => (
+                <tr key={pen.id}>
+                  <td>{pen.name}</td>
+                  <td>{meta(pen.description)}</td>
+                  <td>{Object.keys(pen.attributes ?? {}).length}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        ) : (
+          <p className="esco-empty">No pens configured. Add pens through the next trend editor slice or import a controller trend definition.</p>
         )}
       </section>
+
+      {attributeRows.length ? (
+        <section className="esco-detail__section">
+          <h2>Imported attributes</h2>
+          <table className="esco-detail__table">
+            <tbody>
+              {attributeRows.map(([key, value]) => (
+                <tr key={key}><th>{key}</th><td>{value}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function moduleConnectionSummary(module: IoModule): string {
+  if (!module.connections?.length) return "—";
+  return module.connections
+    .map((connection) =>
+      [
+        connection.name,
+        connection.type,
+        connection.rpi != null ? `${connection.rpi} us` : undefined,
+        connection.priority,
+        connection.unicast ? "unicast" : undefined,
+        connection.inputConnectionType,
+        connection.inputProductionTrigger,
+      ]
+        .filter(Boolean)
+        .join(" / "),
+    )
+    .filter(Boolean)
+    .join(", ") || "—";
+}
+
+function modulePortSummary(module: IoModule): string {
+  if (!module.ports?.length) return "No port metadata";
+  return module.ports
+    .map((port, index) =>
+      [
+        port.id ? `Port ${port.id}` : `Port ${index + 1}`,
+        port.type,
+        port.address ? `address ${port.address}` : undefined,
+        port.upstream ? "upstream" : undefined,
+        port.busSize != null ? `${port.busSize} slots` : undefined,
+      ]
+        .filter(Boolean)
+        .join(" / "),
+    )
+    .join(", ");
+}
+
+function moduleProfileReview(module: IoModule) {
+  const catalogEntry = findIoDeviceCatalogEntry(module);
+  const catalogProfile = catalogEntry ? ioDeviceProfileSummary(catalogEntry) : undefined;
+  const persistedConnection = moduleConnectionSummary(module);
+  const identity = [module.vendor, module.productType, module.productCode ? `code ${module.productCode}` : undefined]
+    .filter(Boolean)
+    .join(" / ");
+  return {
+    catalogEntry,
+    profile: catalogProfile?.profile ?? (identity || "Imported module profile"),
+    connection: persistedConnection !== "—" ? persistedConnection : catalogProfile?.connection ?? "No connection metadata",
+    channels: catalogProfile?.channels ?? module.productType ?? "No channel summary available",
+    configuration: catalogProfile?.configuration ?? "Imported/offline module metadata",
+    data: catalogProfile?.data ?? ([module.catalogNumber, module.productType].filter(Boolean).join(" / ") || "No profile data summary"),
+    ports: modulePortSummary(module),
+  };
+}
+
+function isBackplaneModule(module: IoModule): boolean {
+  return /1756-A|backplane|chassis/i.test(`${module.name} ${module.catalogNumber ?? ""} ${module.productType ?? ""}`);
+}
+
+function isProcessorModule(module: IoModule, controller: Controller): boolean {
+  const text = escoBrandText(`${module.name} ${module.catalogNumber ?? ""} ${module.productType ?? ""}`);
+  return module.slot === (controller.slot ?? 0) && /processor|controller|557|558|L7|L8/i.test(text);
+}
+
+function IoModuleProfileReview({ module, reviewRow }: { module: IoModule; reviewRow?: IoModuleReviewRow }) {
+  const review = moduleProfileReview(module);
+  const reviewImageUrl = deviceImageUrl(review.catalogEntry ?? module);
+  return (
+    <section className="esco-detail__section esco-io-profile-review">
+      <h2>Selected Module Profile Review</h2>
+      <div className="esco-io-profile-review__visual">
+        <img className="esco-io-profile-review__image" src={reviewImageUrl} alt="" aria-hidden="true" />
+        <div>
+          <strong>{review.catalogEntry?.catalogNumber ?? module.catalogNumber ?? module.name}</strong>
+          <span>{review.profile}</span>
+        </div>
+      </div>
+      <div className="esco-io-profile-review__grid">
+        <div><span>Name</span><strong>{module.name}</strong></div>
+        <div><span>Catalog match</span><strong>{review.catalogEntry?.catalogNumber ?? module.catalogNumber ?? "Imported module"}</strong></div>
+        <div><span>Profile summary</span><strong>{review.profile}</strong></div>
+        <div><span>Advanced profile</span><strong>{reviewRow?.advancedProfileLabel ?? "Standard module profile"}</strong></div>
+        <div><span>Connection summary</span><strong>{review.connection}</strong></div>
+        <div><span>Channel summary</span><strong>{review.channels}</strong></div>
+        <div><span>Profile source</span><strong>{review.configuration}</strong></div>
+        <div><span>Profile data</span><strong>{review.data}</strong></div>
+        <div><span>Ports</span><strong>{review.ports}</strong></div>
+        <div>
+          <span>Location</span>
+          <strong>
+            {[module.parentModule || "Local", module.parentPortId ? `port ${module.parentPortId}` : undefined, module.slot != null ? `slot ${module.slot}` : undefined]
+              .filter(Boolean)
+              .join(" / ")}
+          </strong>
+        </div>
+        <div>
+          <span>Revision/keying</span>
+          <strong>
+            {[
+              module.majorRevision || module.minorRevision ? `${module.majorRevision ?? "0"}.${module.minorRevision ?? "0"}` : undefined,
+              module.electronicKeying,
+              module.inhibited ? "inhibited" : undefined,
+            ]
+              .filter(Boolean)
+              .join(" / ") || "—"}
+          </strong>
+        </div>
+      </div>
+      {reviewRow?.advancedProfileReviewable ? (
+        <p className="esco-detail__muted">{reviewRow.advancedProfileMessage}</p>
+      ) : null}
+      {reviewRow?.diagnostics.length ? (
+        <>
+          <h3>Offline Module Diagnostics</h3>
+          <table className="esco-detail__table" aria-label="Synthetic module diagnostics">
+            <tbody>
+              {reviewRow.diagnostics.map((diagnostic) => (
+                <tr key={`${diagnostic.source}-${diagnostic.label}`}>
+                  <th>{diagnostic.status.toUpperCase()}</th>
+                  <td>
+                    <strong>{diagnostic.label}</strong>
+                    <span>{diagnostic.detail}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function revisionLabel(module: IoModule): string {
+  return module.majorRevision || module.minorRevision ? `${module.majorRevision ?? "0"}.${module.minorRevision ?? "0"}` : "—";
+}
+
+function moduleCatalogLabel(module: IoModule): string {
+  return [module.catalogNumber, module.productType].filter(Boolean).join(" / ") || "Imported module";
+}
+
+function moduleStatusLabel(module: IoModule): string {
+  return module.inhibited ? "Inhibited" : "Configured";
+}
+
+function inferChassisSlotCount(controller: Controller, modules: IoModule[], chassis?: IoModule): number {
+  const source = `${controller.chassis ?? ""} ${chassis?.catalogNumber ?? ""} ${chassis?.name ?? ""}`;
+  const match = /\bA(\d{1,2})\b/i.exec(source) ?? /\b(\d{1,2})-slot\b/i.exec(source);
+  const declared = match ? Number(match[1]) : undefined;
+  const highestUsed = Math.max(controller.slot ?? 0, ...modules.map((module) => module.slot ?? 0));
+  return Math.max(declared && Number.isFinite(declared) ? declared : 10, highestUsed + 1, 1);
+}
+
+function nextOpenSlot(slotCount: number, usedSlots: Set<number>): string {
+  for (let slot = 0; slot < slotCount; slot += 1) {
+    if (!usedSlots.has(slot)) return String(slot);
+  }
+  return "Full";
+}
+
+/** Offline-editable I/O module tree: modules by slot, with an offline-only warning. */
+function IoDetail({
+  project,
+  controllerId,
+  moduleId,
+  editing,
+  onNewIoModule,
+  onSelectIoModule,
+  onIoModuleProperties,
+  onToggleIoModuleInhibit,
+  onDeleteIoModule,
+}: {
+  project: PlcProject;
+  controllerId: string;
+  moduleId?: string;
+  editing?: StructureEditing;
+  onNewIoModule?: (controllerId: string, initialQuery?: string, initialSlot?: number) => void;
+  onSelectIoModule?: (controllerId: string, moduleId: string) => void;
+  onIoModuleProperties?: (controllerId: string, moduleId: string) => void;
+  onToggleIoModuleInhibit?: (controllerId: string, moduleId: string) => void;
+  onDeleteIoModule?: (controllerId: string, moduleId: string) => void;
+}) {
+  const controller = project.controllers.find((c) => c.id === controllerId) ?? project.controllers[0];
+  const allModules = controller?.ioConfiguration.modules ?? [];
+  const reviewRows = controller ? ioModuleReviewReport(project).rows.filter((row) => row.controllerId === controller.id) : [];
+  const reviewByModuleId = new Map(reviewRows.map((row) => [row.moduleId, row]));
+  const chassis = allModules.find((module) => isBackplaneModule(module));
+  const modules = [...allModules]
+    .filter((module) => (controller ? !isBackplaneModule(module) && !isProcessorModule(module, controller) : true))
+    .sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
+  const selectedModule = moduleId ? modules.find((module) => module.id === moduleId) : undefined;
+  const processorSlot = controller?.slot ?? 0;
+  const slotCount = controller ? inferChassisSlotCount(controller, allModules, chassis) : 0;
+  const usedSlots = new Set<number>([
+    processorSlot,
+    ...modules.map((module) => module.slot).filter((slot): slot is number => slot != null),
+  ]);
+  const modulesBySlot = new Map<number, IoModule>();
+  for (const module of modules) {
+    if (module.slot != null) modulesBySlot.set(module.slot, module);
+  }
+  const selectedReviewRow = selectedModule ? reviewByModuleId.get(selectedModule.id) : undefined;
+  const chassisLabel = chassis
+    ? [chassis.name, chassis.catalogNumber].filter(Boolean).join(" / ")
+    : controller?.chassis || "Local chassis";
+  const chassisImageUrl = deviceImageUrl(chassis ? findIoDeviceCatalogEntry(chassis) ?? chassis : { imageKey: "chassis" });
+  return (
+    <div className="esco-detail esco-io-config">
+      <header className="esco-detail__head">
+        <h1 className="esco-detail__title">I/O Configuration{controller ? ` · ${controller.name}` : ""}</h1>
+        <span className="esco-detail__readonly">{editing ? "Offline editable" : "Read-only"}</span>
+      </header>
+      <section className="esco-io-config__summary" aria-label="I/O configuration overview">
+        <div className="esco-io-config__identity">
+          <img className="esco-io-config__image" src={chassisImageUrl} alt="" aria-hidden="true" />
+          <div>
+            <span className="esco-io-config__eyebrow">Local Backplane</span>
+            <strong>{chassisLabel}</strong>
+            <small>{controller?.commPath ?? "No hardware path selected"}</small>
+          </div>
+        </div>
+        <div className="esco-io-config__metrics">
+          <div><span>Slots</span><strong>{slotCount}</strong></div>
+          <div><span>Field modules</span><strong>{modules.length}</strong></div>
+          <div><span>Next open slot</span><strong>{nextOpenSlot(slotCount, usedSlots)}</strong></div>
+          <div><span>Connection</span><strong>Offline metadata</strong></div>
+        </div>
+        <div className="esco-io-config__actions" aria-label="I/O configuration actions">
+          <button type="button" className="esco-btn esco-btn--primary" onClick={() => controller && onNewIoModule?.(controller.id)} disabled={!controller || !onNewIoModule}>
+            New Module
+          </button>
+          <span>Right-click the backplane for the full New Module workflow.</span>
+        </div>
+      </section>
+
+      <section className="esco-detail__section">
+        <h2>Chassis Slots</h2>
+        <div className="esco-io-slot-map" aria-label="Backplane slot map">
+          {Array.from({ length: slotCount }, (_, slot) => {
+            const module = modulesBySlot.get(slot);
+            const isProcessor = slot === processorSlot;
+            const selected = module?.id === moduleId;
+            return (
+              <button
+                type="button"
+                key={slot}
+                className={`esco-io-slot${module || isProcessor ? " is-used" : ""}${selected ? " is-selected" : ""}${module?.inhibited ? " is-inhibited" : ""}`}
+                onClick={() => {
+                  if (!controller) return;
+                  if (module) onSelectIoModule?.(controller.id, module.id);
+                  else if (!isProcessor) onNewIoModule?.(controller.id, undefined, slot);
+                }}
+                disabled={!controller || (!module && isProcessor) || (!module && !onNewIoModule)}
+                title={module ? `Select ${module.name}` : isProcessor ? "Controller processor slot" : `Create a module in slot ${slot}`}
+              >
+                <span>Slot {slot}</span>
+                <strong>{module?.catalogNumber ?? (isProcessor ? controller?.catalogNumber ?? controller?.processorType ?? "Processor" : "Empty")}</strong>
+                <small>{module?.name ?? (isProcessor ? controller?.name : "Available")}</small>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="esco-detail__section">
+        <h2>Modules ({modules.length})</h2>
+        {modules.length === 0 ? (
+          <div className="esco-io-empty">
+            <strong>No field I/O modules configured.</strong>
+            <span>Use New Module or right-click the backplane to open the catalog and device definition workflow.</span>
+          </div>
+        ) : (
+          <div className="esco-io-module-list" aria-label="Configured I/O modules">
+            {modules.map((module) => {
+              const reviewRow = reviewByModuleId.get(module.id);
+              const review = moduleProfileReview(module);
+              const diagnosticSummary = reviewRow
+                ? `${reviewRow.diagnosticErrorCount} error / ${reviewRow.diagnosticWarningCount} warning`
+                : "—";
+              return (
+              <article key={module.id} className={`esco-io-module-card${module.id === moduleId ? " is-selected" : ""}`}>
+                <img className="esco-io-module-card__image" src={deviceImageUrl(review.catalogEntry ?? module)} alt="" aria-hidden="true" />
+                <button
+                  type="button"
+                  className="esco-io-module-card__main"
+                  onClick={() => controller && onSelectIoModule?.(controller.id, module.id)}
+                >
+                  <span>Slot {module.slot ?? "—"}</span>
+                  <strong>{moduleCatalogLabel(module)}</strong>
+                  <small>{module.name}</small>
+                </button>
+                <dl className="esco-io-module-card__meta">
+                  <div><dt>Rev</dt><dd>{revisionLabel(module)}</dd></div>
+                  <div><dt>Status</dt><dd>{reviewRow?.status === "needs-attention" ? "Needs attention" : moduleStatusLabel(module)}</dd></div>
+                  <div><dt>Keying</dt><dd>{module.electronicKeying || "—"}</dd></div>
+                  <div><dt>Diagnostics</dt><dd>{diagnosticSummary}</dd></div>
+                </dl>
+                <div className="esco-io-module-card__actions">
+                  <button type="button" className="esco-btn esco-btn--xs" onClick={() => controller && onIoModuleProperties?.(controller.id, module.id)} disabled={!controller || !onIoModuleProperties}>
+                    Properties
+                  </button>
+                  <button type="button" className="esco-btn esco-btn--xs" onClick={() => controller && onToggleIoModuleInhibit?.(controller.id, module.id)} disabled={!controller || !onToggleIoModuleInhibit}>
+                    {module.inhibited ? "Uninhibit" : "Inhibit"}
+                  </button>
+                  <button type="button" className="esco-btn esco-btn--xs esco-btn--danger" onClick={() => controller && onDeleteIoModule?.(controller.id, module.id)} disabled={!controller || !onDeleteIoModule}>
+                    Delete
+                  </button>
+                </div>
+              </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+      {selectedModule ? <IoModuleProfileReview module={selectedModule} reviewRow={selectedReviewRow} /> : null}
     </div>
   );
 }
 
 /** Dispatches to the detail viewer/editor for the selected structure node. */
-export function StructureView({ project, selection, onOpenRoutine, editing }: Props) {
+export function StructureView({
+  project,
+  selection,
+  onOpenRoutine,
+  editing,
+  onNewIoModule,
+  onSelectIoModule,
+  onIoModuleProperties,
+  onToggleIoModuleInhibit,
+  onDeleteIoModule,
+}: Props) {
   if (selection?.kind === "project") {
     return <ProjectDetail project={project} />;
   }
@@ -639,12 +1073,28 @@ export function StructureView({ project, selection, onOpenRoutine, editing }: Pr
     const udt = findUdt(project, selection.id);
     if (udt) return <UdtDetail udt={udt} project={project} editing={editing} />;
   }
+  if (selection?.kind === "trend") {
+    const found = findTrend(project, selection.id);
+    if (found) return <TrendDetail controller={found.controller} trend={found.trend} />;
+  }
   if (selection?.kind === "io") {
-    return <IoDetail project={project} controllerId={selection.controllerId} moduleId={selection.moduleId} />;
+    return (
+      <IoDetail
+        project={project}
+        controllerId={selection.controllerId}
+        moduleId={selection.moduleId}
+        editing={editing}
+        onNewIoModule={onNewIoModule}
+        onSelectIoModule={onSelectIoModule}
+        onIoModuleProperties={onIoModuleProperties}
+        onToggleIoModuleInhibit={onToggleIoModuleInhibit}
+        onDeleteIoModule={onDeleteIoModule}
+      />
+    );
   }
   return (
     <div className="esco-detail">
-      <p className="esco-empty">Select a project, controller, task, program, Add-On Instruction, UDT, or I/O module in the explorer.</p>
+      <p className="esco-empty">Select a project, controller, task, program, Add-On Instruction, UDT, trend, or I/O module in the explorer.</p>
     </div>
   );
 }

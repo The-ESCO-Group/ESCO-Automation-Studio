@@ -2,7 +2,7 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { writeFileSync } from "node:fs";
-import { importL5XPath } from "./helpers.mjs";
+import { importL5XPath, openWatchPanel } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const URL = "http://localhost:5173/";
@@ -41,10 +41,10 @@ try {
   await page.goto(URL, { waitUntil: "networkidle" });
 
   await importL5XPath(page, fixturePath);
-  await page.locator('.esco-titlebar__project:has-text("ArrCtl")').waitFor({ timeout: 8000 });
+  await page.locator('.esco-titlebar__name:has-text("ArrCtl")').waitFor({ timeout: 8000 });
 
-  await page.locator('button:has-text("MainRoutine")').first().click();
-  await page.locator('.esco-dock__tab:has-text("Watch")').click();
+  await page.locator('.esco-tree__node--routine:has-text("MainRoutine")').first().click();
+  await openWatchPanel(page);
 
   // The DINT[4] array is expanded into four watchable elements.
   check("array element Arr[0] is watched", (await page.locator('.esco-watch tr:has-text("Arr[0]")').count()) === 1);

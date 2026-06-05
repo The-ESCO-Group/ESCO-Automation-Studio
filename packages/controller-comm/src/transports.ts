@@ -125,6 +125,8 @@ export abstract class ReadOnlyControllerTransport implements ControllerTransport
     verified: false,
     simulation: false,
     canRead: true,
+    canMonitor: true,
+    canReadFaults: true,
     canWrite: false,
   };
 
@@ -147,6 +149,12 @@ export abstract class RealControllerTransport implements ControllerTransport {
     verified: false,
     simulation: false,
     canRead: true,
+    canBrowseNetwork: true,
+    canSelectPath: true,
+    canPathDiagnostics: true,
+    canUpload: true,
+    canMonitor: true,
+    canReadFaults: true,
     canWrite: true,
   };
 

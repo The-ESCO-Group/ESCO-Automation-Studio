@@ -47,9 +47,10 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
   await importL5XPath(page, fixturePath);
-  await page.locator('.esco-titlebar__project:has-text("AoiCtl")').waitFor({ timeout: 8000 });
+  await page.locator('.esco-titlebar__name:has-text("AoiCtl")').waitFor({ timeout: 8000 });
 
-  check("Add-On Instructions group shown", /Add-On Instructions \(2\)/.test(await page.locator(".esco-left").innerText()));
+  const organizerText = await page.locator(".esco-left").innerText();
+  check("Add-On Instructions group shows imported AOIs", /Add-On Instructions/.test(organizerText) && /ScaleAOI/.test(organizerText) && /SealedAOI/.test(organizerText));
 
   // Click the AOI node -> detail view opens in the center.
   await page.locator('.esco-tree__node--aoi:has-text("ScaleAOI")').click();

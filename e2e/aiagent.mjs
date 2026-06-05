@@ -1,6 +1,3 @@
-// Verifies the production-style Copilot surface without making any network
-// request: no inline key/mode clutter, setup opens outside chat, and missing
-// setup short-circuits before project context can leave the app.
 import { chromium } from "playwright-core";
 import { URL, clearAiProfileStorage } from "./helpers.mjs";
 
@@ -19,34 +16,12 @@ try {
   await clearAiProfileStorage(page);
   await page.reload({ waitUntil: "networkidle" });
 
-  await page.locator('.esco-copilot__tab:has-text("Chat")').click();
-  check("copilot chat opens", (await page.locator(".esco-ai").count()) === 1);
-  check("badge shows setup required before API key is saved", /SETUP REQUIRED/.test(await page.locator(".esco-copilot__badge").innerText()));
-  check("provider selector removed", (await page.locator(".esco-copilot__provider select").count()) === 0);
-  check("inline API key field removed", (await page.locator('.esco-copilot-live input[type="password"]').count()) === 0);
-  check("transport controls removed", (await page.locator('.esco-copilot-live select').count()) === 0);
-  check("model label shows unconfigured state", /Not configured/.test(await page.locator(".esco-copilot-live .esco-ai__footer").innerText()));
-
-  await page.locator('.esco-copilot-live button:has-text("Set up AI")').click();
-  await page.locator(".esco-setup").waitFor({ timeout: 5000 });
-  check("setup dialog opens outside chat", (await page.locator(".esco-setup").count()) === 1);
-  await page.locator(".esco-setup select").selectOption("openai");
-  check("setup lets user choose OpenAI", /OpenAI API key/i.test(await page.locator(".esco-setup").innerText()));
-  check("setup owns API key entry", (await page.locator('.esco-setup input[type="password"]').count()) === 1);
-  await page.locator('.esco-setup input[type="password"]').fill("sk-test-openai");
-  await page.locator('.esco-setup button:has-text("Save setup")').click();
-  await page.waitForTimeout(250);
-  check("saved setup drives model footer", /OpenAI: gpt-4\.1/.test(await page.locator(".esco-copilot-live .esco-ai__footer").innerText()));
-  check("saved setup switches badge online", /ONLINE/.test(await page.locator(".esco-copilot__badge").innerText()));
-  await clearAiProfileStorage(page);
-  await page.reload({ waitUntil: "networkidle" });
-  await page.locator('.esco-copilot__tab:has-text("Chat")').click();
-
-  await page.locator(".esco-copilot-live .esco-ai__prompt textarea").fill("explain this routine");
-  await page.locator('.esco-copilot-live .esco-ai__prompt button:has-text("Send")').click();
-  await page.locator(".esco-ai__applied--error").waitFor({ timeout: 5000 });
-  const keyMsg = await page.locator(".esco-ai__applied--error").innerText();
-  check("missing setup short-circuits with settings message", /Settings|API key/i.test(keyMsg), keyMsg.trim());
+  check("Copilot live-agent panel is not part of the ESCO IDE chrome", (await page.locator(".esco-copilot-live").count()) === 0);
+  check("old setup badge/provider controls are absent", (
+    await page.locator(".esco-copilot__badge, .esco-copilot__provider select, .esco-ai__footer").count()
+  ) === 0);
+  check("no AI prompt can transmit project context from the landing workspace", (await page.locator(".esco-ai__prompt textarea").count()) === 0);
+  check("offline IDE still exposes the classic menu bar", /File\s+Edit\s+View\s+Search\s+Logic\s+Communications\s+Tools/.test(await page.locator(".esco-ribbon").innerText()));
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

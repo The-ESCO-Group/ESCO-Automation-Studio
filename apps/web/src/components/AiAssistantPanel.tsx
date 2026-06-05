@@ -29,14 +29,20 @@ const QUICK_ACTIONS: { label: string; prompt: string }[] = [
   { label: "Explain this routine", prompt: "explain routine" },
   { label: "Why is this validation failing?", prompt: "explain validation errors" },
   { label: "Suggest a fix", prompt: "fix undefined tags" },
-  { label: "Add safe starter logic", prompt: "generate motor starter" },
+  { label: "Interlocked starter", prompt: "motor starter with interlocks" },
+  { label: "Debounce input", prompt: "debounce input" },
+  { label: "Count starts", prompt: "count motor starts with ONS" },
+  { label: "C/F conversion", prompt: "C/F unit conversion" },
 ];
 
 const EMPTY_QUICK_ACTIONS: { label: string; prompt: string }[] = [
   { label: "Explain this routine", prompt: "explain routine" },
   { label: "Why is this validation failing?", prompt: "explain validation errors" },
   { label: "Suggest a fix", prompt: "fix undefined tags" },
-  { label: "Add safe starter logic", prompt: "generate motor starter" },
+  { label: "Interlocked starter", prompt: "motor starter with interlocks" },
+  { label: "Debounce input", prompt: "debounce input" },
+  { label: "Count starts", prompt: "count motor starts with ONS" },
+  { label: "C/F conversion", prompt: "C/F unit conversion" },
 ];
 
 const createMessageId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;

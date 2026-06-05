@@ -5,7 +5,6 @@ import { PlcRuntime } from "./runtime";
 
 const registry = createDefaultRegistry();
 const MODEL_ONLY = [
-  "SQO", "SQI", "SQC", "BSL", "BSR", "FAL", "FSC",
   "MSG", "GSV", "SSV", "ALMA", "ALMD",
   "MSO", "MSF", "MAM", "MAJ", "MAS",
   // Process-control family (process.ts)
@@ -32,6 +31,10 @@ describe("advanced model-only instructions", () => {
 
   it("classifies support levels for executable / model-only / unknown", () => {
     expect(supportLevel(registry.get("XIC"))).toBe("executable");
+    expect(supportLevel(registry.get("SQO"))).toBe("executable");
+    expect(supportLevel(registry.get("SQC"))).toBe("executable");
+    expect(supportLevel(registry.get("BSL"))).toBe("executable");
+    expect(supportLevel(registry.get("FAL"))).toBe("executable");
     expect(supportLevel(registry.get("PID"))).toBe("model-only");
     expect(supportLevel(registry.get("ESTOP"))).toBe("model-only");
     expect(supportLevel(registry.get("XUNKNOWN"))).toBe("unknown");

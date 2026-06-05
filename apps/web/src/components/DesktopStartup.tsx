@@ -1,5 +1,9 @@
+import { useEffect, useState } from "react";
+
 interface Props {
   hasBackup: boolean;
+  requiresLogin: boolean;
+  signInReady?: boolean;
   onOpenProject: () => void;
   onNewProject: () => void;
   onImportL5X: () => void;
@@ -9,17 +13,49 @@ interface Props {
 }
 
 export function DesktopStartup({
-  hasBackup,
-  onOpenProject,
+  requiresLogin,
+  signInReady = false,
   onNewProject,
-  onImportL5X,
-  onRestoreBackup,
   onSignIn,
-  onContinueOffline,
 }: Props) {
+  const [progress, setProgress] = useState(0);
+  const [autoPrompted, setAutoPrompted] = useState(false);
+  const ready = progress >= 100;
+
+  useEffect(() => {
+    const holdAtZeroMs = 320;
+    const fillMs = 1900;
+    const startedAt = window.performance.now();
+    const progressTimer = window.setInterval(() => {
+      const elapsed = Math.max(0, window.performance.now() - startedAt - holdAtZeroMs);
+      const ratio = Math.min(1, elapsed / fillMs);
+      setProgress(Math.round(ratio * 100));
+    }, 80);
+    const launchTimer = window.setTimeout(() => {
+      if (!requiresLogin) onNewProject();
+    }, 2300);
+    return () => {
+      window.clearInterval(progressTimer);
+      window.clearTimeout(launchTimer);
+    };
+  }, [onNewProject, requiresLogin]);
+
+  useEffect(() => {
+    if (!requiresLogin) {
+      setAutoPrompted(false);
+      return;
+    }
+    if (!ready || autoPrompted) return;
+    const promptTimer = window.setTimeout(() => {
+      setAutoPrompted(true);
+      onSignIn();
+    }, 250);
+    return () => window.clearTimeout(promptTimer);
+  }, [autoPrompted, onSignIn, ready, requiresLogin]);
+
   return (
-    <div className="esco-desktop-startup" role="dialog" aria-modal="true" aria-labelledby="desktop-startup-title">
-      <section className="esco-desktop-startup__window" aria-label="Desktop startup">
+    <div className="esco-desktop-startup esco-desktop-startup--figma" role="dialog" aria-modal="true" aria-labelledby="desktop-startup-title">
+      <section className="esco-desktop-startup__window" aria-label="Desktop startup" data-tauri-drag-region>
         <header className="esco-desktop-startup__header">
           <div className="esco-desktop-startup__brand">
             <span className="esco-desktop-startup__app-mark" aria-hidden="true">
@@ -46,44 +82,31 @@ export function DesktopStartup({
           </div>
 
           <span className="esco-desktop-startup__divider" aria-hidden="true" />
-          <p id="desktop-startup-title" className="esco-desktop-startup__prompt">
-            Sign in to continue
-          </p>
 
-          <button type="button" className="esco-desktop-startup__signin" onClick={onSignIn}>
-            <span className="esco-desktop-startup__ms-icon" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-              <span />
-            </span>
-            <span>Sign in with Microsoft</span>
-          </button>
-
-          <button type="button" className="esco-desktop-startup__offline" onClick={onContinueOffline}>
-            Continue offline
-          </button>
-
-          <nav className="esco-desktop-startup__actions" aria-label="Startup project actions">
-            <button type="button" onClick={onOpenProject}>Open Project</button>
-            <span aria-hidden="true">.</span>
-            <button type="button" onClick={onNewProject}>New Project</button>
-            <span aria-hidden="true">.</span>
-            <button type="button" onClick={onImportL5X}>Import L5X</button>
-            <span aria-hidden="true">.</span>
-            <button
-              type="button"
-              className={hasBackup ? "" : "is-empty"}
-              title={hasBackup ? "Restore autosaved work" : "No autosaved backup found"}
-              onClick={onRestoreBackup}
+          <div className="esco-desktop-startup__progress" aria-label="Workspace loading progress">
+            <p id="desktop-startup-title" className="esco-desktop-startup__prompt">
+              INITIALIZING WORKSPACE
+            </p>
+            <div
+              className="esco-desktop-startup__progress-track"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progress}
             >
-              Restore Backup
-            </button>
-          </nav>
+              <span style={{ width: `${progress}%` }} />
+            </div>
+            <span className="esco-desktop-startup__progress-value">{progress}%</span>
+            {requiresLogin && (ready || signInReady || autoPrompted) ? (
+              <button type="button" className="esco-desktop-startup__signin-required" onClick={onSignIn}>
+                Sign in to continue
+              </button>
+            ) : null}
+          </div>
         </main>
 
         <footer className="esco-desktop-startup__footer">
-          <span>Workspace ready</span>
+          <span>Loading workspace...</span>
           <span>No controller connection active</span>
         </footer>
       </section>

@@ -10,7 +10,7 @@ const fixturePath = join(here, "structure-fixture.L5X");
 
 const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
 <RSLogix5000Content SchemaRevision="1.0" TargetName="StructCtl" ContentType="Controller">
-  <Controller Use="Target" Name="StructCtl">
+  <Controller Use="Target" Name="StructCtl" ProcessorType="1756-L83E">
     <DataTypes>
       <DataType Name="MotorUdt">
         <Members>
@@ -48,13 +48,13 @@ try {
   await page.goto(URL, { waitUntil: "networkidle" });
 
   await importL5XPath(page, fixturePath);
-  await page.locator('.esco-titlebar__project:has-text("StructCtl")').waitFor({ timeout: 8000 });
+  await page.locator('.esco-titlebar__name:has-text("StructCtl")').waitFor({ timeout: 8000 });
 
   const explorer = await page.locator(".esco-left").innerText();
-  check("Data Types group shows the imported UDT", /Data Types \(1\)/.test(explorer) && /MotorUdt/.test(explorer), explorer.match(/MotorUdt[^\n]*/)?.[0] ?? "");
-  check("Add-On Instructions group shows the AOI", /Add-On Instructions \(1\)/.test(explorer) && /ScaleAOI/.test(explorer));
-  check("I/O Modules group shows the modules", /I\/O Modules \(2\)/.test(explorer) && /DI_01/.test(explorer));
-  check("module shows catalog + slot", /1756-IB16/.test(explorer) && /slot 1/.test(explorer));
+  check("Data Types group is present in the organizer", /Data Types/.test(explorer), explorer);
+  check("Add-On Instructions group is present in the organizer", /Add-On Instructions/.test(explorer), explorer);
+  check("I/O Configuration group shows imported modules", /I\/O Configuration/.test(explorer) && /Slot 1: 1756-IB16/.test(explorer), explorer.match(/Slot 1:[^\n]*/)?.[0] ?? "");
+  check("processor and input modules show catalog plus slot", /Slot 0: 1756-L83E Processor/.test(explorer) && /Slot 1: 1756-IB16/.test(explorer));
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

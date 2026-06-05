@@ -1,5 +1,5 @@
 import {
-  isNumericLiteral,
+  parseNumericLiteral,
   type InstructionRegistry,
   type InstructionRuntimeContext,
 } from "@esco/instructions";
@@ -19,12 +19,24 @@ export interface TraceEntry {
 /**
  * Per-routine-scan control passed to instructions that affect flow:
  *  - `callRoutine` runs a sibling routine (JSR) against the same memory;
+ *  - `runForRoutine` runs a sibling routine repeatedly for FOR;
  *  - `returned` is set by RET to stop the rest of the current routine;
+ *  - `breakRequested` is set by BRK to exit the active FOR loop;
+ *  - `jumpToLabel` is set by JMP and resolved by the routine executor;
+ *  - `mcrActive`/`mcrEnabled` track a bounded Master Control Reset zone;
  *  - `rungNumber`/`trace` capture an optional execution trace.
  */
 export interface ExecControl {
-  callRoutine: (name: string) => void;
+  callRoutine: (name: string, parameters?: string[]) => void;
+  callAoi?: (instructionType: string, operands: string[]) => boolean;
+  runForRoutine?: (name: string, index: string, initial: number, terminal: number, step: number) => void;
+  arrayDimension?: (source: string, dimension: number) => number | undefined;
   returned: boolean;
+  returnParameters?: string[];
+  breakRequested: boolean;
+  jumpToLabel?: string;
+  mcrActive: boolean;
+  mcrEnabled: boolean;
   rungNumber: number;
   trace?: TraceEntry[];
 }
@@ -49,7 +61,9 @@ export class RungExecutor {
 
   /** Execute the rung and return its final rung-out condition. */
   execute(rung: LadderRung, memory: TagMemory, deltaMs = 0, control?: ExecControl): boolean {
-    return this.executeBranch(rung.root, memory, true, deltaMs, control);
+    const isMcrBoundary = control?.mcrActive && rungContainsInstruction(rung, "MCR");
+    const rungIn = control?.mcrActive && !control.mcrEnabled && !isMcrBoundary ? false : true;
+    return this.executeBranch(rung.root, memory, rungIn, deltaMs, control);
   }
 
   private executeBranch(
@@ -63,6 +77,8 @@ export class RungExecutor {
     let segment = rungIn;
     for (const node of branch.nodes) {
       segment = this.executeNode(node, memory, segment, deltaMs, control);
+      if (control?.returned || control?.breakRequested) return segment;
+      if (control?.jumpToLabel) return segment;
     }
 
     // OR in any parallel paths, each fed from the same rung-in condition. Every
@@ -73,6 +89,8 @@ export class RungExecutor {
       for (const parallel of branch.parallelBranches) {
         const result = this.executeBranch(parallel, memory, rungIn, deltaMs, control);
         anyParallel = anyParallel || result;
+        if (control?.returned || control?.breakRequested) return segment || anyParallel;
+        if (control?.jumpToLabel) return segment || anyParallel;
       }
       segment = segment || anyParallel;
     }
@@ -95,6 +113,17 @@ export class RungExecutor {
     const definition = this.registry.get(node.instructionType);
     const operands = node.operands.map((operand) => operand.value);
     if (!definition) {
+      if (rungIn && control?.callAoi?.(node.instructionType, operands)) {
+        control.trace?.push({
+          rung: control.rungNumber,
+          instruction: node.instructionType,
+          operands,
+          conditionIn: rungIn,
+          conditionOut: rungIn,
+          writes: [],
+        });
+        return rungIn;
+      }
       // Unsupported (e.g. imported) instruction: act as a pass-through wire so a
       // partially-supported routine still scans without crashing.
       control?.trace?.push({
@@ -115,6 +144,11 @@ export class RungExecutor {
     const ctx: InstructionRuntimeContext = {
       rungIn,
       deltaMs,
+      readValue: (path) => memory.read(path),
+      writeValue: (path, value) => {
+        memory.write(path, value);
+        if (tracing) writes.push({ path, value });
+      },
       readBool: (path) => memory.readBool(path),
       writeBool: (path, value) => {
         memory.writeBool(path, value);
@@ -125,12 +159,46 @@ export class RungExecutor {
         memory.write(path, value);
         if (tracing) writes.push({ path, value });
       },
+      readString: (path) => memory.readString(path),
+      writeString: (path, value) => {
+        memory.writeString(path, value);
+        if (tracing) writes.push({ path, value });
+      },
       numeric: (operand) =>
-        isNumericLiteral(operand) ? Number(operand.trim()) : memory.readNumber(operand.trim()),
-      callRoutine: control ? (name) => control.callRoutine(name) : undefined,
+        parseNumericLiteral(operand) ?? memory.readNumber(operand.trim()),
+      arrayDimension: control?.arrayDimension,
+      callRoutine: control ? (name, parameters) => control.callRoutine(name, parameters) : undefined,
+      runFor: control?.runForRoutine
+        ? (name, index, initial, terminal, step) =>
+            control.runForRoutine?.(name, index, initial, terminal, step)
+        : undefined,
       requestReturn: control
-        ? () => {
+        ? (parameters) => {
             control.returned = true;
+            control.returnParameters = parameters ?? [];
+          }
+        : undefined,
+      requestBreak: control
+        ? () => {
+            control.breakRequested = true;
+          }
+        : undefined,
+      requestJump: control
+        ? (label) => {
+            control.jumpToLabel = label;
+          }
+        : undefined,
+      mcrActive: control ? () => control.mcrActive : undefined,
+      enterMcr: control
+        ? (enabled) => {
+            control.mcrActive = true;
+            control.mcrEnabled = enabled;
+          }
+        : undefined,
+      exitMcr: control
+        ? () => {
+            control.mcrActive = false;
+            control.mcrEnabled = true;
           }
         : undefined,
     };
@@ -148,4 +216,14 @@ export class RungExecutor {
     }
     return conditionOut;
   }
+}
+
+function branchContainsInstruction(branch: LadderBranch, instructionType: string): boolean {
+  if (branch.nodes.some((node) => node.instructionType === instructionType)) return true;
+  if (branch.parallelBranches?.some((parallel) => branchContainsInstruction(parallel, instructionType))) return true;
+  return branch.next ? branchContainsInstruction(branch.next, instructionType) : false;
+}
+
+function rungContainsInstruction(rung: LadderRung, instructionType: string): boolean {
+  return branchContainsInstruction(rung.root, instructionType);
 }

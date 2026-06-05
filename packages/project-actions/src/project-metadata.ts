@@ -1,6 +1,7 @@
 import type { PlcProject } from "@esco/core";
 import { nowIso } from "@esco/shared";
 import { fail, ok } from "./helpers";
+import { logixIdentifierError } from "./logix-names";
 import type {
   ProjectActionResult,
   SetControllerPropertiesInput,
@@ -16,6 +17,39 @@ function optionalText(value: string | undefined): string | undefined {
 
 function hasOwn(input: object, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(input, key);
+}
+
+/**
+ * Validate a Studio 5000 communication driver name (e.g. "AB_ETHIP-1").
+ * Blank is allowed (clears the value). Offline metadata only.
+ */
+function commDriverError(value: string | undefined): string | undefined {
+  const text = value?.trim();
+  if (!text) return undefined;
+  if (text.length > 64) return "Communication driver name must be 64 characters or fewer.";
+  if (!/^[A-Za-z0-9_.-]+$/.test(text)) {
+    return 'Communication driver may only contain letters, digits, dot, hyphen, and underscore (e.g. "AB_ETHIP-1").';
+  }
+  return undefined;
+}
+
+/**
+ * Validate a Studio 5000 communication path (backslash-separated segments,
+ * e.g. "AB_ETHIP-1\\192.168.1.10\\Backplane\\0"). Blank is allowed (clears the
+ * value). Offline metadata only — never used to reach a controller.
+ */
+function commPathError(value: string | undefined): string | undefined {
+  const text = value?.trim();
+  if (!text) return undefined;
+  if (text.length > 256) return "Communication path must be 256 characters or fewer.";
+  if ([...text].some((ch) => ch.charCodeAt(0) < 0x20)) return "Communication path contains invalid control characters.";
+  if (text.startsWith("\\") || text.endsWith("\\")) {
+    return "Communication path must not start or end with a backslash.";
+  }
+  if (text.split("\\").some((segment) => segment.trim() === "")) {
+    return "Communication path has a blank segment (remove the extra backslash).";
+  }
+  return undefined;
 }
 
 export function setProjectProperties(
@@ -39,6 +73,12 @@ export function setControllerProperties(
   if (!project.controllers.some((controller) => controller.id === controllerId)) {
     return fail(project, `Controller "${controllerId}" not found.`);
   }
+  const invalidName = logixIdentifierError(name, "Controller");
+  if (invalidName) return fail(project, invalidName);
+  const driverError = commDriverError(input.commDriver);
+  if (driverError) return fail(project, driverError);
+  const pathError = commPathError(input.commPath);
+  if (pathError) return fail(project, pathError);
 
   const next: PlcProject = {
     ...project,
@@ -64,6 +104,8 @@ export function setControllerProperties(
         ...(hasOwn(input, "powerUpRoutineName")
           ? { powerUpRoutineName: optionalText(input.powerUpRoutineName) }
           : {}),
+        ...(hasOwn(input, "commPath") ? { commPath: optionalText(input.commPath) } : {}),
+        ...(hasOwn(input, "commDriver") ? { commDriver: optionalText(input.commDriver) } : {}),
       };
     }),
   };
@@ -84,6 +126,16 @@ export function setTaskProperties(
     controller.tasks.some((task) => task.id === taskId),
   );
   if (!owner) return fail(project, `Task "${taskId}" not found.`);
+
+  const currentTask = owner.tasks.find((task) => task.id === taskId)!;
+  const invalidName = logixIdentifierError(name, "Task");
+  if (invalidName) return fail(project, invalidName);
+  if (
+    name !== currentTask.name &&
+    owner.tasks.some((task) => task.id !== taskId && task.name === name)
+  ) {
+    return fail(project, `Task "${name}" already exists in that controller.`);
+  }
 
   let scheduledProgramIds = input.scheduledProgramIds;
   if (scheduledProgramIds) {
@@ -114,6 +166,7 @@ export function setTaskProperties(
                 ...(hasOwn(input, "priority") ? { priority: input.priority } : {}),
                 ...(hasOwn(input, "watchdogMs") ? { watchdogMs: input.watchdogMs } : {}),
                 ...(hasOwn(input, "inhibited") ? { inhibited: input.inhibited } : {}),
+                ...(hasOwn(input, "disableUpdateOutputs") ? { disableUpdateOutputs: input.disableUpdateOutputs } : {}),
                 ...(scheduledProgramIds ? { scheduledProgramIds } : {}),
               }
             : task,
@@ -139,6 +192,15 @@ export function setProgramProperties(
   );
   const program = owner?.programs.find((candidate) => candidate.id === programId);
   if (!owner || !program) return fail(project, `Program "${programId}" not found.`);
+
+  const invalidName = logixIdentifierError(name, "Program");
+  if (invalidName) return fail(project, invalidName);
+  if (
+    name !== program.name &&
+    owner.programs.some((candidate) => candidate.id !== programId && candidate.name === name)
+  ) {
+    return fail(project, `Program "${name}" already exists in that controller.`);
+  }
 
   const routineIds = new Set(program.routines.map((routine) => routine.id));
   const mainRoutineId = hasOwn(input, "mainRoutineId")

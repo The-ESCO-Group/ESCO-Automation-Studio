@@ -87,9 +87,9 @@ describe("importL5X — non-ladder routine languages", () => {
     expect(sfc.sourceText).toContain("Transition");
   });
 
-  it("warns (does not error) that non-ladder routines are read-only", () => {
+  it("warns (does not error) about non-ladder routine execution boundaries", () => {
     const { warnings } = importL5X(MIXED);
-    expect(warnings.some((w) => /ScaleST.*read-only/.test(w))).toBe(true);
+    expect(warnings.some((w) => /ScaleST.*limited offline execution subset/.test(w))).toBe(true);
     expect(warnings.some((w) => /LoopFBD.*Function Block/.test(w))).toBe(true);
     expect(warnings.some((w) => /SeqSFC.*SFC/.test(w))).toBe(true);
   });

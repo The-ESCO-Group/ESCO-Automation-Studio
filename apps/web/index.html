@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ESCO Automation Studio</title>
+    <script>
+      if (window.location.search.includes("desktop-startup")) {
+        document.documentElement.dataset.desktopStartup = "true";
+      }
+    </script>
+    <style>
+      html[data-desktop-startup="true"],
+      html[data-desktop-startup="true"] body,
+      html[data-desktop-startup="true"] #root {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #fbf7ef;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

@@ -33,8 +33,10 @@ function projectWithModelOnly() {
 describe("model-only advanced instructions validate as info, never error", () => {
   const findings = createDefaultEngine().run(projectWithModelOnly());
 
-  it("reports model-only-instruction info for MSG/GSV/MSO", () => {
+  it("reports model-only-instruction findings for MSG/GSV/MSO with fidelity status", () => {
     expect(findings.filter((f) => f.ruleId === "model-only-instruction").length).toBeGreaterThanOrEqual(3);
+    expect(findings.some((f) => f.ruleId === "model-only-instruction" && f.message.includes("MSG") && f.message.includes("model-only"))).toBe(true);
+    expect(findings.some((f) => f.ruleId === "model-only-instruction" && f.message.includes("MSO") && f.message.includes("review-only"))).toBe(true);
   });
 
   it("does not flag keyword/structure operands (WALLCLOCKTIME, MsgCtl, Axis1) as undefined tags", () => {

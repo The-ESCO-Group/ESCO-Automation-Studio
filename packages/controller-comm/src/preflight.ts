@@ -49,16 +49,25 @@ export function commissioningPreflight(command: ControllerCommand, ctx: CommandC
     checks.push({ id, label, passed, blocker, detail });
   };
 
-  // 1. The active context must not be model-only (review-only, never connected).
-  add(
-    "not-model-only",
-    "Active context is not model-only",
-    ctx.state !== "model-only",
-    "model-only",
-    "Model-only content is preserved for review; it is not simulated or connected.",
-  );
+  if (!command.requiresRealIo) {
+    add(
+      "local-session-action",
+      "Local session action only",
+      true,
+      "no-real-transport",
+      "This action does not require controller transport or hardware communication.",
+    );
+  }
 
   if (command.requiresRealIo) {
+    // 1. The active context must not be model-only (review-only, never connected).
+    add(
+      "not-model-only",
+      "Active context is not model-only",
+      ctx.state !== "model-only",
+      "model-only",
+      "Model-only content is preserved for review; it is not simulated or connected.",
+    );
     // 2. A transport that can actually reach a controller must be present.
     add(
       "real-transport",
@@ -75,36 +84,56 @@ export function commissioningPreflight(command: ControllerCommand, ctx: CommandC
       "safety-unverified",
       "The controller link has not been validated against tested hardware.",
     );
-    // 4. Write commands additionally need a write-capable transport.
+    // 4. The transport must expose the command-specific read/write capability.
     if (command.isWrite) {
       add(
         "write-capable",
         "Transport can write to the controller",
         ctx.capabilities.canWrite,
-        "safety-unverified",
-        "This transport is read-only; it cannot perform a download or online edit.",
+        "capability-missing",
+        "This transport is read-only; it cannot perform controller write or mode-change commands.",
+      );
+    } else {
+      const readCapability =
+        command.kind === "network-browser"
+          ? ctx.capabilities.canBrowseNetwork === true
+          : command.kind === "select-recent-path"
+            ? ctx.capabilities.canSelectPath === true
+            : command.kind === "path-diagnostics"
+              ? ctx.capabilities.canPathDiagnostics === true
+              : command.kind === "upload"
+                ? ctx.capabilities.canUpload === true
+                : command.kind === "monitor"
+                  ? (ctx.capabilities.canMonitor ?? ctx.capabilities.canRead)
+                  : command.kind === "fault-diagnostics" || command.kind === "go-to-faults"
+                    ? (ctx.capabilities.canReadFaults ?? ctx.capabilities.canMonitor ?? ctx.capabilities.canRead)
+                    : ctx.capabilities.canRead;
+      add(
+        "read-capable",
+        "Transport supports this read command",
+        readCapability,
+        "capability-missing",
+        "The selected transport must explicitly support this read command; monitor-only links do not imply browse, path diagnostics, or upload.",
       );
     }
-  }
 
-  // 5/6. The session must not be in a safety-blocked or faulted state.
-  add(
-    "not-safety-blocked",
-    "Session is not in a Safety Blocked state",
-    ctx.state !== "safety-blocked",
-    "safety-blocked-state",
-    "Resolve the Safety Blocked state before continuing.",
-  );
-  add(
-    "not-faulted",
-    "Session is not faulted",
-    ctx.state !== "faulted",
-    "faulted",
-    "Reconnect before running this command.",
-  );
+    // 5/6. The session must not be in a safety-blocked or faulted state.
+    add(
+      "not-safety-blocked",
+      "Session is not in a Safety Blocked state",
+      ctx.state !== "safety-blocked",
+      "safety-blocked-state",
+      "Resolve the Safety Blocked state before continuing.",
+    );
+    add(
+      "not-faulted",
+      "Session is not faulted",
+      ctx.state !== "faulted",
+      "faulted",
+      "Reconnect before running this command.",
+    );
 
-  // 7. Real commands require a live controller connection.
-  if (command.requiresRealIo) {
+    // 7. Real commands require a live controller connection.
     add(
       "connected",
       "Connected to a controller",

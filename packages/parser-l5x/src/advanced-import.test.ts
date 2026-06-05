@@ -5,7 +5,7 @@ import { importL5X } from "./index";
 const XML = `<?xml version="1.0" encoding="UTF-8"?>
 <RSLogix5000Content SchemaRevision="1.0">
   <Controller Use="Target" Name="Adv">
-    <Tags><Tag Name="Enable" DataType="BOOL"/></Tags>
+    <Tags><Tag Name="Enable" DataType="BOOL"/><Tag Name="MsgCtl" DataType="MESSAGE"/></Tags>
     <Programs>
       <Program Name="MainProgram" MainRoutineName="Main">
         <Routines>
@@ -38,5 +38,11 @@ describe("importL5X — model-only advanced instructions", () => {
 
   it("imports without throwing", () => {
     expect(() => importL5X(XML)).not.toThrow();
+  });
+
+  it("recognizes MESSAGE tags as modelled control structures", () => {
+    const { project, warnings } = importL5X(XML);
+    expect(project.controllers[0]!.controllerTags.find((tag) => tag.name === "MsgCtl")?.dataType).toBe("MESSAGE");
+    expect(warnings.some((warning) => warning.includes("MsgCtl") && warning.includes("unmodeled"))).toBe(false);
   });
 });

@@ -30,3 +30,427 @@
   padding: 4px 8px;
   font-size: 11px;
 }
+
+.esco-iodevice-add {
+  border-color: #d8dcff;
+  background: #fbfcff;
+}
+
+.esco-iomodule-props {
+  border-color: #cfd8e8;
+  background: #f8fbff;
+}
+
+.esco-iodevice-add__catalog {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.esco-iodevice-add__filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 180px);
+  gap: 8px;
+}
+
+.esco-iodevice-add__filters label {
+  display: grid;
+  gap: 4px;
+  color: #344054;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.esco-iodevice-add__catalog-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px;
+  max-height: 190px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid #d9def2;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.esco-iodevice-add__catalog-option {
+  display: grid;
+  gap: 2px;
+  min-height: 64px;
+  border: 1px solid #dde3f2;
+  border-radius: 6px;
+  padding: 8px;
+  background: #fbfcff;
+  color: #182230;
+  text-align: left;
+  cursor: pointer;
+}
+
+.esco-iodevice-add__catalog-option:hover,
+.esco-iodevice-add__catalog-option.is-selected {
+  border-color: #818cf8;
+  background: #eef2ff;
+}
+
+.esco-iodevice-add__catalog-number {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.esco-iodevice-add__catalog-name,
+.esco-iodevice-add__catalog-meta {
+  color: #475467;
+  font-size: 11px;
+}
+
+.esco-iodevice-add__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.esco-iodevice-add__grid label {
+  display: grid;
+  gap: 4px;
+  color: #344054;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.esco-iodevice-add__wide {
+  grid-column: 1 / -1;
+}
+
+.esco-iodevice-add__check {
+  align-content: end;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.esco-iodevice-add__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 9px;
+  color: #667085;
+  font-size: 11px;
+}
+
+.esco-iomodule-props__subhead {
+  margin: 12px 0 8px;
+  color: #182230;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.esco-iomodule-props__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.esco-io-config {
+  background:
+    linear-gradient(180deg, rgba(16, 36, 63, 0.06), transparent 260px),
+    var(--panel, #f8fafc);
+}
+
+.esco-io-config__summary {
+  display: grid;
+  grid-template-columns: minmax(230px, 1.1fr) minmax(320px, 1.8fr) minmax(210px, auto);
+  gap: 12px;
+  align-items: stretch;
+  margin: 14px 0 18px;
+  padding: 12px;
+  border: 1px solid var(--border, #d6deef);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.esco-io-config__identity,
+.esco-io-config__metrics,
+.esco-io-config__actions {
+  min-width: 0;
+}
+
+.esco-io-config__identity {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+}
+
+.esco-io-config__identity div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.esco-io-config__image {
+  display: block;
+  width: 52px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.esco-io-config__eyebrow,
+.esco-io-config__identity small,
+.esco-io-config__actions span,
+.esco-io-module-card__main span,
+.esco-io-module-card__main small,
+.esco-io-profile-review__grid span {
+  color: var(--text-dim, #667085);
+  font-size: 11px;
+}
+
+.esco-io-config__identity strong {
+  color: var(--text, #101828);
+  font-size: 16px;
+}
+
+.esco-io-config__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(92px, 1fr));
+  gap: 8px;
+}
+
+.esco-io-config__metrics div,
+.esco-io-profile-review__grid div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border, #d6deef);
+  background: rgba(248, 250, 252, 0.88);
+}
+
+.esco-io-config__metrics span {
+  color: var(--text-dim, #667085);
+  font-size: 11px;
+}
+
+.esco-io-config__metrics strong,
+.esco-io-profile-review__grid strong {
+  overflow-wrap: anywhere;
+  color: var(--text, #101828);
+  font-size: 12px;
+}
+
+.esco-io-config__actions {
+  display: grid;
+  gap: 7px;
+  align-content: center;
+}
+
+.esco-io-slot-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(106px, 1fr));
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.esco-io-slot {
+  display: grid;
+  gap: 3px;
+  min-height: 66px;
+  padding: 8px;
+  border: 1px solid var(--border, #d6deef);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text, #101828);
+  text-align: left;
+  font: inherit;
+}
+
+.esco-io-slot:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.esco-io-slot.is-used {
+  border-color: #9fb7d5;
+  background: #eef5ff;
+}
+
+.esco-io-slot.is-selected {
+  border-color: #1e88ff;
+  box-shadow: inset 0 0 0 2px rgba(30, 136, 255, 0.35);
+}
+
+.esco-io-slot.is-inhibited {
+  border-color: #d29b2f;
+  background: #fff7e6;
+}
+
+.esco-io-slot span,
+.esco-io-slot small {
+  color: var(--text-dim, #667085);
+  font-size: 11px;
+}
+
+.esco-io-slot strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text, #101828);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.esco-io-empty {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px dashed var(--border, #d6deef);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.esco-io-empty span {
+  color: var(--text-dim, #667085);
+  font-size: 12px;
+}
+
+.esco-io-module-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.esco-io-module-card {
+  display: grid;
+  grid-template-columns: 54px minmax(170px, 1.15fr) minmax(320px, 1.85fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid var(--border, #d6deef);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.esco-io-module-card.is-selected {
+  border-color: #1e88ff;
+  box-shadow: inset 3px 0 0 #1e88ff;
+}
+
+.esco-io-module-card__image {
+  display: block;
+  width: 46px;
+  height: 38px;
+  object-fit: contain;
+  justify-self: center;
+}
+
+.esco-io-module-card__main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.esco-io-module-card__main strong {
+  overflow: hidden;
+  color: var(--text, #101828);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.esco-io-module-card__meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(80px, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+.esco-io-module-card__meta div {
+  min-width: 0;
+}
+
+.esco-io-module-card__meta dt {
+  color: var(--text-dim, #667085);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.esco-io-module-card__meta dd {
+  overflow: hidden;
+  margin: 2px 0 0;
+  color: var(--text, #101828);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.esco-io-module-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.esco-io-profile-review__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.esco-io-profile-review__visual {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--border, #d6deef);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.esco-io-profile-review__image {
+  display: block;
+  width: 78px;
+  height: 58px;
+  object-fit: contain;
+}
+
+.esco-io-profile-review__visual div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.esco-io-profile-review__visual strong,
+.esco-io-profile-review__visual span {
+  overflow-wrap: anywhere;
+}
+
+.esco-io-profile-review__visual span {
+  color: var(--text-dim, #667085);
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .esco-iodevice-add__filters,
+  .esco-iodevice-add__catalog-list {
+    grid-template-columns: 1fr;
+  }
+
+  .esco-io-config__summary,
+  .esco-io-config__metrics,
+  .esco-io-module-card,
+  .esco-io-module-card__meta {
+    grid-template-columns: 1fr;
+  }
+
+  .esco-io-module-card__image {
+    justify-self: start;
+  }
+
+  .esco-io-module-card__actions {
+    justify-content: flex-start;
+  }
+}

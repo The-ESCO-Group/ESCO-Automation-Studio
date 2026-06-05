@@ -38,19 +38,27 @@ page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
   await importL5XPath(page, fixturePath);
-  await page.locator('.esco-titlebar__project:has-text("BigCtl")').waitFor({ timeout: 8000 });
+  await page.locator('.esco-titlebar__name:has-text("BigCtl")').waitFor({ timeout: 8000 });
 
   await page.locator('button:has-text("MainRoutine")').first().click();
   await page.locator(".esco-lad__rung").first().waitFor({ timeout: 8000 });
 
-  // Large routine collapses to the first 100 rungs with a banner.
-  check("large routine is capped to 100 rungs", (await rungCount(page)) === 100, `rungs=${await rungCount(page)}`);
+  // Large routine renders a bounded virtual scroll window instead of every rung.
+  const firstRenderCount = await rungCount(page);
+  check("large routine is virtualized below total rungs", firstRenderCount > 0 && firstRenderCount < RUNG_COUNT, `rungs=${firstRenderCount}`);
   check("large-routine banner shown", (await page.locator(".esco-editor__largebanner").count()) === 1);
+  check("large-routine banner reports visible window", /rungs 1-\d+ of 120/.test(await page.locator(".esco-editor__largebanner").innerText()));
 
-  // Show all reveals every rung.
-  await page.locator('.esco-editor__largebanner button:has-text("Show all")').click();
-  await page.waitForFunction((n) => document.querySelectorAll(".esco-lad__rung").length === n, RUNG_COUNT);
-  check("Show all reveals every rung", (await rungCount(page)) === RUNG_COUNT);
+  // Scrolling reaches the tail of the routine without rendering the full list.
+  await page.locator(".esco-editor__surface").evaluate((surface) => {
+    surface.scrollTop = surface.scrollHeight;
+    surface.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll(".esco-lad__rung-no")].some((node) => node.textContent?.trim() === "119"),
+  );
+  check("virtual scroll reaches last rung", true);
+  check("tail window remains bounded", (await rungCount(page)) > 0 && (await rungCount(page)) < RUNG_COUNT, `rungs=${await rungCount(page)}`);
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

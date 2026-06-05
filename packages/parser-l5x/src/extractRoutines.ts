@@ -105,23 +105,25 @@ function extractGraphicalSource(routineNode: L5XNode, contentTag: string): strin
  * for display (`structuredText` / `sourceText`) but never parsed into ladder or
  * executed.
  */
-export function extractRoutines(
-  programNode: L5XNode,
-  programName: string,
-  programId: string,
+export function extractRoutineList(
+  routineNodes: L5XNode[],
+  ownerName: string,
+  ownerId: string,
   registry: InstructionRegistry,
+  knownInstructionTypes: Set<string> = new Set(),
 ): ExtractedRoutines {
   const warnings: string[] = [];
-  const routines = toArray<L5XNode>(child(child(programNode, "Routines"), "Routine")).flatMap(
+  const routines = routineNodes.flatMap(
     (routineNode) => {
       const name = attr(routineNode, "Name");
       if (!name) return [];
       const language = detectLanguage(routineNode);
-      const routine = createRoutine(programId, name, language);
+      const routine = createRoutine(ownerId, name, language);
       const description = child(routineNode, "Description");
       if (description) routine.description = text(description);
 
-      const where = `${programName}/${name}`;
+      const where = `${ownerName}/${name}`;
+      const aoiBody = ownerName.startsWith("AOI ");
 
       if (language === "ladder") {
         const rllContent = child(routineNode, "RLLContent");
@@ -131,7 +133,7 @@ export function extractRoutines(
             const number = Number(attr(rungNode, "Number") ?? index);
             const rungText = text(child(rungNode, "Text"));
             const comment = child(rungNode, "Comment");
-            const parsed = parseRungText(rungText, registry);
+            const parsed = parseRungText(rungText, registry, knownInstructionTypes);
 
             const rung = createRung(
               ladder.id,
@@ -148,7 +150,7 @@ export function extractRoutines(
               warnings.push(`${location}: unsupported instruction "${type}" (preserved, not simulated).`);
             }
             if (parsed.complexBranch) {
-              warnings.push(`${location}: nested/complex branch flattened to a series (simulation may differ).`);
+              warnings.push(`${location}: unrepresentable branch flattened to a series (simulation may differ).`);
             }
           });
           routine.ladder = ladder;
@@ -157,7 +159,7 @@ export function extractRoutines(
         const source = extractStructuredText(routineNode);
         if (source) {
           routine.structuredText = source;
-          // Structural syntax check only — ST is never executed (preserved read-only).
+          // Structural syntax check only; execution coverage is a conservative offline subset.
           const syntax = analyzeStructuredText(source).findings;
           for (const finding of syntax.slice(0, MAX_ST_SYNTAX_WARNINGS)) {
             const at = finding.line ? ` (line ${finding.line})` : "";
@@ -167,7 +169,11 @@ export function extractRoutines(
             warnings.push(`${where}: Structured Text syntax: and ${syntax.length - MAX_ST_SYNTAX_WARNINGS} more issue(s).`);
           }
         }
-        warnings.push(`${where}: Structured Text routine imported read-only (source preserved, not simulated).`);
+        warnings.push(
+          aoiBody
+            ? `${where}: Structured Text AOI body imported read-only (source preserved, not simulated).`
+            : `${where}: Structured Text routine imported (source preserved; limited offline execution subset).`,
+        );
       } else {
         const source = extractGraphicalSource(routineNode, CONTENT_TAG[language]);
         if (source) routine.sourceText = source;
@@ -180,4 +186,20 @@ export function extractRoutines(
   );
 
   return { routines, warnings };
+}
+
+export function extractRoutines(
+  programNode: L5XNode,
+  programName: string,
+  programId: string,
+  registry: InstructionRegistry,
+  knownInstructionTypes: Set<string> = new Set(),
+): ExtractedRoutines {
+  return extractRoutineList(
+    toArray<L5XNode>(child(child(programNode, "Routines"), "Routine")),
+    programName,
+    programId,
+    registry,
+    knownInstructionTypes,
+  );
 }

@@ -1,11 +1,25 @@
 import {
-  createTag as makeTag,
+  arrayDimensionsOf,
   type ExternalAccess,
   type PlcProject,
+  type Program,
   type Tag,
+  type TagComment,
+  type TagEngineeringUnit,
   type TagScope,
 } from "@esco/core";
-import { getAllTags, ok } from "./helpers";
+import { fail, ok } from "./helpers";
+import { logixIdentifierError } from "./logix-names";
+import {
+  createTag,
+  setTagAlias,
+  setTagComments,
+  setTagDataType,
+  setTagDescription,
+  setTagDimensions,
+  setTagEngineeringUnits,
+  setTagMetadata,
+} from "./tag-actions";
 import type { ProjectActionResult } from "./types";
 
 /**
@@ -16,16 +30,21 @@ import type { ProjectActionResult } from "./types";
  * Apply button on top of these.
  */
 
-const TAG_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const EXTERNAL_ACCESS = new Set<ExternalAccess>(["read-write", "read-only", "none"]);
 
-/** Data types the model fully understands; others import but are flagged opaque. */
-const KNOWN_DATA_TYPES = new Set([
-  "BOOL", "SINT", "INT", "DINT", "LINT", "REAL", "LREAL", "STRING", "TIMER", "COUNTER",
-]);
-
 export const TAG_CSV_HEADER = [
-  "Scope", "Program", "Name", "DataType", "Dimension", "AliasFor", "ExternalAccess", "Description",
+  "Scope",
+  "Program",
+  "Name",
+  "DataType",
+  "Dimension",
+  "AliasFor",
+  "Constant",
+  "ExternalAccess",
+  "Radix",
+  "Description",
+  "Comments",
+  "EngineeringUnits",
 ] as const;
 
 export interface TagCsvRow {
@@ -35,9 +54,21 @@ export interface TagCsvRow {
   name: string;
   dataType: string;
   dimension?: number;
+  dimensions?: number[];
+  /** Present (including "") when the CSV contains an AliasFor column; blank clears an existing alias on update. */
   aliasFor?: string;
-  externalAccess?: ExternalAccess;
+  /** Present when the CSV contains a Constant column; false clears the flag on update. */
+  constant?: boolean;
+  /** Present (including "") when the CSV contains an ExternalAccess column; blank clears authored metadata. */
+  externalAccess?: ExternalAccess | "";
+  /** Present (including "") when the CSV contains a Radix column; blank clears authored display style. */
+  radix?: string;
+  /** Present (including "") when the CSV contains a Description column; blank clears the description on update. */
   description?: string;
+  /** Present when the CSV contains a Comments column; empty array clears comments on update. */
+  comments?: TagComment[];
+  /** Present when the CSV contains an EngineeringUnits column; empty array clears units on update. */
+  engineeringUnits?: TagEngineeringUnit[];
 }
 
 export type TagCsvRowStatus = "create" | "update" | "error";
@@ -68,35 +99,122 @@ function csvField(value: string): string {
   return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-/** Parse a single CSV line into trimmed cells, honoring quotes and "" escapes. */
-function parseCsvLine(line: string): string[] {
-  const cells: string[] = [];
+function dimensionCell(tag: Tag): string {
+  return arrayDimensionsOf(tag).join(" ");
+}
+
+function annotationCell(rows: readonly (TagComment | TagEngineeringUnit)[] | undefined): string {
+  return rows?.length ? JSON.stringify(rows.map((row) => ({ operand: row.operand, text: row.text }))) : "";
+}
+
+interface CsvRecord {
+  line: number;
+  cells: string[];
+}
+
+/** Parse CSV records into trimmed cells, honoring quotes, "" escapes, and quoted newlines. */
+function parseCsvRecords(csv: string): { records: CsvRecord[]; warnings: string[] } {
+  const records: CsvRecord[] = [];
+  const row: string[] = [];
   let current = "";
   let inQuotes = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
+  let line = 1;
+  let rowLine = 1;
+  let quotedFieldLine = 1;
+
+  const pushCell = () => {
+    row.push(current.trim());
+    current = "";
+  };
+  const pushRow = () => {
+    pushCell();
+    records.push({ line: rowLine, cells: [...row] });
+    row.length = 0;
+    rowLine = line + 1;
+  };
+
+  for (let i = 0; i < csv.length; i += 1) {
+    const char = csv[i];
     if (inQuotes) {
       if (char === '"') {
-        if (line[i + 1] === '"') {
+        if (csv[i + 1] === '"') {
           current += '"';
           i += 1;
         } else {
           inQuotes = false;
         }
       } else {
+        if (char === "\n") line += 1;
+        if (char === "\r") {
+          if (csv[i + 1] === "\n") i += 1;
+          line += 1;
+          current += "\n";
+          continue;
+        }
         current += char;
       }
     } else if (char === '"') {
       inQuotes = true;
+      quotedFieldLine = line;
     } else if (char === ",") {
-      cells.push(current);
-      current = "";
+      pushCell();
+    } else if (char === "\n") {
+      pushRow();
+      line += 1;
+    } else if (char === "\r") {
+      pushRow();
+      if (csv[i + 1] === "\n") i += 1;
+      line += 1;
     } else {
       current += char;
     }
   }
-  cells.push(current);
-  return cells.map((cell) => cell.trim());
+
+  if (current !== "" || row.length > 0 || csv.length === 0 || !csv.endsWith("\n")) {
+    pushCell();
+    records.push({ line: rowLine, cells: [...row] });
+  }
+
+  return {
+    records,
+    warnings: inQuotes ? [`CSV has an unterminated quoted field starting on line ${quotedFieldLine}.`] : [],
+  };
+}
+
+function parseAnnotationCell(
+  value: string,
+  label: string,
+): { rows?: Array<TagComment | TagEngineeringUnit>; message?: string } {
+  const trimmed = value.trim();
+  if (!trimmed) return { rows: [] };
+
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      if (!Array.isArray(parsed)) return { message: `${label} must be a JSON array.` };
+      const rows = parsed.map((entry) => {
+        if (!entry || typeof entry !== "object") throw new Error(`${label} entries must be objects.`);
+        const candidate = entry as Record<string, unknown>;
+        if (typeof candidate.operand !== "string" || typeof candidate.text !== "string") {
+          throw new Error(`${label} entries require string operand and text fields.`);
+        }
+        return { operand: candidate.operand, text: candidate.text };
+      });
+      return { rows };
+    } catch (error) {
+      return { message: error instanceof Error ? error.message : `Invalid ${label} JSON.` };
+    }
+  }
+
+  const rows = trimmed.split(/\s*\|\s*/).filter(Boolean).map((part) => {
+    const equals = part.indexOf("=");
+    if (equals < 0) return { operand: "", text: part.trim() };
+    return {
+      operand: part.slice(0, equals).trim(),
+      text: part.slice(equals + 1).trim(),
+    };
+  });
+  return { rows };
 }
 
 // ---------------------------------------------------------------------------
@@ -114,10 +232,14 @@ export function exportTagsCsv(project: PlcProject): string {
           program ?? "",
           tag.name,
           tag.dataType,
-          tag.dimension && tag.dimension > 0 ? String(tag.dimension) : "",
+          dimensionCell(tag),
           tag.aliasFor ?? "",
+          tag.constant ? "true" : "",
           tag.externalAccess ?? "",
+          tag.radix ?? "",
           tag.description ?? "",
+          annotationCell(tag.comments),
+          annotationCell(tag.engineeringUnits),
         ]
           .map((value) => csvField(String(value)))
           .join(","),
@@ -144,42 +266,250 @@ function headerIndex(header: string[]): Record<string, number> {
   return index;
 }
 
-function programNames(project: PlcProject): Set<string> {
-  return new Set(project.controllers.flatMap((c) => c.programs.map((p) => p.name)));
+function hasColumn(col: Record<string, number>, key: string): boolean {
+  return col[key] != null;
+}
+
+function sameLogixName(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase();
+}
+
+function resolveProgram(project: PlcProject, name: string): { program?: Program; error?: string } {
+  const matches = project.controllers.flatMap((controller) =>
+    controller.programs.filter((program) => sameLogixName(program.name, name)),
+  );
+  if (matches.length === 0) return { error: `Program "${name}" not found for program-scoped tag.` };
+  if (matches.length > 1) return { error: `Program "${name}" is ambiguous across controllers.` };
+  return { program: matches[0] };
+}
+
+function csvRowKey(scope: TagScope, program: string | undefined, name: string): string {
+  return `${scope}\u0000${scope === "program" ? (program ?? "").toLowerCase() : ""}\u0000${name.toLowerCase()}`;
+}
+
+function findExistingTag(
+  project: PlcProject,
+  row: TagCsvRow,
+): { tag?: Tag; program?: Program; error?: string } {
+  if (row.scope === "program") {
+    const resolved = resolveProgram(project, row.program ?? "");
+    if (resolved.error) return { error: resolved.error };
+    const tag = resolved.program!.programTags.find((candidate) => sameLogixName(candidate.name, row.name));
+    return { tag, program: resolved.program };
+  }
+
+  const matches = project.controllers.flatMap((controller) =>
+    controller.controllerTags.filter((tag) => sameLogixName(tag.name, row.name)),
+  );
+  if (matches.length > 1) return { error: `Controller tag "${row.name}" is ambiguous across controllers.` };
+  return { tag: matches[0] };
+}
+
+function parseDimensionCell(value: string): {
+  dimension?: number;
+  dimensions?: number[];
+  message?: string;
+} {
+  const raw = value.trim();
+  if (!raw) return {};
+  const parts = raw.split(/[\s,]+/).filter(Boolean);
+  const dimensions = parts.map((part) => Number(part));
+  if (!dimensions.every((dimension) => Number.isFinite(dimension) && dimension > 0)) {
+    return { message: `Invalid dimension "${value}". Dimensions must be positive integers.` };
+  }
+  const normalized = dimensions.map((dimension) => Math.floor(dimension));
+  return {
+    ...(normalized[0] ? { dimension: normalized[0] } : {}),
+    dimensions: normalized,
+  };
+}
+
+function parseBooleanCell(value: string, label: string): { value?: boolean; message?: string } {
+  const raw = value.trim().toLowerCase();
+  if (!raw) return {};
+  if (["true", "yes", "1"].includes(raw)) return { value: true };
+  if (["false", "no", "0"].includes(raw)) return { value: false };
+  return { message: `Invalid ${label} value "${value}".` };
+}
+
+function dimensionInput(row: TagCsvRow): { dimension?: number; dimensions?: number[] } {
+  if (row.dimensions !== undefined) return { dimensions: row.dimensions };
+  if (row.dimension !== undefined) return { dimension: row.dimension };
+  return {};
+}
+
+function rowTarget(project: PlcProject, row: TagCsvRow): {
+  target?: { name: string; scope: TagScope; programId?: string };
+  tag?: Tag;
+  error?: string;
+} {
+  const existing = findExistingTag(project, row);
+  if (existing.error) return { error: existing.error };
+  return {
+    tag: existing.tag,
+    target: {
+      name: row.name,
+      scope: row.scope,
+      ...(row.scope === "program" ? { programId: existing.program!.id } : {}),
+    },
+  };
+}
+
+function appendWarnings(messages: string[], result: ProjectActionResult): void {
+  for (const warning of result.warnings ?? []) messages.push(warning);
+}
+
+function applyCsvRow(
+  project: PlcProject,
+  row: TagCsvRow,
+  status: Exclude<TagCsvRowStatus, "error">,
+): ProjectActionResult {
+  const target = rowTarget(project, row);
+  if (target.error || !target.target) return fail(project, target.error ?? "Tag target could not be resolved.");
+
+  let next = project;
+  const messages: string[] = [];
+
+  if (status === "create") {
+    const created = createTag(next, {
+      name: row.name,
+      dataType: row.dataType,
+      scope: row.scope,
+      ...(target.target.programId ? { programId: target.target.programId } : {}),
+      ...(row.description !== undefined ? { description: row.description } : {}),
+      ...(row.constant ? { constant: true } : {}),
+      ...(row.externalAccess ? { externalAccess: row.externalAccess } : {}),
+      ...dimensionInput(row),
+    });
+    if (!created.ok) return created;
+    next = created.project;
+    appendWarnings(messages, created);
+
+    if (row.radix !== undefined) {
+      const metadata = setTagMetadata(next, { ...target.target, radix: row.radix });
+      if (!metadata.ok) return metadata;
+      next = metadata.project;
+      appendWarnings(messages, metadata);
+    }
+
+    if (row.aliasFor !== undefined && row.aliasFor.trim()) {
+      const alias = setTagAlias(next, { ...target.target, aliasFor: row.aliasFor.trim() });
+      if (!alias.ok) return alias;
+      next = alias.project;
+      appendWarnings(messages, alias);
+    }
+
+    if (row.comments !== undefined) {
+      const comments = setTagComments(next, { ...target.target, comments: row.comments });
+      if (!comments.ok) return comments;
+      next = comments.project;
+      appendWarnings(messages, comments);
+    }
+
+    if (row.engineeringUnits !== undefined) {
+      const engineeringUnits = setTagEngineeringUnits(next, {
+        ...target.target,
+        engineeringUnits: row.engineeringUnits,
+      });
+      if (!engineeringUnits.ok) return engineeringUnits;
+      next = engineeringUnits.project;
+      appendWarnings(messages, engineeringUnits);
+    }
+
+    return ok(next, undefined, messages.length ? messages : undefined);
+  }
+
+  const current = target.tag;
+  if (!current) return fail(project, `Tag "${row.name}" does not exist for update.`);
+
+  if (!sameLogixName(current.dataType, row.dataType)) {
+    const typed = setTagDataType(next, { ...target.target, dataType: row.dataType });
+    if (!typed.ok) return typed;
+    next = typed.project;
+    appendWarnings(messages, typed);
+  }
+
+  if (row.dimensions !== undefined || row.dimension !== undefined) {
+    const sized = setTagDimensions(next, { ...target.target, ...dimensionInput(row) });
+    if (!sized.ok) return sized;
+    next = sized.project;
+    appendWarnings(messages, sized);
+  }
+
+  if (row.description !== undefined) {
+    const described = setTagDescription(next, { ...target.target, description: row.description });
+    if (!described.ok) return described;
+    next = described.project;
+    appendWarnings(messages, described);
+  }
+
+  if (row.externalAccess !== undefined || row.constant !== undefined || row.radix !== undefined) {
+    const metadata = setTagMetadata(next, {
+      ...target.target,
+      ...(row.externalAccess !== undefined ? { externalAccess: row.externalAccess } : {}),
+      ...(row.constant !== undefined ? { constant: row.constant } : {}),
+      ...(row.radix !== undefined ? { radix: row.radix } : {}),
+    });
+    if (!metadata.ok) return metadata;
+    next = metadata.project;
+    appendWarnings(messages, metadata);
+  }
+
+  if (row.aliasFor !== undefined) {
+    const alias = setTagAlias(next, { ...target.target, aliasFor: row.aliasFor.trim() || undefined });
+    if (!alias.ok) return alias;
+    next = alias.project;
+    appendWarnings(messages, alias);
+  }
+
+  if (row.comments !== undefined) {
+    const comments = setTagComments(next, { ...target.target, comments: row.comments });
+    if (!comments.ok) return comments;
+    next = comments.project;
+    appendWarnings(messages, comments);
+  }
+
+  if (row.engineeringUnits !== undefined) {
+    const engineeringUnits = setTagEngineeringUnits(next, {
+      ...target.target,
+      engineeringUnits: row.engineeringUnits,
+    });
+    if (!engineeringUnits.ok) return engineeringUnits;
+    next = engineeringUnits.project;
+    appendWarnings(messages, engineeringUnits);
+  }
+
+  return ok(next, undefined, messages.length ? messages : undefined);
 }
 
 /**
  * Parse and validate a tag CSV against the project, producing a previewable
- * plan. Never mutates the project. Each data row is classified create / update
- * / error; unknown data types and unresolved programs are warned, not fatal
- * (except a program-scoped row whose program does not exist, which is an error
- * so a tag is never silently mis-scoped).
+ * plan. Never mutates the project. Each row is dry-run through the same
+ * controlled tag actions used by Apply, so preview and import agree on Logix
+ * scope, data type, alias, dimension, and metadata validation.
  */
 export function previewTagCsvImport(project: PlcProject, csv: string): TagCsvImportPreview {
   const warnings: string[] = [];
-  const physicalLines = csv.split(/\r?\n/);
-  const nonEmpty = physicalLines
-    .map((text, i) => ({ text, line: i + 1 }))
-    .filter((entry) => entry.text.trim() !== "");
+  const parsed = parseCsvRecords(csv);
+  warnings.push(...parsed.warnings);
+  const nonEmpty = parsed.records.filter((entry) => entry.cells.some((cell) => cell.trim() !== ""));
 
   if (nonEmpty.length === 0) {
-    return { rows: [], createCount: 0, updateCount: 0, errorCount: 0, warnings: ["CSV is empty."] };
+    return { rows: [], createCount: 0, updateCount: 0, errorCount: 0, warnings: [...warnings, "CSV is empty."] };
   }
 
-  const header = parseCsvLine(nonEmpty[0]!.text);
+  const header = nonEmpty[0]!.cells;
   const col = headerIndex(header);
   if (col["name"] == null || col["datatype"] == null) {
     warnings.push('CSV must include at least "Name" and "DataType" columns.');
     return { rows: [], createCount: 0, updateCount: 0, errorCount: 0, warnings };
   }
 
-  const existingNames = new Set(getAllTags(project).map((t) => t.name));
-  const programs = programNames(project);
   const seenInCsv = new Set<string>();
   const rows: TagCsvPreviewRow[] = [];
+  let validationProject = project;
 
-  for (const { text, line } of nonEmpty.slice(1)) {
-    const cells = parseCsvLine(text);
+  for (const { cells, line } of nonEmpty.slice(1)) {
     const at = (key: string): string => {
       const i = col[key];
       return i == null ? "" : (cells[i] ?? "").trim();
@@ -188,43 +518,64 @@ export function previewTagCsvImport(project: PlcProject, csv: string): TagCsvImp
 
     const name = at("name");
     const dataType = at("datatype");
-    const scopeRaw = at("scope").toLowerCase();
+    const scopeText = at("scope");
+    const scopeRaw = scopeText.toLowerCase();
     const scope: TagScope = scopeRaw === "program" ? "program" : "controller";
     const program = at("program") || undefined;
 
-    // Hard errors (row skipped on apply).
     if (!name) messages.push("Missing tag name.");
-    else if (!TAG_NAME_RE.test(name)) messages.push(`Invalid tag name "${name}".`);
-    if (name && seenInCsv.has(name)) messages.push(`Duplicate tag "${name}" within the CSV.`);
+    else {
+      const invalidName = logixIdentifierError(name, "Tag");
+      if (invalidName) messages.push(invalidName);
+    }
+    if (scopeRaw && scopeRaw !== "controller" && scopeRaw !== "program") {
+      messages.push(`Invalid scope "${scopeText}". Use "controller" or "program".`);
+    }
+    if (name) {
+      const key = csvRowKey(scope, program, name);
+      if (seenInCsv.has(key)) {
+        messages.push(
+          scope === "program" && program
+            ? `Duplicate tag "${name}" within the CSV for program "${program}".`
+            : `Duplicate controller tag "${name}" within the CSV.`,
+        );
+      }
+      seenInCsv.add(key);
+    }
     if (!dataType) messages.push("Missing data type.");
-    if (scope === "program" && (!program || !programs.has(program))) {
-      messages.push(`Program "${program ?? ""}" not found for program-scoped tag.`);
+    if (scope === "program" && !program) messages.push("Program is required for program-scoped tags.");
+    if (scope === "controller" && program) messages.push('Program can only be set when Scope is "program".');
+
+    const dimensionColumn = hasColumn(col, "dimension");
+    const dimensionParsed = dimensionColumn ? parseDimensionCell(at("dimension")) : {};
+    if (dimensionParsed.message) messages.push(dimensionParsed.message);
+
+    const constantColumn = hasColumn(col, "constant");
+    const constantParsed = constantColumn ? parseBooleanCell(at("constant"), "Constant") : {};
+    if (constantParsed.message) messages.push(constantParsed.message);
+
+    const externalColumn = hasColumn(col, "externalaccess");
+    const externalRaw = at("externalaccess");
+    let externalAccess: ExternalAccess | "" | undefined;
+    if (externalColumn) {
+      if (!externalRaw) externalAccess = "";
+      else if (EXTERNAL_ACCESS.has(externalRaw as ExternalAccess)) externalAccess = externalRaw as ExternalAccess;
+      else messages.push(`Unknown external access "${externalRaw}".`);
     }
 
-    if (name) seenInCsv.add(name);
+    const commentColumn = hasColumn(col, "comments");
+    const commentsParsed = commentColumn ? parseAnnotationCell(at("comments"), "Comments") : {};
+    if (commentsParsed.message) messages.push(commentsParsed.message);
+
+    const engineeringUnitsColumn = hasColumn(col, "engineeringunits");
+    const engineeringUnitsParsed = engineeringUnitsColumn
+      ? parseAnnotationCell(at("engineeringunits"), "EngineeringUnits")
+      : {};
+    if (engineeringUnitsParsed.message) messages.push(engineeringUnitsParsed.message);
 
     if (messages.length > 0) {
       rows.push({ line, status: "error", messages });
       continue;
-    }
-
-    // Soft warnings (still applied).
-    const dimensionRaw = at("dimension");
-    let dimension: number | undefined;
-    if (dimensionRaw) {
-      const parsed = Number(dimensionRaw);
-      if (Number.isFinite(parsed) && parsed > 0) dimension = Math.floor(parsed);
-      else messages.push(`Ignoring invalid dimension "${dimensionRaw}".`);
-    }
-    if (!KNOWN_DATA_TYPES.has(dataType.toUpperCase()) && !at("aliasfor")) {
-      messages.push(`Unmodeled data type "${dataType}" (imported, treated as opaque).`);
-    }
-
-    const externalRaw = at("externalaccess");
-    let externalAccess: ExternalAccess | undefined;
-    if (externalRaw) {
-      if (EXTERNAL_ACCESS.has(externalRaw as ExternalAccess)) externalAccess = externalRaw as ExternalAccess;
-      else messages.push(`Ignoring unknown external access "${externalRaw}".`);
     }
 
     const row: TagCsvRow = {
@@ -232,13 +583,33 @@ export function previewTagCsvImport(project: PlcProject, csv: string): TagCsvImp
       program: scope === "program" ? program : undefined,
       name,
       dataType,
-      dimension,
-      aliasFor: at("aliasfor") || undefined,
-      externalAccess,
-      description: at("description") || undefined,
+      ...(dimensionParsed.dimension ? { dimension: dimensionParsed.dimension } : {}),
+      ...(dimensionColumn ? { dimensions: dimensionParsed.dimensions ?? [] } : {}),
+      ...(hasColumn(col, "aliasfor") ? { aliasFor: at("aliasfor") } : {}),
+      ...(constantColumn ? { constant: constantParsed.value ?? false } : {}),
+      ...(externalColumn ? { externalAccess } : {}),
+      ...(hasColumn(col, "radix") ? { radix: at("radix") } : {}),
+      ...(hasColumn(col, "description") ? { description: at("description") } : {}),
+      ...(commentColumn ? { comments: commentsParsed.rows as TagComment[] } : {}),
+      ...(engineeringUnitsColumn ? { engineeringUnits: engineeringUnitsParsed.rows as TagEngineeringUnit[] } : {}),
     };
 
-    rows.push({ line, row, status: existingNames.has(name) ? "update" : "create", messages });
+    const existing = findExistingTag(validationProject, row);
+    if (existing.error) {
+      rows.push({ line, row, status: "error", messages: [existing.error] });
+      continue;
+    }
+
+    const status: Exclude<TagCsvRowStatus, "error"> = existing.tag ? "update" : "create";
+    const validated = applyCsvRow(validationProject, row, status);
+    if (!validated.ok) {
+      rows.push({ line, row, status: "error", messages: [validated.error ?? "Tag CSV row failed validation."] });
+      continue;
+    }
+
+    validationProject = validated.project;
+    appendWarnings(messages, validated);
+    rows.push({ line, row, status, messages });
   }
 
   return {
@@ -254,97 +625,33 @@ export function previewTagCsvImport(project: PlcProject, csv: string): TagCsvImp
 // Apply
 // ---------------------------------------------------------------------------
 
-function applyFields(tag: Tag, row: TagCsvRow): Tag {
-  const next: Tag = { ...tag, dataType: row.dataType };
-  if (row.description !== undefined) next.description = row.description;
-  if (row.dimension !== undefined) next.dimension = row.dimension;
-  else delete next.dimension;
-  if (row.aliasFor !== undefined) next.aliasFor = row.aliasFor;
-  if (row.externalAccess !== undefined) next.externalAccess = row.externalAccess;
-  return next;
-}
-
-function buildTag(controllerId: string, row: TagCsvRow): Tag {
-  const tag = makeTag(controllerId, row.name, row.dataType, {
-    scope: row.scope,
-    description: row.description,
-    value: row.dataType.toUpperCase() === "BOOL" ? false : 0,
-    dimension: row.dimension,
-  });
-  if (row.aliasFor) tag.aliasFor = row.aliasFor;
-  if (row.externalAccess) tag.externalAccess = row.externalAccess;
-  return tag;
-}
-
 /**
- * Apply a tag CSV to the project: update existing tags (by name) and create new
- * ones, skipping error rows. Returns a standard action result (new project +
- * validation findings); the input project is never mutated.
+ * Apply a tag CSV to the project after a clean preview. Rows are replayed
+ * through the controlled tag actions; any preview error blocks the entire file
+ * so import never partially applies a malformed CSV.
  */
 export function applyTagCsvImport(
   project: PlcProject,
   csv: string,
 ): ProjectActionResult<{ created: number; updated: number; skipped: number }> {
   const preview = previewTagCsvImport(project, csv);
-  const actionable = preview.rows.filter(
-    (r): r is TagCsvPreviewRow & { row: TagCsvRow } => r.status !== "error" && r.row != null,
-  );
-  const updatesByName = new Map(
-    actionable.filter((r) => r.status === "update").map((r) => [r.row.name, r.row]),
-  );
-  const creates = actionable.filter((r) => r.status === "create").map((r) => r.row);
-
-  const controller = project.controllers[0];
-  if (!controller && creates.length > 0) {
-    return ok(project, { created: 0, updated: 0, skipped: preview.errorCount });
-  }
-  const controllerId = controller?.id ?? "";
-
-  // 1) Update existing tags in place (by name, any scope).
-  const updated: PlcProject = {
-    ...project,
-    controllers: project.controllers.map((c) => ({
-      ...c,
-      controllerTags: c.controllerTags.map((t) =>
-        updatesByName.has(t.name) ? applyFields(t, updatesByName.get(t.name)!) : t,
-      ),
-      programs: c.programs.map((p) => ({
-        ...p,
-        programTags: p.programTags.map((t) =>
-          updatesByName.has(t.name) ? applyFields(t, updatesByName.get(t.name)!) : t,
-        ),
-      })),
-    })),
-  };
-
-  // 2) Insert new tags: controller-scoped onto controller[0]; program-scoped onto the named program.
-  const newControllerTags = creates
-    .filter((row) => row.scope === "controller")
-    .map((row) => buildTag(controllerId, row));
-  const newProgramTagsByProgram = new Map<string, Tag[]>();
-  for (const row of creates) {
-    if (row.scope !== "program" || !row.program) continue;
-    const list = newProgramTagsByProgram.get(row.program) ?? [];
-    list.push(buildTag(controllerId, row));
-    newProgramTagsByProgram.set(row.program, list);
+  if (preview.errorCount > 0) {
+    return fail(project, `Tag CSV has ${preview.errorCount} error(s); preview and fix the file before applying.`);
   }
 
-  const next: PlcProject = {
-    ...updated,
-    controllers: updated.controllers.map((c, index) => ({
-      ...c,
-      controllerTags:
-        index === 0 ? [...c.controllerTags, ...newControllerTags] : c.controllerTags,
-      programs: c.programs.map((p) => {
-        const extra = newProgramTagsByProgram.get(p.name);
-        return extra ? { ...p, programTags: [...p.programTags, ...extra] } : p;
-      }),
-    })),
-  };
+  let next = project;
+  const warnings: string[] = [];
+  for (const previewRow of preview.rows) {
+    if (!previewRow.row || previewRow.status === "error") continue;
+    const applied = applyCsvRow(next, previewRow.row, previewRow.status);
+    if (!applied.ok) return fail(project, applied.error ?? "Tag CSV import failed.");
+    next = applied.project;
+    appendWarnings(warnings, applied);
+  }
 
   return ok(next, {
-    created: creates.length,
-    updated: updatesByName.size,
-    skipped: preview.errorCount,
-  });
+    created: preview.createCount,
+    updated: preview.updateCount,
+    skipped: 0,
+  }, warnings.length ? warnings : undefined);
 }

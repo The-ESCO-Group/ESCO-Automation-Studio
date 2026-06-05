@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  CONTROLLER_COMMAND_LIST,
+  ControllerSession,
   DOWNLOAD_COMMAND,
   GO_ONLINE_COMMAND,
   MONITOR_COMMAND,
-  ONLINE_EDIT_COMMAND,
   UPLOAD_COMMAND,
+  OfflineSimulationTransport,
+  UnavailableTransport,
   commissioningPreflight,
   evaluateCommand,
   preflightSummary,
@@ -32,6 +35,12 @@ const UNVERIFIED_REAL_CAPS: TransportCapabilities = {
   verified: false,
   simulation: false,
   canRead: true,
+  canBrowseNetwork: true,
+  canSelectPath: true,
+  canPathDiagnostics: true,
+  canUpload: true,
+  canMonitor: true,
+  canReadFaults: true,
   canWrite: true,
 };
 const VERIFIED_READONLY_CAPS: TransportCapabilities = {
@@ -39,6 +48,8 @@ const VERIFIED_READONLY_CAPS: TransportCapabilities = {
   verified: true,
   simulation: false,
   canRead: true,
+  canMonitor: true,
+  canReadFaults: true,
   canWrite: false,
 };
 const VERIFIED_WRITE_CAPS: TransportCapabilities = {
@@ -46,16 +57,16 @@ const VERIFIED_WRITE_CAPS: TransportCapabilities = {
   verified: true,
   simulation: false,
   canRead: true,
+  canBrowseNetwork: true,
+  canSelectPath: true,
+  canPathDiagnostics: true,
+  canUpload: true,
+  canMonitor: true,
+  canReadFaults: true,
   canWrite: true,
 };
 
-const COMMANDS: ControllerCommand[] = [
-  GO_ONLINE_COMMAND,
-  MONITOR_COMMAND,
-  UPLOAD_COMMAND,
-  DOWNLOAD_COMMAND,
-  ONLINE_EDIT_COMMAND,
-];
+const COMMANDS: ControllerCommand[] = [...CONTROLLER_COMMAND_LIST];
 
 const CONTEXTS: { name: string; ctx: CommandContext }[] = [
   { name: "offline simulation", ctx: { state: "offline-simulation", capabilities: SIM_CAPS, confirmed: true } },
@@ -121,8 +132,18 @@ describe("commissioningPreflight enumerates every gate honestly", () => {
       capabilities: VERIFIED_READONLY_CAPS,
       confirmed: true,
     });
-    expect(report.firstBlocker).toBe("safety-unverified");
+    expect(report.firstBlocker).toBe("capability-missing");
     expect(report.checks.find((c) => c.id === "write-capable")?.passed).toBe(false);
+  });
+
+  it("a read-only monitor transport does not satisfy upload or browse-style reads", () => {
+    const upload = commissioningPreflight(UPLOAD_COMMAND, {
+      state: "connected-monitor",
+      capabilities: VERIFIED_READONLY_CAPS,
+      confirmed: true,
+    });
+    expect(upload.firstBlocker).toBe("capability-missing");
+    expect(upload.checks.find((c) => c.id === "read-capable")?.passed).toBe(false);
   });
 
   it("a fully verified + connected + confirmed write command clears every gate", () => {
@@ -142,6 +163,7 @@ describe("commissioningPreflight enumerates every gate honestly", () => {
       capabilities: VERIFIED_READONLY_CAPS,
       confirmed: true,
     });
+    expect(report.cleared).toBe(true);
     expect(report.checks.map((c) => c.id)).not.toContain("write-capable");
   });
 
@@ -158,5 +180,41 @@ describe("commissioningPreflight enumerates every gate honestly", () => {
       confirmed: true,
     });
     expect(preflightSummary(cleared)).toMatch(/all \d+ safety checks passed/i);
+  });
+});
+
+describe("ControllerSession.preflight surfaces the same gate as the live session", () => {
+  it("session.preflight agrees with session.evaluate for every command (offline sim)", () => {
+    const session = new ControllerSession(new OfflineSimulationTransport());
+    for (const command of CONTROLLER_COMMAND_LIST) {
+      const report = session.preflight(command, true);
+      const availability = session.evaluate(command, true);
+      expect(report.firstBlocker).toBe(availability.reason);
+      expect(report.cleared).toBe(availability.available);
+    }
+  });
+
+  it("no shipped transport can clear the Go Online / Download preflight", () => {
+    for (const transport of [new OfflineSimulationTransport(), new UnavailableTransport()]) {
+      const session = new ControllerSession(transport);
+      session.selectTransport(transport);
+      for (const command of [GO_ONLINE_COMMAND, DOWNLOAD_COMMAND, MONITOR_COMMAND]) {
+        const report = session.preflight(command, true);
+        expect(report.cleared).toBe(false);
+        // The real-transport gate must be one of the failing checks.
+        expect(report.checks.some((check) => check.id === "real-transport" && !check.passed)).toBe(true);
+      }
+    }
+  });
+
+  it("preflight enumerates more than one gate so the operator sees the full checklist", () => {
+    const session = new ControllerSession(new OfflineSimulationTransport());
+    const report = session.preflight(DOWNLOAD_COMMAND, true);
+    expect(report.checks.length).toBeGreaterThan(3);
+    // Every check has a human-readable label + detail (no blank rows).
+    for (const check of report.checks) {
+      expect(check.label.length).toBeGreaterThan(0);
+      expect(check.detail.length).toBeGreaterThan(0);
+    }
   });
 });

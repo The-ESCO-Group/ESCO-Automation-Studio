@@ -1,4 +1,5 @@
 import { createId, nowIso } from "@esco/shared";
+import { normalizeArrayDimensions } from "./data-types";
 import type {
   Controller,
   IOConfiguration,
@@ -32,6 +33,9 @@ export function createController(projectId: string, name: string): Controller {
     dataTypes: [],
     addOnInstructions: [],
     ioConfiguration: emptyIoConfiguration(),
+    trends: [],
+    quickWatchLists: [],
+    parameterConnections: [],
   };
 }
 
@@ -80,8 +84,14 @@ export function createTag(
   controllerId: string,
   name: string,
   dataType: string,
-  options: Partial<Pick<Tag, "scope" | "programId" | "description" | "value" | "dimension">> = {},
+  options: Partial<
+    Pick<
+      Tag,
+      "scope" | "programId" | "description" | "value" | "dimension" | "dimensions" | "externalAccess" | "constant"
+    >
+  > = {},
 ): Tag {
+  const dimensions = normalizeArrayDimensions(options.dimensions?.length ? options.dimensions : options.dimension);
   return {
     id: createId("tag"),
     controllerId,
@@ -91,6 +101,9 @@ export function createTag(
     programId: options.programId,
     description: options.description,
     value: options.value,
-    ...(options.dimension && options.dimension > 0 ? { dimension: options.dimension } : {}),
+    ...(dimensions[0] ? { dimension: dimensions[0] } : {}),
+    ...(dimensions.length > 1 ? { dimensions } : {}),
+    ...(options.externalAccess ? { externalAccess: options.externalAccess } : {}),
+    ...(options.constant ? { constant: true } : {}),
   };
 }

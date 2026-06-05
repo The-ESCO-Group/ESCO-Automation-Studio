@@ -3,7 +3,7 @@ import { createController, createProgram, createProject, createRoutine, createTa
 import { createLadderRoutine, createNode, createRung, tagOperand } from "@esco/ladder";
 import { createDefaultEngine } from "./index";
 
-/** A project with a JMP/LBL pair and a FOR referencing a routine. */
+/** A project with label flow and an MCR zone boundary. */
 function projectWithFlow() {
   const project = createProject("FlowCtl");
   const controller = createController(project.id, "FlowCtl");
@@ -39,11 +39,11 @@ describe("label/keyword operands are not validated as tags", () => {
     expect(unsupported.some((f) => /JMP|LBL|MCR/.test(f.message))).toBe(false);
   });
 
-  it("reports registered flow controls as model-only instead of executable", () => {
+  it("keeps executable flow controls quiet", () => {
     const modelOnly = findings.filter((f) => f.ruleId === "model-only-instruction");
-    expect(modelOnly.some((f) => f.message.includes('"JMP"'))).toBe(true);
-    expect(modelOnly.some((f) => f.message.includes('"LBL"'))).toBe(true);
-    expect(modelOnly.some((f) => f.message.includes('"MCR"'))).toBe(true);
+    expect(modelOnly.some((f) => f.message.includes('"JMP"'))).toBe(false);
+    expect(modelOnly.some((f) => f.message.includes('"LBL"'))).toBe(false);
+    expect(modelOnly.some((f) => f.message.includes('"MCR"'))).toBe(false);
   });
 
   it("still validates real tag operands (Enable is defined → no undefined-tag)", () => {

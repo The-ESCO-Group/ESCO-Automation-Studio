@@ -1,8 +1,15 @@
 import { Panel } from "@esco/ui";
 import type { PlcProject, Tag } from "@esco/core";
-import { baseTagName, createDefaultRegistry, isNumericLiteral } from "@esco/instructions";
+import {
+  baseTagName,
+  createDefaultRegistry,
+  describeModelOnlyInstructionReview,
+  isNumericLiteral,
+  modelOnlyBoundaryLabel,
+  type ModelOnlyInstructionReviewOperand,
+} from "@esco/instructions";
 import { rungNodes, type LadderNode, type LadderRoutine, type LadderRung } from "@esco/ladder";
-import { collectTagReferences, findRoutine, getLadder } from "@esco/project-actions";
+import { collectTagReferences, findRoutine, getLadder, tagCommentPreview, tagCommentRows } from "@esco/project-actions";
 import type { ValidationFinding } from "@esco/validator";
 import type { Selection } from "../selection";
 import type { TagValues } from "../simulation";
@@ -44,11 +51,13 @@ function readsWrites(nodes: LadderNode[]): { reads: string[]; writes: string[] }
   for (const node of nodes) {
     const def = registry.get(node.instructionType);
     node.operands.forEach((operand, index) => {
+      const operandDef = def?.operands[index];
+      if (operandDef?.isRoutineRef || operandDef?.isLabelRef) return;
       const value = operand.value.trim();
       if (!value || isNumericLiteral(value)) return;
       const base = baseTagName(value);
       if (!base) return;
-      (def?.operands[index]?.direction === "write" ? writes : reads).add(base);
+      (operandDef?.direction === "write" ? writes : reads).add(base);
     });
   }
   return { reads: [...reads], writes: [...writes] };
@@ -61,6 +70,13 @@ function routineFindings(findings: ValidationFinding[], routineName: string): Va
 function instructionStatus(def: ReturnType<typeof registry.get>): string {
   if (!def) return "Unknown unsupported (read-only)";
   return def.modelOnly ? "Model-only / preserved, not simulated" : "Executable";
+}
+
+function reviewOperandRoleLabel(operand: ModelOnlyInstructionReviewOperand): string {
+  if (operand.role === "tag" || operand.role === "expression") {
+    return `${operand.declaredDirection} ${operand.role}`;
+  }
+  return operand.role;
 }
 
 interface View {
@@ -154,6 +170,7 @@ function buildView(props: Props): View | null {
     if (!tag) return null;
     const refs = collectTagReferences(project, tag.name);
     const written = refs.some((r) => r.direction === "write");
+    const commentRows = tagCommentRows(tag);
     return {
       heading: "Tag",
       rows: [
@@ -164,6 +181,8 @@ function buildView(props: Props): View | null {
         { label: "References", value: String(refs.length) },
         { label: "Value", value: tagValue(values, tag) },
         { label: "Description", value: tag.description ?? "—" },
+        { label: "Element/member comments", value: String(commentRows.length) },
+        { label: "Comment preview", value: tagCommentPreview(tag) || "—" },
       ],
     };
   }
@@ -200,6 +219,7 @@ function buildView(props: Props): View | null {
     const node = rungNodes(rung).find((n) => n.id === selection.nodeId);
     if (!node) return null;
     const def = registry.get(node.instructionType);
+    const modelOnlyReview = describeModelOnlyInstructionReview(def, node);
     const rows: Row[] = [
       { label: "Instruction", value: node.instructionType },
       { label: "Name", value: def?.displayName ?? "Unknown unsupported block" },
@@ -207,11 +227,28 @@ function buildView(props: Props): View | null {
       { label: "Routine", value: routine.name },
       { label: "Rung", value: String(rung.number) },
     ];
+    if (modelOnlyReview) {
+      const missing = modelOnlyReview.operands.filter((operand) => operand.missing).map((operand) => operand.label);
+      rows.push(
+        { label: "Review behavior", value: "Pass-through rung power" },
+        { label: "Runtime boundary", value: modelOnlyReview.boundaries.map(modelOnlyBoundaryLabel).join("; ") },
+        { label: "Missing operands", value: missing.join(", ") || "—" },
+      );
+    }
     node.operands.forEach((operand, index) => {
-      const dir = def?.operands[index]?.direction ?? "read";
+      const operandDef = def?.operands[index];
+      const reviewOperand = modelOnlyReview?.operands[index];
+      // Keyword/label operands (e.g. GSV/SSV class & attribute names, JMP/LBL
+      // targets) and routine references are not tag reads — label them by their
+      // role rather than implying a data direction they don't have.
+      const role = reviewOperand ? reviewOperandRoleLabel(reviewOperand) : (operandDef?.isLabelRef
+        ? "keyword"
+        : operandDef?.isRoutineRef
+          ? "routine"
+          : operandDef?.direction ?? "read");
       rows.push({
-        label: def?.operands[index]?.label ?? `op${index}`,
-        value: `${operand.value || "—"} (${dir})`,
+        label: reviewOperand?.label ?? operandDef?.label ?? `op${index}`,
+        value: `${operand.value || "—"} (${role})`,
       });
     });
     return { heading: "Instruction", rows, hint: def?.description };

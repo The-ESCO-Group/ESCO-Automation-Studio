@@ -8,19 +8,24 @@ import {
 } from "@esco/core";
 import { getHmiProject } from "@esco/hmi-model";
 import { createLadderRoutine } from "@esco/ladder";
-import { addRungFromText } from "@esco/project-actions";
+import { addRungFromText, defaultValues, scanProject, type TagValues } from "@esco/project-actions";
 import {
   applyAction,
   applyPlan,
   counterPlan,
   createProvider,
+  ExternalLlmProvider,
+  debounceInputPlan,
   explainRoutine,
   fixUndefinedPlan,
   getDefaultProvider,
   hmiNavigationButtonPlan,
+  motorInterlockPlan,
+  motorStartCounterPlan,
   motorStarterPlan,
   runAssistant,
   timerPlan,
+  unitConversionPlan,
 } from "./index";
 
 function baseProject(): { project: PlcProject; routineId: string } {
@@ -90,6 +95,14 @@ describe("AI assistant: plan generation", () => {
     expect(plan.actions.some((a) => a.label.includes("COUNTER"))).toBe(true);
   });
 
+  it("generates the common control-pattern plans requested by technicians", () => {
+    const { project, routineId } = baseProject();
+    expect(runAssistant({ prompt: "debounce an input", project, selection: { routineId } }).plan?.title).toBe("Debounce input");
+    expect(runAssistant({ prompt: "motor holding with interlocks", project, selection: { routineId } }).plan?.title).toBe("Motor starter with interlocks");
+    expect(runAssistant({ prompt: "find project involving ONS", project, selection: { routineId } }).plan?.title).toBe("Motor start counter");
+    expect(runAssistant({ prompt: "unit conversion C to F", project, selection: { routineId } }).plan?.title).toBe("Temperature unit conversion");
+  });
+
   it("proposes creating undefined tags with inferred types", () => {
     const base = baseProject();
     const withGhost = addRungFromText(base.project, {
@@ -114,6 +127,82 @@ describe("AI assistant: apply", () => {
     // The seal-in rung was added.
     const routine = result.project.controllers[0]!.programs[0]!.routines[0]!;
     expect((routine.ladder as { rungs: unknown[] }).rungs).toHaveLength(1);
+  });
+
+  it("applies and simulates an interlocked motor holding pattern", () => {
+    const { project, routineId } = baseProject();
+    const applied = applyPlan(project, motorInterlockPlan(project, { routineId }));
+    expect(applied.ok).toBe(true);
+
+    let values: TagValues = {
+      ...defaultValues(applied.project),
+      StartPB: true,
+      StopPB: false,
+      EStopOK: true,
+      OverloadOK: true,
+      PermissiveOK: true,
+    };
+    values = scanProject(applied.project, values).data!.values;
+    expect(values.MotorRun).toBe(true);
+
+    values = { ...values, StartPB: false };
+    values = scanProject(applied.project, values).data!.values;
+    expect(values.MotorRun).toBe(true);
+
+    values = { ...values, OverloadOK: false };
+    values = scanProject(applied.project, values).data!.values;
+    expect(values.MotorRun).toBe(false);
+  });
+
+  it("applies and simulates a debounce pattern", () => {
+    const { project, routineId } = baseProject();
+    const applied = applyPlan(project, debounceInputPlan(project, { routineId }));
+    expect(applied.ok).toBe(true);
+
+    let values: TagValues = { ...defaultValues(applied.project), RawInput: true };
+    values = scanProject(applied.project, values, { deltaMs: 250 }).data!.values;
+    expect(values.DebouncedInput).toBe(false);
+    values = scanProject(applied.project, values, { deltaMs: 250 }).data!.values;
+    expect(values.DebouncedInput).toBe(true);
+  });
+
+  it("applies and simulates an ONS-backed motor start counter", () => {
+    const { project, routineId } = baseProject();
+    const applied = applyPlan(project, motorStartCounterPlan(project, { routineId }));
+    expect(applied.ok).toBe(true);
+
+    let values: TagValues = { ...defaultValues(applied.project), MotorRun: true };
+    values = scanProject(applied.project, values).data!.values;
+    values = scanProject(applied.project, values).data!.values;
+    expect(values["MotorStartCounter.ACC"]).toBe(1);
+
+    values = scanProject(applied.project, { ...values, MotorRun: false }).data!.values;
+    values = scanProject(applied.project, { ...values, MotorRun: true }).data!.values;
+    expect(values["MotorStartCounter.ACC"]).toBe(2);
+  });
+
+  it("applies and simulates Celsius/Fahrenheit conversion rungs", () => {
+    const { project, routineId } = baseProject();
+    const applied = applyPlan(project, unitConversionPlan(project, { routineId }));
+    expect(applied.ok).toBe(true);
+
+    let values: TagValues = {
+      ...defaultValues(applied.project),
+      ConvertToF: true,
+      ConvertToC: false,
+      TempC: 100,
+    };
+    values = scanProject(applied.project, values).data!.values;
+    expect(values.TempF).toBeCloseTo(212);
+
+    values = {
+      ...values,
+      ConvertToF: false,
+      ConvertToC: true,
+      TempF: 32,
+    };
+    values = scanProject(applied.project, values).data!.values;
+    expect(values.TempC).toBeCloseTo(0);
   });
 
   it("does not mutate the original project before/after apply", () => {
@@ -198,5 +287,42 @@ describe("AI assistant: provider interface", () => {
     await expect(createProvider("external").run({ prompt: "anything", project })).rejects.toThrow(
       /not configured/i,
     );
+  });
+
+  it("the configured external provider runs through the safe agent loop and returns a preview plan", async () => {
+    const { project } = baseProject();
+    let calls = 0;
+    const provider = new ExternalLlmProvider({
+      modelId: "test-model",
+      caller: async (request) => {
+        calls += 1;
+        expect(request.model).toBe("test-model");
+        if (calls === 1) {
+          return {
+            content: [
+              {
+                type: "tool_use",
+                id: "tool-1",
+                name: "create_tag",
+                input: { name: "ExternalTag", dataType: "BOOL" },
+              },
+            ],
+            stop_reason: "tool_use",
+          };
+        }
+        return {
+          content: [{ type: "text", text: "Queued a BOOL tag for review." }],
+          stop_reason: "end_turn",
+        };
+      },
+    });
+
+    const result = await provider.run({ prompt: "create a tag", project });
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toMatch(/Queued a BOOL tag/);
+    expect(result.plan?.actions).toHaveLength(1);
+    expect(result.plan?.actions[0]?.kind).toBe("createTag");
+    expect(project.controllers[0]!.controllerTags.some((tag) => tag.name === "ExternalTag")).toBe(false);
   });
 });

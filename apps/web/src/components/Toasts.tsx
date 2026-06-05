@@ -5,7 +5,7 @@ interface Props {
   onDismiss: (id: number) => void;
 }
 
-/** Stacked, non-blocking toasts pinned to the top of the window. */
+/** Stacked, non-blocking application message strips. */
 export function Toasts({ toasts, onDismiss }: Props) {
   if (toasts.length === 0) return null;
   return (

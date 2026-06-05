@@ -1,0 +1,65 @@
+.esco-file-policy-dialog__panel {
+  max-width: 560px;
+}
+
+.esco-file-policy-dialog__body {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  background: #f7f7f7;
+}
+
+.esco-file-policy-dialog__reason {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.esco-file-policy-dialog__meta {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #c8c8c8;
+  background: #ffffff;
+}
+
+.esco-file-policy-dialog__meta > div {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+}
+
+.esco-file-policy-dialog__meta dt {
+  color: #555555;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.esco-file-policy-dialog__meta dd {
+  margin: 0;
+  font-family: var(--esco-mono, ui-monospace, "Cascadia Code", Consolas, monospace);
+  word-break: break-all;
+}
+
+.esco-file-policy-dialog__next {
+  padding: 8px 10px;
+  border-left: 3px solid #1d6fb8;
+  background: #eef5fc;
+  line-height: 1.5;
+}
+
+.esco-file-policy-dialog__supported ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  line-height: 1.5;
+}
+
+.esco-file-policy-dialog__note {
+  margin: 0;
+  color: #555555;
+  font-size: 11px;
+  line-height: 1.45;
+}

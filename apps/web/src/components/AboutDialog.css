@@ -1,0 +1,63 @@
+.esco-about__body {
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  padding: 8px 10px;
+  background: #f7f7f7;
+}
+
+.esco-about__identity {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid #c8c8c8;
+  background: #ffffff;
+}
+
+.esco-about__identity strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.esco-about__identity span {
+  color: #555555;
+  font-size: 11px;
+}
+
+.esco-about__identity p {
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+.esco-about__file-policy {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid #c8c8c8;
+  border-left: 3px solid #1d6fb8;
+  background: #ffffff;
+}
+
+.esco-about__file-policy strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.esco-about__file-policy p {
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+.esco-about__file-policy code {
+  font-family: var(--esco-mono, ui-monospace, "Cascadia Code", Consolas, monospace);
+}
+
+.esco-about__file-policy-blocked {
+  color: #8a5300;
+}
+
+/* The Help content already supplies its own headings/spacing inside the modal. */
+.esco-about__body .esco-help {
+  padding: 0;
+}

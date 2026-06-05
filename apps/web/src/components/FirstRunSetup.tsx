@@ -52,9 +52,7 @@ export function FirstRunSetup({ open, profile, onClose, onSave }: Props) {
               automatically after this.
             </p>
           </div>
-          <button type="button" className="esco-icon-btn" aria-label="Close setup" onClick={onClose}>
-            x
-          </button>
+          <button type="button" className="esco-icon-btn" aria-label="Close setup" onClick={onClose} />
         </header>
 
         <div className="esco-setup__fields">

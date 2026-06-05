@@ -12,7 +12,7 @@ export interface ParsedRungText {
   root: LadderBranch;
   /** Instruction types found that aren't in the registry. */
   unsupportedTypes: string[];
-  /** True if a nested/unparseable branch was flattened to a series. */
+  /** True if an unbalanced/unrepresentable branch was flattened to a series. */
   complexBranch: boolean;
 }
 
@@ -91,9 +91,10 @@ function makeNode(
   token: Extract<Token, { kind: "inst" }>,
   registry: InstructionRegistry,
   unsupported: Set<string>,
+  knownInstructionTypes: Set<string>,
 ): LadderNode {
   const definition = registry.get(token.type);
-  if (!definition) unsupported.add(token.type);
+  if (!definition && !knownInstructionTypes.has(token.type)) unsupported.add(token.type);
   const names = definition
     ? definition.operands.map((operand) => operand.name)
     : token.args.map((_, i) => `op${i}`);
@@ -105,6 +106,20 @@ function makeNode(
 
 type Cursor = { i: number };
 type MakeFn = (token: Extract<Token, { kind: "inst" }>) => LadderNode;
+
+function hasBranchContent(branch: LadderBranch): boolean {
+  return branch.nodes.length > 0 || !!branch.parallelBranches?.length || !!branch.next;
+}
+
+function appendContinuation(branch: LadderBranch, continuation: LadderBranch): LadderBranch {
+  if (!hasBranchContent(continuation)) return branch;
+  if (!branch.next) {
+    branch.next = continuation;
+    return branch;
+  }
+  appendContinuation(branch.next, continuation);
+  return branch;
+}
 
 /**
  * Parse a series of instructions and branch groups into a branch chain.
@@ -121,7 +136,7 @@ function parseSeries(tokens: Token[], cursor: Cursor, make: MakeFn): LadderBranc
     } else if (token.kind === "[") {
       const group = parseGroup(tokens, cursor, make);
       const rest = parseSeries(tokens, cursor, make);
-      if (rest.nodes.length > 0 || rest.parallelBranches || rest.next) group.next = rest;
+      appendContinuation(group, rest);
       const branch = createBranch(nodes);
       branch.next = group;
       return branch;
@@ -143,27 +158,43 @@ function parseGroup(tokens: Token[], cursor: Cursor, make: MakeFn): LadderBranch
   if (tokens[cursor.i]?.kind !== "]") throw new Error("unbalanced branch");
   cursor.i++; // consume ']'
 
-  const group = paths[0];
-  if (paths.length > 1) group.parallelBranches = paths.slice(1);
+  if (paths.length === 1) return paths[0]!;
+
+  const mainIndex = paths.findIndex((path) => !path.next);
+  if (mainIndex < 0) {
+    // The current LadderBranch model stores `next` as a common continuation
+    // after the branch merge. If every leg has a private continuation, there is
+    // no faithful main-leg placement without changing runtime semantics.
+    throw new Error("unrepresentable nested branch");
+  }
+
+  const group = paths[mainIndex]!;
+  group.parallelBranches = [
+    ...(group.parallelBranches ?? []),
+    ...paths.filter((_, index) => index !== mainIndex),
+  ];
   return group;
 }
 
-/** A single branch path. Nested groups inside a path aren't modelled (→ flatten). */
+/** A single branch path. Nested groups become private continuations where representable. */
 function parsePath(tokens: Token[], cursor: Cursor, make: MakeFn): LadderBranch {
-  const branch = parseSeries(tokens, cursor, make);
-  if (branch.next || branch.parallelBranches) throw new Error("nested branch");
-  return branch;
+  return parseSeries(tokens, cursor, make);
 }
 
 /**
  * Parse Logix neutral rung text into a semantic ladder branch tree. Handles a
- * flat series, single-level parallel branches (`[A,B]`) with series before/after,
- * and multiple outputs. Nested/unbalanced branches fall back to a flat series
- * and set `complexBranch` so the caller can warn.
+ * flat series, parallel branches (`[A,B]`) with series before/after, nested
+ * branch paths that fit the current AST, and multiple outputs.
+ * Unbalanced/unrepresentable branches fall back to a flat series and set
+ * `complexBranch` so the caller can warn.
  */
-export function parseRungText(text: string, registry: InstructionRegistry): ParsedRungText {
+export function parseRungText(
+  text: string,
+  registry: InstructionRegistry,
+  knownInstructionTypes: Set<string> = new Set(),
+): ParsedRungText {
   const unsupported = new Set<string>();
-  const make: MakeFn = (token) => makeNode(token, registry, unsupported);
+  const make: MakeFn = (token) => makeNode(token, registry, unsupported, knownInstructionTypes);
   const tokens = tokenize(text);
 
   try {

@@ -1,12 +1,15 @@
 import { connectionAudit } from "./audit";
-import { evaluateCommand } from "./commands";
+import { evaluateCommand, nextStepFor } from "./commands";
+import { commissioningPreflight, type PreflightReport } from "./preflight";
 import { reduceConnection } from "./state-machine";
 import { OfflineSimulationTransport } from "./transports";
 import {
   CONNECTION_STATE_LABELS,
   isConnectedState,
+  type BlockedReason,
   type CommandAvailability,
   type CommandResult,
+  type CommandRisk,
   type ConnectionAuditEvent,
   type ConnectionState,
   type ControllerCommand,
@@ -22,6 +25,28 @@ export interface SessionSnapshot {
 }
 
 type Listener = (snapshot: SessionSnapshot) => void;
+
+function transportReason(transport: ControllerTransport): BlockedReason {
+  if (!transport.capabilities.realControllerIo && !transport.capabilities.simulation) return "no-real-transport";
+  if (transport.capabilities.realControllerIo && !transport.capabilities.verified) return "safety-unverified";
+  return null;
+}
+
+function auditDetails(
+  transport: ControllerTransport,
+  status: string,
+  risk: CommandRisk,
+  reason: BlockedReason,
+  nextStep?: string,
+): Record<string, unknown> {
+  return {
+    status,
+    risk,
+    reason,
+    transportName: transport.displayName,
+    nextStep: nextStep ?? nextStepFor(reason),
+  };
+}
 
 /**
  * Orchestrates a controller connection: holds the active transport, drives the
@@ -70,11 +95,11 @@ export class ControllerSession {
     this.log.push(event);
   }
 
-  private setState(next: ConnectionState, summary: string): void {
+  private setState(next: ConnectionState, summary: string, details?: Record<string, unknown>): void {
     if (next !== this._state) {
       this._state = next;
       this.record(
-        connectionAudit("state-change", summary, next, this.transport.kind),
+        connectionAudit("state-change", summary, next, this.transport.kind, details),
       );
     }
     for (const listener of this.listeners) listener(this.snapshot());
@@ -84,12 +109,14 @@ export class ControllerSession {
   selectTransport(transport: ControllerTransport): void {
     this.transport = transport;
     const next = reduceConnection(this._state, { type: "select-transport" });
+    const reason = transportReason(transport);
     this.record(
       connectionAudit("transport-selected", `Selected transport: ${transport.displayName}.`, next, transport.kind, {
+        ...auditDetails(transport, "selected", "read", reason),
         capabilities: transport.capabilities,
       }),
     );
-    this.setState(next, `Transport set to ${transport.displayName}.`);
+    this.setState(next, `Transport set to ${transport.displayName}.`, auditDetails(transport, "state-change", "read", reason));
   }
 
   /**
@@ -98,13 +125,26 @@ export class ControllerSession {
    * reach offline/model-only/unavailable states or "safety-blocked".
    */
   async goOnline(): Promise<SessionSnapshot> {
+    const reason = transportReason(this.transport);
+    const requestDetails = auditDetails(
+      this.transport,
+      reason ? "blocked" : this.transport.capabilities.simulation ? "simulated" : "requested",
+      "read",
+      reason,
+      reason
+        ? undefined
+        : this.transport.capabilities.simulation
+          ? "Offline Simulation is active; no controller connection was attempted."
+          : "Review controller identity and command preflight before running online actions.",
+    );
     this.setState(
       reduceConnection(this._state, { type: "begin-connect", capabilities: this.transport.capabilities }),
       this.transport.capabilities.realControllerIo || this.transport.capabilities.simulation
         ? "Connecting…"
         : "Connection disabled: no tested controller transport is configured.",
+      requestDetails,
     );
-    this.record(connectionAudit("go-online", `Go Online requested via ${this.transport.displayName}.`, this._state, this.transport.kind));
+    this.record(connectionAudit("go-online", `Go Online requested via ${this.transport.displayName}.`, this._state, this.transport.kind, requestDetails));
     let next: ConnectionState;
     try {
       const result = await this.transport.connect();
@@ -113,10 +153,24 @@ export class ControllerSession {
         result,
         capabilities: this.transport.capabilities,
       });
-      this.setState(next, result.message);
+      const resultReason: BlockedReason =
+        next === "connected-unavailable"
+          ? "no-real-transport"
+          : next === "safety-blocked"
+            ? "safety-unverified"
+            : null;
+      this.setState(
+        next,
+        result.message,
+        auditDetails(this.transport, resultReason ? "blocked" : "ran", "read", resultReason),
+      );
     } catch (error) {
       next = reduceConnection(this._state, { type: "fault", message: String(error) });
-      this.setState(next, `Connection faulted: ${error instanceof Error ? error.message : String(error)}`);
+      this.setState(
+        next,
+        `Connection faulted: ${error instanceof Error ? error.message : String(error)}`,
+        auditDetails(this.transport, "faulted", "read", "faulted"),
+      );
     }
     return this.snapshot();
   }
@@ -124,37 +178,69 @@ export class ControllerSession {
   /** Go offline / back to offline simulation. Always safe. */
   async goOffline(): Promise<SessionSnapshot> {
     await this.transport.disconnect();
-    this.record(connectionAudit("go-offline", "Go Offline requested.", "disconnected", this.transport.kind));
     // If the active transport is the simulator, "offline" means offline simulation.
     const next = this.transport.capabilities.simulation ? "offline-simulation" : "disconnected";
-    this.setState(next, this.transport.capabilities.simulation ? "Returned to offline simulation." : "Disconnected.");
+    const details = auditDetails(
+      this.transport,
+      "ran",
+      "read",
+      null,
+      "Offline Simulation is active. Hardware commands still require a verified controller transport.",
+    );
+    this.record(connectionAudit("go-offline", "Go Offline requested.", next, this.transport.kind, details));
+    this.setState(next, this.transport.capabilities.simulation ? "Returned to offline simulation." : "Disconnected.", details);
     return this.snapshot();
   }
 
   /** Enter Monitor mode. Only possible from a real read-only connection. */
   monitor(): SessionSnapshot {
     const next = reduceConnection(this._state, { type: "enter-monitor" });
+    const blocked = next !== "connected-monitor";
     this.record(
       connectionAudit(
         "monitor",
-        next === "connected-monitor" ? "Entered Monitor mode." : "Monitor unavailable (not connected to a controller).",
+        blocked ? "Monitor unavailable (not connected to a controller)." : "Entered Monitor mode.",
         next,
         this.transport.kind,
+        auditDetails(this.transport, blocked ? "blocked" : "ran", "read", blocked ? "not-connected" : null),
       ),
     );
-    this.setState(next, next === "connected-monitor" ? "Monitoring controller." : "Monitor requires a live controller connection.");
+    this.setState(
+      next,
+      blocked ? "Monitor requires a live controller connection." : "Monitoring controller.",
+      auditDetails(this.transport, blocked ? "blocked" : "ran", "read", blocked ? "not-connected" : null),
+    );
     return this.snapshot();
   }
 
   /** Mark the session faulted (e.g. a transport error reported elsewhere). */
   fault(message: string): SessionSnapshot {
-    this.setState(reduceConnection(this._state, { type: "fault", message }), `Faulted: ${message}`);
+    this.setState(
+      reduceConnection(this._state, { type: "fault", message }),
+      `Faulted: ${message}`,
+      auditDetails(this.transport, "faulted", "read", "faulted"),
+    );
     return this.snapshot();
   }
 
   /** Evaluate (without running) whether a guarded command may run right now. */
   evaluate(command: ControllerCommand, confirmed = false): CommandAvailability {
     return evaluateCommand(command, {
+      state: this._state,
+      capabilities: this.transport.capabilities,
+      confirmed,
+    });
+  }
+
+  /**
+   * Produce the enumerated commissioning preflight for a command under the current
+   * transport/state — every safety gate and whether it passes, in gate order. This
+   * is the operator-facing form of {@link evaluate}: it never short-circuits, so the
+   * UI can show the full Go Online / Upload / Download / Monitor / mode-change
+   * checklist with the exact gate still red. Pure read; never connects.
+   */
+  preflight(command: ControllerCommand, confirmed = false): PreflightReport {
+    return commissioningPreflight(command, {
       state: this._state,
       capabilities: this.transport.capabilities,
       confirmed,
@@ -176,7 +262,15 @@ export class ControllerSession {
         `Blocked ${command.label}: ${availability.explanation}`,
         this._state,
         this.transport.kind,
-        { command: command.kind, reason: availability.reason },
+        {
+          status: "blocked",
+          command: command.kind,
+          reason: availability.reason,
+          risk: availability.risk,
+          isWrite: command.isWrite,
+          transportName: this.transport.displayName,
+          nextStep: availability.nextStep,
+        },
       );
       this.record(audit);
       return {
@@ -196,7 +290,15 @@ export class ControllerSession {
       `Ran ${command.label} via ${this.transport.displayName}.`,
       this._state,
       this.transport.kind,
-      { command: command.kind },
+      {
+        status: "ran",
+        command: command.kind,
+        reason: null,
+        risk: availability.risk,
+        isWrite: command.isWrite,
+        transportName: this.transport.displayName,
+        nextStep: availability.nextStep,
+      },
     );
     this.record(audit);
     return { command, outcome: "ran", reason: null, message: `${command.label} completed.`, audit };

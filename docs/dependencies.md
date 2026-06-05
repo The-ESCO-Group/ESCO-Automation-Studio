@@ -8,7 +8,7 @@ dependencies and the safety posture for an internal security/license review.
 | Package | Why | Notes |
 |---|---|---|
 | `react`, `react-dom` | Web UI | MIT |
-| `fast-xml-parser` | Parse `.L5X` (XML) on import | MIT; XML parsed as data, no DTD/entity expansion used |
+| `fast-xml-parser` | Parse `.L5X` (XML) on import and serialize review-only `.L5X` export data | MIT; XML parsed as data, no DTD/entity expansion used |
 
 That is the entire third-party runtime surface. Everything else (ladder model,
 instructions, simulator, validator, parser glue, project-actions, compare, AI
@@ -22,12 +22,15 @@ assistant) is first-party code under `packages/`.
 
 ## Security posture
 
-- **No network calls.** The app does not contact any server. No telemetry.
-- **No external/paid APIs and no API keys.** The AI assistant is local and
-  rule-based; the external-LLM provider is an unconfigured stub.
+- **No telemetry or implicit network calls.** The offline app path does not
+  contact any server. The optional live Copilot/external provider only calls the
+  explicitly configured AI provider/proxy after workstation setup.
+- **No bundled API keys.** The default AI assistant is local and rule-based; the
+  external provider requires an injected model caller and owns no credentials.
 - **No PLC communication, downloads, uploads, or online edits.**
 - **No `.ACD` handling** (no read/write/compile/decompile of controller binaries).
-- **No L5X export** — import-only; the app never overwrites a user's source file.
+- **Review-only L5X export** — generated as a new best-effort file with explicit
+  warnings; the app never overwrites a user's source file.
 - **File safety.** Imports are validated and parsed as data; project files are
   schema-checked before replacing app state. Autosave uses browser localStorage
   only and is recovery-only.

@@ -171,7 +171,7 @@ export function explainHmiBindings(input: AssistantInput): string {
   return lines.join("\n");
 }
 
-/** Summarize HMI/View Designer validation findings only. */
+/** Summarize HMI validation findings only. */
 export function explainHmiValidation(input: AssistantInput): string {
   const hmi = getHmiProject(input.project);
   const findings = validateHmiProject(hmi, { knownTagPaths: knownTagPaths(input) });

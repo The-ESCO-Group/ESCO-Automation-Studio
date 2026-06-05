@@ -81,10 +81,11 @@ Current build outputs are generated under
 
 ## Settings And API-Key Persistence
 
-The web app already uses a `SettingsStore` abstraction. In the browser it falls
-back to `localStorage`; in desktop production it should be replaced with an
-OS-backed secure store such as Windows Credential Manager or DPAPI through a
-Tauri command/plugin.
+The web app already uses a `SettingsStore` abstraction plus
+`createSecretStore()` for AI secrets. In the browser it falls back to
+`localStorage`; in the packaged Windows desktop shell, the `secure_key_*` Tauri
+commands store secrets in Windows Credential Manager through the Rust `keyring`
+adapter.
 
 The desktop startup now records workstation-only first-run metadata, including
 the last startup action and a hard default of `offline-simulation`. This metadata
@@ -97,10 +98,11 @@ The current desktop Rust command surface reports:
 - `controller_connection: "offline-simulation"`
 - `online_edits: false`
 - `acd_access: false`
-- `secure_key_storage: "pending-os-keychain-adapter"`
+- `secure_key_storage: "windows-credential-manager"`
 
-That keeps the executable scaffold honest: it does not claim secure keychain
-storage is complete until the adapter is implemented and tested.
+That keeps the executable scaffold honest: AI keys use the OS credential store
+in packaged desktop builds, while the browser build continues to report its
+local-storage fallback.
 
 ## Current Status
 
@@ -115,6 +117,6 @@ storage is complete until the adapter is implemented and tested.
 - [x] MSVC Build Tools installed on the workstation.
 - [x] Real `.exe`/installer artifact generated locally.
 - [ ] Native file dialog bridge.
-- [ ] OS-backed API-key secure storage adapter.
+- [x] OS-backed API-key secure storage adapter.
 - [ ] Microsoft Entra ID sign-in implementation.
 - [ ] Code signing for distributed Windows deployment.

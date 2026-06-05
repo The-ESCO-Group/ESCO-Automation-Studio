@@ -27,9 +27,12 @@ const QUICK_ACTIONS: { label: string; prompt: string }[] = [
   { label: "Explain this routine", prompt: "Explain what the selected routine does." },
   { label: "Diagnose validation", prompt: "Look at the current validation findings and explain what's wrong and how to fix it." },
   { label: "Fix undefined tags", prompt: "Find undefined tags referenced in logic and propose creating them with sensible data types." },
-  { label: "Add seal-in starter", prompt: "Propose a seal-in motor starter (Start/Stop/Run) in the selected routine, creating any missing tags first." },
+  { label: "Interlocked starter", prompt: "Propose a motor holding circuit with Stop, E-stop, overload, and permissive interlocks in the selected routine." },
+  { label: "Debounce input", prompt: "Propose a 500 ms input debounce pattern in the selected routine, creating any missing tags first." },
+  { label: "Count starts", prompt: "Propose an ONS-backed motor start counter in the selected routine." },
+  { label: "C/F conversion", prompt: "Propose Celsius/Fahrenheit conversion rungs in the selected routine." },
   { label: "Create HMI screen", prompt: "Create an HMI screen named Overview through reviewed project actions." },
-  { label: "Explain HMI bindings", prompt: "Inspect the HMI/View Designer context and explain current bindings and HMI validation findings." },
+  { label: "Explain HMI bindings", prompt: "Inspect the HMI context and explain current bindings and HMI validation findings." },
   { label: "Add navigation button", prompt: "Add a registered HMI navigation button and wire its press event to navigate to another HMI screen." },
 ];
 

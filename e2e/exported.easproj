@@ -1,0 +1,183 @@
+{
+  "formatName": "ESCO Automation Studio Project",
+  "formatVersion": 4,
+  "appVersion": "0.1.0",
+  "savedAt": "2026-06-05T16:57:21.370Z",
+  "compatibility": {
+    "minFormatVersion": 1,
+    "formatVersion": 4,
+    "extension": ".plcproj.json",
+    "producedBy": "ESCO Automation Studio Project 0.1.0"
+  },
+  "project": {
+    "id": "proj_5907ca5c-439b-4aa1-bd6d-285d37e92962",
+    "name": "E2E_Starter",
+    "description": "Imported from an L5X file.",
+    "controllers": [
+      {
+        "id": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+        "projectId": "proj_5907ca5c-439b-4aa1-bd6d-285d37e92962",
+        "name": "E2E_Starter",
+        "tasks": [
+          {
+            "id": "task_bda2040d-a65f-4598-a439-cda5b56c9344",
+            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "name": "MainTask",
+            "type": "continuous",
+            "scheduledProgramIds": [
+              "prog_0318502a-a3b0-4742-b093-5424cc5ffbd1"
+            ]
+          }
+        ],
+        "programs": [
+          {
+            "id": "prog_0318502a-a3b0-4742-b093-5424cc5ffbd1",
+            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "name": "MainProgram",
+            "routines": [
+              {
+                "id": "rtn_8d38cc5f-3f3c-4483-a279-7c8eae2479ed",
+                "programId": "prog_0318502a-a3b0-4742-b093-5424cc5ffbd1",
+                "name": "MainRoutine",
+                "language": "ladder",
+                "ladder": {
+                  "id": "ladder_a1ea62bb-067f-49b5-a456-04b2ad94125b",
+                  "rungs": [
+                    {
+                      "id": "rung_8f834925-1738-4d32-b805-abedd106cd89",
+                      "routineId": "ladder_a1ea62bb-067f-49b5-a456-04b2ad94125b",
+                      "number": 0,
+                      "root": {
+                        "id": "branch_e7871377-5fbe-493b-9444-47ede2623b21",
+                        "nodes": [
+                          {
+                            "id": "node_21213acf-99f2-4723-bd06-1c01f89f1a17",
+                            "instructionType": "XIC",
+                            "operands": [
+                              {
+                                "name": "tag",
+                                "kind": "tag",
+                                "value": "StartPB"
+                              }
+                            ]
+                          },
+                          {
+                            "id": "node_b0621e63-2ceb-49da-910c-397432dea759",
+                            "instructionType": "XIO",
+                            "operands": [
+                              {
+                                "name": "tag",
+                                "kind": "tag",
+                                "value": "StopPB"
+                              }
+                            ]
+                          },
+                          {
+                            "id": "node_bb45c0cd-b6e4-4351-b800-6610a629cc55",
+                            "instructionType": "OTE",
+                            "operands": [
+                              {
+                                "name": "tag",
+                                "kind": "tag",
+                                "value": "MotorRun"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      "sourceText": "XIC(StartPB)XIO(StopPB)OTE(MotorRun);"
+                    },
+                    {
+                      "id": "rung_f13c5fbc-31c3-466c-8eec-4db7e638ef3f",
+                      "routineId": "ladder_a1ea62bb-067f-49b5-a456-04b2ad94125b",
+                      "number": 1,
+                      "root": {
+                        "id": "branch_7f5c41ab-6fe7-4c48-896d-3d6f97f9c494",
+                        "nodes": [
+                          {
+                            "id": "node_f99fdbc8-211a-434a-80f7-255189e224f2",
+                            "instructionType": "XIC",
+                            "operands": [
+                              {
+                                "name": "tag",
+                                "kind": "tag",
+                                "value": "StartPB"
+                              }
+                            ]
+                          },
+                          {
+                            "id": "node_72411e2a-4556-47e8-93cd-8b7d25c5919a",
+                            "instructionType": "OTE",
+                            "operands": [
+                              {
+                                "name": "tag",
+                                "kind": "tag",
+                                "value": "Lamp"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "programTags": [],
+            "mainRoutineId": "rtn_8d38cc5f-3f3c-4483-a279-7c8eae2479ed"
+          }
+        ],
+        "controllerTags": [
+          {
+            "id": "tag_8554ea5b-0164-4aa8-adde-ade6f9fee79a",
+            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "name": "StartPB",
+            "dataType": "BOOL",
+            "scope": "controller",
+            "value": false
+          },
+          {
+            "id": "tag_56052595-4746-4156-af60-5840ca54ec13",
+            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "name": "StopPB",
+            "dataType": "BOOL",
+            "scope": "controller",
+            "value": false
+          },
+          {
+            "id": "tag_aa7f8f7a-395a-4f21-8201-8c9eff404354",
+            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "name": "MotorRun",
+            "dataType": "BOOL",
+            "scope": "controller",
+            "value": false
+          },
+          {
+            "id": "tag_2f3116e8-adf0-4d37-93a4-7ef4abfb0ac5",
+            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "name": "Lamp",
+            "dataType": "BOOL",
+            "scope": "controller",
+            "value": false,
+            "externalAccess": "read-write"
+          }
+        ],
+        "dataTypes": [],
+        "addOnInstructions": [],
+        "ioConfiguration": {
+          "modules": []
+        },
+        "trends": [],
+        "quickWatchLists": [],
+        "parameterConnections": []
+      }
+    ],
+    "createdAt": "2026-06-05T16:57:19.681Z",
+    "updatedAt": "2026-06-05T16:57:19.681Z",
+    "provenance": {
+      "sourceType": "xml-review-import",
+      "importedAt": "2026-06-05T16:57:19.689Z",
+      "fileName": "starter.L5X"
+    }
+  }
+}

@@ -1,19 +1,11 @@
 import type { ReactNode } from "react";
 
-export interface ActivityRailItem {
-  id: string;
-  label: string;
-  icon: string;
-  active?: boolean;
-  onClick: () => void;
-}
-
 interface Props {
+  startup?: boolean;
   topBar: ReactNode;
   ribbon: ReactNode;
   recovery?: ReactNode;
   toasts?: ReactNode;
-  activityItems: ActivityRailItem[];
   left: ReactNode;
   center: ReactNode;
   right: ReactNode;
@@ -25,11 +17,11 @@ interface Props {
 
 /** Main IDE frame: app bar, ribbon, three-pane work area, dock, and status bar. */
 export function AppShell({
+  startup = false,
   topBar,
   ribbon,
   recovery,
   toasts,
-  activityItems,
   left,
   center,
   right,
@@ -38,6 +30,10 @@ export function AppShell({
   bottomDock,
   statusBar,
 }: Props) {
+  if (startup) {
+    return <div className="esco-app esco-app--startup">{toasts}</div>;
+  }
+
   return (
     <div className="esco-app">
       {topBar}
@@ -45,20 +41,6 @@ export function AppShell({
       {toasts}
       {recovery}
       <div className={`esco-body${rightOpen ? " is-right-open" : ""}`}>
-        <nav className="esco-activity-rail" aria-label="Workspace views">
-          {activityItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`esco-activity-rail__button${item.active ? " is-active" : ""}`}
-              title={item.label}
-              aria-label={item.label}
-              onClick={item.onClick}
-            >
-              <span aria-hidden="true">{item.icon}</span>
-            </button>
-          ))}
-        </nav>
         <aside className="esco-left">{left}</aside>
         <div className="esco-main-stack">
           <main className="esco-center">{center}</main>
