@@ -1,6 +1,6 @@
 # ESCO Automation Studio
 
-> A Studio 5000–style, **offline** PLC engineering IDE for authoring, simulating, validating, and importing ladder logic.
+> An ESCO-native PLC engineering IDE for authoring, simulating, validating, importing, and safely monitoring ladder logic.
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
@@ -10,14 +10,22 @@
 ![Vitest](https://img.shields.io/badge/tested%20with-Vitest-6E9F18?logo=vitest&logoColor=white)
 ![Status](https://img.shields.io/badge/status-internal%20preview-blue)
 
-ESCO Automation Studio is a desktop and web engineering environment modeled on Rockwell
-Studio 5000. Engineers can author and review Logix-style control logic **entirely offline**:
-it never communicates with a controller, never performs downloads or online edits, and never
-touches `.ACD` files. Every change to a project flows through a single typed, validated action
-layer, so the model can never be mutated out from under the IDE.
+ESCO Automation Studio is a desktop and web engineering environment for
+vendor-neutral PLC work without becoming a clone of any vendor workstation.
+Engineers can author and review IEC/Logix-style control logic offline today,
+while Goal B adds a phased, ESCO-owned online architecture with Allen-Bradley as
+the first high-value adapter track and a formal Target Adapter contract for
+future PLC families. The current stack includes an ESCO EtherNet/IP/CIP backend
+path tested end-to-end against a loopback fake target, but it is not
+field-validated against plant hardware and does not perform physical downloads,
+online edits, forces, mode changes, or `.ACD` operations. Every change to a
+project flows through a
+single typed, validated action layer, so the model can never be mutated out from
+under the IDE.
 
-> ⚠️ **Offline by design.** This is an engineering and simulation aid — not a replacement for
-> Studio 5000, and not a tool that connects to or modifies physical hardware.
+> ⚠️ **Safe phased online.** This is an engineering and simulation aid with a
+> read-only ESCO gateway foundation — not a replacement for any commissioned
+> vendor workstation, and not cleared for modifying physical hardware.
 
 ---
 
@@ -57,7 +65,7 @@ layer, so the model can never be mutated out from under the IDE.
 - **Cross-reference**, offline global **find / replace**, and **routine / project compare** by
   logic fingerprint with side-by-side diffs.
 - **Structure viewers** for Add-On Instructions, UDTs, and I/O modules.
-- An **HMI View Designer** foundation — screens, bindings, model-only alarms / trends / data
+- An **HMI authoring** foundation — screens, bindings, model-only alarms / trends / data
   logs, and an offline runtime preview.
 
 ### 🤖 AI assistant
@@ -66,7 +74,9 @@ layer, so the model can never be mutated out from under the IDE.
   `.ACD`, or filesystem access.
 
 > Looking for the exhaustive, capability-by-capability list? See
-> [`docs/current-features.md`](docs/current-features.md).
+> [`docs/current-features.md`](docs/current-features.md). Goal B online
+> architecture is tracked in
+> [`docs/goal-b-online-architecture.md`](docs/goal-b-online-architecture.md).
 
 ---
 
@@ -114,7 +124,10 @@ apps/* depend on packages/*  (never the reverse)
 | `project-store` | `.plcproj.json` serialize / deserialize |
 | `parser-l5x` | Studio 5000 L5X import and review-only export |
 | `project-actions` | **The only sanctioned way to mutate a project** (typed, immutable, validated) |
-| `controller-comm` | Controller-command safety gate / online-readiness scaffold (online commands blocked by default) |
+| `controller-comm` | Controller-command safety gate / online-readiness scaffold (physical commands blocked by default) |
+| `controller-gateway` | Goal B online session/gateway foundation, driver contract, simulator adapter, match-check gates |
+| `driver-ethernetip` | ESCO-owned EtherNet/IP/CIP codecs and sans-I/O read-only session core |
+| `driver-ethernetip-node` | Backend-only TCP transport and gateway driver for the read-only EtherNet/IP path |
 | `hmi-model` | HMI View Designer model, bindings, alarms / trends, runtime preview |
 | `sim-lab` | Process-simulation sandbox |
 | `soft-controller` | Soft-controller runtime build / load |
@@ -167,9 +180,16 @@ Full walkthrough: [`docs/demo-script.md`](docs/demo-script.md).
 
 ## Safety & limitations
 
-- **No controller communication, download, or online editing.** Studio-style online commands
-  (Go Online, Upload, Download, Online Edit, Run / Program mode, Clear Faults, …) are visible
-  but return blocked audit entries through a guarded command layer — there is no real transport.
+- **Goal B online is phased.** The ESCO Controller Gateway foundation, Online
+  toolbar/state surface, backend API host, web gateway client, and ESCO
+  EtherNet/IP/CIP read-only path and a backend-only generic OPC UA read-only
+  path exist. The EtherNet/IP path is tested against an in-process fake target;
+  OPC UA is tested through an injected client adapter, not field-validated
+  hardware. OPC DA remains a generic placeholder, and none of these paths
+  introduce FactoryTalk/RSLinx runtime dependencies. Physical download, online
+  editing, mode changes, forces, and fault clearing remain blocked unless a
+  future validated gateway path
+  explicitly enables them.
 - **No `.ACD` compile / decompile.** Only `.plcproj.json` (read / write) and review-only
   `.L5X` import / export.
 - **AI is offline / local by default.** The optional online AI agent is off by default, uses
