@@ -19,8 +19,8 @@ import { isConnectedState } from "./types";
 
 export const NETWORK_BROWSER_COMMAND: ControllerCommand = {
   kind: "network-browser",
-  label: "Who Active",
-  description: "Browse active controllers and communication paths through a verified workstation/controller transport.",
+  label: "Controller Route Browser",
+  description: "Browse ESCO controller routes and communication paths through a verified workstation/controller transport.",
   requiresRealIo: true,
   isWrite: false,
   requiresConfirmation: false,
@@ -28,8 +28,8 @@ export const NETWORK_BROWSER_COMMAND: ControllerCommand = {
 
 export const SELECT_RECENT_PATH_COMMAND: ControllerCommand = {
   kind: "select-recent-path",
-  label: "Select Recent Path",
-  description: "Select a recent controller communication path for online operations.",
+  label: "Saved Controller Path",
+  description: "Select a saved controller communication path for online operations.",
   requiresRealIo: true,
   isWrite: false,
   requiresConfirmation: false,

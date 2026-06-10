@@ -37,6 +37,7 @@ import { structuredTextSyntax } from "./structured-text-syntax";
 import { structuredTextReferences } from "./structured-text-references";
 import { structuredTextInstructions } from "./structured-text-instructions";
 import { structuredTextCase } from "./structured-text-case";
+import { ladderStructure } from "./ladder-structure";
 
 export * from "./types";
 export * from "./engine";
@@ -78,6 +79,7 @@ export * from "./structured-text-syntax";
 export * from "./structured-text-references";
 export * from "./structured-text-instructions";
 export * from "./structured-text-case";
+export * from "./ladder-structure";
 
 export function createDefaultEngine(): ValidationEngine {
   const engine = new ValidationEngine();
@@ -123,5 +125,6 @@ export function createDefaultEngine(): ValidationEngine {
   engine.add(structuredTextReferences);
   engine.add(structuredTextInstructions);
   engine.add(structuredTextCase);
+  engine.add(ladderStructure);
   return engine;
 }

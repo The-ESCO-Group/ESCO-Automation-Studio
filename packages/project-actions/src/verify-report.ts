@@ -66,7 +66,7 @@ export interface BuildReport {
   steps: BuildStep[];
   /** Categorized, actionable finding rows used by the build log and diagnostics grid. */
   findings: DiagnosticRow[];
-  /** Studio 5000-style Output-window log lines. */
+  /** ESCO build-output log lines. */
   log: BuildLogLine[];
   /** Final summary line, e.g. `Complete - 0 error(s), 0 warning(s)`. */
   summary: string;
@@ -277,7 +277,7 @@ export function findBuildStep(report: BuildReport, path: string): BuildStep | un
   return report.steps.find((step) => step.path === path);
 }
 
-/** Studio 5000-style summary line for an arbitrary error/warning pair. */
+/** ESCO build summary line for an arbitrary error/warning pair. */
 export function buildSummaryLine(errorCount: number, warningCount: number): string {
   return `Complete - ${pluralCount(errorCount, "error")}, ${pluralCount(warningCount, "warning")}`;
 }

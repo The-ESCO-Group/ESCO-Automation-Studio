@@ -349,6 +349,34 @@ export class SimEngine {
         this.wb(`${t}_${TAG.tripped}`, latched);
         break;
       }
+      case "batch-system": {
+        const faultTag = `${t}_${TAG.fault}`;
+        const commLoss = fault === "comm-loss";
+        if (commLoss) this.wb(faultTag, true);
+        else if (!this.forced.has(faultTag)) this.wb(faultTag, false);
+        const pvTag = `${t}_${TAG.pv}`;
+        const highLimit = device.limits?.high ?? 95;
+        const startCmd = this.rb(`${t}_${TAG.startCmd}`);
+        const drainCmd = this.rb(`${t}_${TAG.drainCmd}`);
+        const prevDone = this.rb(`${t}_${TAG.done}`);
+        let level = this.rn(pvTag);
+        if (!this.forced.has(pvTag)) {
+          if (fault === "sensor-fail") level = 0;
+          else if (commLoss) {
+            // Comm loss freezes the vessel level (no fresh feedback).
+          } else if (drainCmd) level = rampToward(level, 0, 200, deltaMs);
+          else if (startCmd) level = rampToward(level, 100, 200, deltaMs);
+          this.wn(pvTag, level);
+        }
+        const filling = startCmd && !drainCmd && !commLoss && level < 99;
+        this.wb(`${t}_${TAG.run}`, filling);
+        const done = level >= 99;
+        this.wb(`${t}_${TAG.done}`, done);
+        this.wb(`${t}_${TAG.high}`, level > highLimit);
+        // Count a completed batch on the rising edge of Done.
+        if (done && !prevDone) this.wn(`${t}_${TAG.batchCount}`, this.rn(`${t}_${TAG.batchCount}`) + 1);
+        break;
+      }
     }
   }
 

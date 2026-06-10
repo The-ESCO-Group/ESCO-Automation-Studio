@@ -1,9 +1,9 @@
 /**
  * ESCO SoftController — an in-process, ESCO-native software controller runtime.
  *
- * This is the studio's first real "Go Online" target. It is **software, not
- * hardware**: it never claims to be, nor to communicate with, a physical PLC.
- * What it provides is a real, stateful controller:
+ * This is the studio's first stateful software-only "Go Online"-style target.
+ * It is **software, not hardware**: it never claims to be, nor to communicate
+ * with, a physical PLC. What it provides is a stateful software controller:
  *
  *   - Identity (controller id, name, ESCO-SOFT-CTRL catalog, firmware/runtime
  *     version, serial number, runtime state).
@@ -16,7 +16,7 @@
  *   - Deterministic scheduled scan execution on the existing routine executor,
  *     with start / stop / reset and a fixed-step software scan tick.
  *   - A fault model: validation faults, runtime faults, clearable / non-clearable.
- *   - An exportable controller image for the (future) upload system.
+ *   - An exportable controller image for software upload/reconstruction flows.
  */
 
 import type { PlcProject } from "@esco/core";

@@ -14,11 +14,12 @@ This matrix is the QA/parity ledger. Status meanings are strict:
   verified real controller transport; these stay guarded and never touch hardware.
 
 "Tested by" lists the automated drivers/specs that exercise the area. A row is
-only marked **Working** when those tests pass. Latest local QA lane:
-`corepack pnpm typecheck`, `corepack pnpm test` (**2235/2235 unit tests**),
-`corepack pnpm build`, and `corepack pnpm e2e` (**62 drivers, 892/892 browser
-checks**) are green. The build currently emits only Vite's non-failing
-large-chunk warning for the bundled web app.
+only marked **Working** when those tests pass. Latest local QA lane from
+2026-06-05: `corepack pnpm -r typecheck`, `corepack pnpm test`
+(**2543/2543 unit/integration tests**), `corepack pnpm --filter @esco/web build`,
+and `node e2e/run-all.mjs` (**90 drivers, 1208/1208 browser checks**) are green.
+The build currently emits only Vite's non-failing large-chunk warning for the
+bundled web app.
 
 | Area | Status | Tested by |
 |---|---|---|
@@ -37,15 +38,20 @@ large-chunk warning for the bundled web app.
 | AI Copilot safety/default shell + optional configured agent components | Working | `ai`, `aiagent`, unit (`ai-assistant`) |
 | Save/open `.plcproj.json`; L5X import; review-only L5X export | Working | `persist`, `l5x`, `l5x-branch`, `component-export` |
 | ESCO Runtime (`.easruntime`) build/export/import | Working | `easrt` |
-| ACD / unsupported-format import + export guard | Working (guard) | `acdguard` |
+| Unsupported proprietary binary import + export guard | Working (guard) | `binaryguard` |
 | Project History (desktop Git VCS) | Working (desktop) | `gittool`, `projecthistory` |
 | HMI View Designer authoring + live runtime preview | Working (structural + live preview) | `hmidesigner`, `hmilive`, `hmilive-authoring`, `hmi-layout` |
 | Task scheduling / scan-status / controller-properties reports | Offline review-only | `taskmonitor`, `taskscanstats` |
 | ESCO Virtual Controller (offline/virtual session) | Offline/virtual session | `virtualcontroller`, `driver`, `readonly-monitoring` |
+| Goal B ESCO Controller Gateway + vendor-neutral read-only EtherNet/IP/OPC UA foundation | Working (software-wired, not field-validated); Allen-Bradley/EtherNet/IP is the first adapter track, not the platform boundary | `@esco/controller-gateway`, `@esco/driver-ethernetip`, `@esco/driver-ethernetip-node`, `@esco/driver-opcua-node`, `@esco/api`, `gateway-client`, `gateway-contract`, `web-boundary`, `esco-online-session`, `end-to-end`, `escoonline` |
+| Goal B Online Tag Monitor watch list | Working for gateway simulator/software path and EtherNet/IP loopback fake-target path with polling, SSE streaming where supported, changed-value highlighting, saved lists, quality/state honesty, and explicit stale/disconnected markers; hardware validation remains open | `EscoOnlinePanel`, `esco-online-session`, `gateway-client`, `@esco/api`, `e2e/escoonline`, `e2e/escoonline-enip`, `ribbon` |
+| Goal B match check + upload snapshot surface | Working for gateway simulator/software path; EtherNet/IP hardware snapshot remains unsupported | `GatewayHost`, `EscoGatewayClient`, `EscoOnlineSession`, `EscoOnlinePanel`, `e2e/escoonline` |
+| Goal B L5X import/export/sync path | Working as an offline gateway driver over ESCO project/L5X-imported structure; not a live controller path | `@esco/controller-gateway`, `GatewayHost` |
+| Vendor-neutral PLC target/download adapters | Planned; architecture documented, but physical download remains blocked for every real PLC family until each adapter has compile, compare, backup, permission, audit, and read-back gates proven | `docs/vendor-neutral-plc-download-architecture.md` |
 | ESCO Simulation Lab (offline FAT/SAT: devices, virtual tags, logic templates, scenarios, fault injection, timeline, report) | Working (offline/virtual) | `simlab` (e2e), `@esco/sim-lab` unit specs (`logic-templates`, `engine`, `scenarios`, `validation`, `report`, `compat`, `project`) |
 | Compatibility review/export helpers (ESCO HMI Runtime, SCADA Compatibility Export, OPC UA / Modbus TCP / MQTT-Sparkplug Simulators, Ignition Gateway Export Review, Optix Migration Review) | Offline review-only (ESCO-owned, no vendor IP) | `@esco/sim-lab` unit (`compat`) |
 | Process / motion / message / alarm / safety (PID, MSG/GSV/SSV, motion, PhaseManager) | Offline review-only (model parses + boundaries) | `props`, unit review projections |
-| Real controller online: Go Online, upload, download, online edit, mode change, lock, fault clear, network browse | Missing (by design) — guarded, never touches hardware | `controller` (verifies every command is blocked) |
+| Real PLC online/download: Go Online, upload, download, online edit, mode change, lock, fault clear, network browse | Missing for field PLCs (by design) — guarded per target adapter, never touches hardware without validation | `controller` (verifies every command is blocked) |
 | Desktop release (Entra sign-in, code signing, installer) | Partial baseline | `desktop-startup` |
 
 ### Parity estimate (backed by tests)
@@ -54,27 +60,111 @@ Parity is split because the product is **offline by design** — measuring it as
 single number against full Studio 5000 (which includes live controller work)
 would be misleading.
 
-- **Offline engineering & simulation parity: ~85%.** Authoring, editing, the
+- **Offline engineering & simulation parity: 91.8%.** Authoring, editing, the
   simulated instruction set, tags/watch/forces/trace, validation, cross
   reference, I/O/UDT/AOI offline editing, compare, search, L5X round-trip, and
   the HMI structural designer + live preview are all implemented and pass
-  automated tests. The remaining ~15% is firmware-faithful execution of
+  automated tests. The remaining gap is firmware-faithful execution of
   model-only families (PID/PIDE, MSG/GSV/SSV, motion, PhaseManager, GuardLogix
   safety), full Logix Structured Text semantics, and the hardest nested-branch
   shapes — these are tracked as review-only, never faked as executed.
-- **Online / hardware parity: 0% by design.** Go Online, upload, download,
-  online edit, mode change, controller lock, fault clear, and network browse are
-  guarded and verified-blocked (`controller` driver). Reaching parity here
-  requires a verified real controller transport, which is intentionally out of
-  scope for this build. The controller-comm package now models a *staged*
-  online-readiness path (transport/provider honesty contract, abstract read-only
-  transport base, monitor-state matrix, online-readiness report), but every stage
-  past the offline safety/read-only **foundation** is blocked because no verified
-  physical transport ships — the scaffolding never enables a real link.
+- **Goal B online parity: ESCO-owned read-only foundation is software-wired,
+  field use not ready.** The ESCO Controller Gateway models the online states,
+  driver contract, generic driver paths, match-check default-to-read-only rule,
+  driver/session capability metadata, explicit connection validation evidence
+  (`software-wired` vs. future lab/field validation), tag read/watch/upload snapshot flow, and
+  a controlled-write capability gate with audit/read-back scaffolding kept
+  disabled for this read-only milestone. The web shell exposes the B1 Online
+  toolbar command set. The repo now
+  includes ESCO-owned EtherNet/IP/CIP codecs, a sans-I/O session core,
+  backend-only TCP transport, gateway driver, API host, web gateway client,
+  session manager, and visible ESCO Online panel tested through loopback/fake
+  targets. Gateway read-side actions now enforce the public capability contract
+  for status, faults, browse, reads, subscriptions, snapshot upload, and compare
+  even when a driver object exposes optional methods. Gateway connection attempts
+  also block `canConnect: false` driver paths before invoking any driver
+  transport code, so placeholders and review-only adapters cannot fake an online
+  session. Gateway audit entries now carry structured details for driver
+  validation evidence, capability blocks, compare outcomes, read/watch counts,
+  and snapshot provenance, and the Online panel renders those details in the
+  audit trail. Generic OPC UA now has a backend-only read-only driver path and
+  API-level tests covering read-only connect, identity, browse, single/batch
+  reads, SSE tag subscription, and snapshot refusal through an injected fake
+  OPC UA endpoint; generic OPC UA fault reads and security-policy/certificate
+  handling are explicitly unsupported until reviewed instead of being faked;
+  OPC UA browse now performs failure-tolerant read-only data-type probes when
+  browse references omit variable type metadata, so the tag monitor can show
+  BOOL/DINT/REAL-style types instead of generic `OPC_UA` where the endpoint
+  permits value reads. Bad OPC UA status codes take precedence over payload
+  decode uncertainty, so bad-quality structured values remain visibly `bad`
+  instead of being softened to `uncertain`. OPC UA batch reads now use the
+  backend adapter's multi-node read service (`session.read([...])`) and fall
+  back to individual reads only when the batch service call itself fails, keeping
+  watch-list rows and per-tag errors usable. The web session manager also stops
+  active watch polling/streaming and marks watched rows stale when a status
+  refresh reports disconnected, offline, or faulted, so old values cannot keep
+  looking live after the gateway closes the session. The controller gateway now
+  tracks active backend watch subscriptions and leaves `Online Monitor` after
+  the final unsubscribe, restoring the underlying read-only/matched/mismatched
+  state without reviving disconnected sessions. OPC UA controller status now reads
+  the standard server current-time node as a read-only heartbeat, reporting
+  warning/disconnected status when that heartbeat is bad or unreachable instead
+  of trusting an existing session object blindly; the gateway downgrades its
+  returned session snapshot when that status reports disconnected/faulted so the
+  Online badge and status health cannot disagree, and OPC UA connect now fails
+  fast when the initial heartbeat cannot be proven instead of briefly entering
+  Online Read-Only and correcting later;
+  OPC UA tag subscriptions now send an initial sample and are terminated on
+  explicit unsubscribe or driver disconnect; the controller gateway now also
+  calls driver disconnect when a later status heartbeat reports a lost
+  connection, so backend sessions/subscriptions are cleaned up instead of only
+  changing the UI state;
+  the EtherNet/IP browser E2E now drives the visible Online panel through the
+  real backend EtherNet/IP driver and loopback fake target for connect,
+  identity/status, browse, read, watch polling, read-only status, stale-on-stop,
+  audit, and disconnect;
+  the API host now isolates gateway state per ESCO client session id, with the
+  browser client sending `x-esco-session-id` for JSON routes and `session=...`
+  for SSE watch streams so separate tabs/API clients do not share one active
+  online session, and the backend now disconnects/removes idle inactive
+  sessions while active watch streams keep their session open; session ids are
+  normalized through one backend contract for headers, query strings, JSON, and
+  SSE, and multiple active watches preserve `Online Monitor` until the final
+  unsubscribe;
+  browser-side driver summaries now normalize partial/missing capability
+  payloads into a full fail-closed contract, so incomplete backend metadata
+  cannot accidentally enable browse/read/watch/upload/compare controls;
+  the visible Online panel exposes OPC UA-specific read-only endpoint, browse
+  root, sampling interval, and tag-node mapping controls that flow through the
+  gateway client/session rather than direct driver imports. The web app owns a
+  browser-side `/api/gateway` JSON contract and has a boundary test that fails
+  if browser code or the web package manifest imports `@esco/controller-gateway`,
+  ESCO PLC driver packages, OPC UA/EtherNet-IP runtimes, or raw socket modules;
+  the L5X sync path now exposes offline project structure through the gateway
+  for compare/snapshot/tag review while explicitly refusing live controller fault
+  reads because an offline snapshot cannot prove current fault state. The B5 project signature now includes
+  program/routine structure, ST/source text, scrubbed ladder structure, tasks,
+  UDTs, AOIs, and tags, while ignoring generated ids; gateway identity refresh
+  recomputes the match proof and downgrades stale matched sessions to
+  read-only/mismatched when the refreshed controller identity changes. The
+  local project match signature now uses a prefixed ESCO stable-project
+  SHA-256 digest with algorithm/source metadata instead of a short FNV hash.
+  The Online panel now shows a B5 Match Evidence table with local vs online
+  controller name, controller type, firmware, project name, project signature,
+  signature algorithm, and signature source.
+  Backend
+  EtherNet/IP and OPC UA driver summaries and active sessions now publish
+  `connectionEvidence` showing real-controller-route potential without
+  hardware validation, and the Online panel shows that evidence beside driver
+  capabilities. Legacy OPC DA remains a placeholder only.
+  Physical
+  download, online edit, mode changes, forces, fault clearing, and real plant
+  use remain blocked until a validated gateway path explicitly enables them.
 
-Do not read the 85% as "almost shippable as a Studio 5000 replacement": it is an
-offline-feature-coverage figure, not a controller-verified one. Every generated
-L5X is review-only and must be verified in a sandbox before any production use.
+Do not read the 91.8% as "almost shippable as a physical-controller replacement":
+it is an offline-feature-coverage figure, not a controller-verified one. Every
+generated L5X is review-only and must be verified in a sandbox before any
+production use.
 
 ## Ladder editing
 
@@ -413,7 +503,7 @@ the editor, simulator, validator, and import.
 - Default state is **Offline Simulation**. Additional safe states distinguish
   **Model-only Review**, **Disconnected**, **Connection Disabled**,
   **Controller Link Unavailable**, **Faulted**, and **Safety Blocked**.
-- Network Browser, Select Recent Path, Hardware Go Online, live monitor, upload,
+- Controller Route Browser, Saved Controller Path, Hardware Go Online, live monitor, upload,
   download, online edit, Program Mode, Run Mode, Test Mode, Lock Controller,
   Clear Faults, and Go To Faults are represented as guarded commands. In this
   build they return blocked results with explicit reasons and audit entries
@@ -425,6 +515,33 @@ the editor, simulator, validator, and import.
 - Ribbon and status UI must not claim a controller is connected unless the
   session reports a verified real transport. The shipped transports do not do
   that.
+- The Online toolbar's Read Tags and Watch Tags actions open the ESCO Online
+  gateway monitor. That surface now supports browsed-tag filtering, add/remove
+  watched tags, typed tag-name entry, saved/restored watch lists, read-only
+  polling, gateway SSE streaming where the active driver supports it,
+  value quality/timestamp/source/write-status columns, stale/no-sample state,
+  and changed-value highlighting. It does not enable writes.
+- The gateway monitor stores stale/disconnected reasons per watched tag. A
+  polling transport failure, stream disconnect, or stopped watch marks old
+  samples stale; a later successful read or stream sample clears that state so
+  the table does not present last-known values as live data.
+- The ESCO Online panel now displays the selected driver/session capability
+  contract from the gateway: status/fault/browse/read/batch/stream/upload/
+  compare support plus blocked write/download/online-edit/force/mode-change/
+  clear-fault operations. This comes from `/api/gateway/drivers` and the
+  session snapshot rather than UI-side guessing.
+- The Online toolbar's Set Path action opens the ESCO Online gateway connection
+  form and focuses the endpoint field. This is gateway path setup only; network
+  browsing and physical-controller path discovery remain guarded.
+- The Online toolbar's Go Online, Go Offline, Upload Snapshot, Compare,
+  Read Tags, Watch Tags, Faults, and Controller Status actions open the ESCO
+  Online gateway panel. The panel can run a read-only connect, disconnect an
+  ESCO gateway session, refresh read-only status/faults where supported, run an
+  explicit local-project identity compare, and capture a read-only gateway
+  snapshot on the simulator/software path. Compare refreshes online identity
+  evidence through the gateway before evaluating the local project. Mismatches
+  remain read-only; no write route is exposed. The Online toolbar's
+  real-controller Download button is disabled/guarded.
 
 ## ESCO Virtual Controller (offline driver / simulation session)
 
@@ -441,7 +558,7 @@ the editor, simulator, validator, and import.
   Program / Remote Run), connection health, last online/upload/download
   timestamps, online project signature, downloaded controller snapshot, fault
   list, warnings, and an activity log.
-- **Set Path / Who Active** chooses from realistic ESCO virtual paths
+- **Set Path / Route Browser** chooses from realistic ESCO virtual paths
   (EtherNet/IP → 192.168.1.10 → ESCO-ENBT → Backplane → Slot 0, Local Emulation
   Virtual Backplane, USB Virtual Controller); recent paths persist locally.
 - **Go Online** requires a selected path, transitions through connecting to
@@ -605,20 +722,21 @@ the editor, simulator, validator, and import.
   Add-On Instruction / Data Type / Trend commands can extract matching reusable
   definitions from it after envelope checksum validation. See
   [docs/esco-native-formats.md](esco-native-formats.md).
-- **ACD compatibility (offline-safe).** ESCO never reads, writes, compiles,
-  decompiles, or converts Rockwell's proprietary binary `.ACD` controller
-  projects, and never fakes one on export. Selecting an `.ACD`, a compressed ACD
+- **Proprietary binary guard (offline-safe).** ESCO never reads, writes,
+  compiles, decompiles, or converts proprietary binary `.ACD` controller project
+  files, and never fakes one on export. Selecting an `.ACD`, a compressed ACD
   archive (`.acd.gz/.zip/.7z`), a legacy `.L5K`, or a mislabelled binary for
   import is detected *before any parse* — by extension and by content sniffing
   (e.g. the compound-file header and `RSEnc` markers) — and opens a professional
-  compatibility modal stating the format, why it is blocked, the supported
+  blocked-format modal stating the format, why it is blocked, the supported
   offline formats, and the exact next step, with **Import L5X instead**,
   **Compatibility notes** (→ Help/About), and **Cancel**. Export/save targets are
   guarded too, so an `.acd` target is refused rather than written as a renamed
   file. Every loaded project records honest **provenance** (source type, file
   name, path, timestamp, and any blocked `.ACD` attempt), shown in Project
-  Properties → Source and Help → About → ACD project compatibility. The safe path
-  to bring in an `.ACD` is to export it to `.L5X` from Studio 5000 first.
+  Properties → Source and Help → About → unsupported project formats. The safe
+  offline review path is an exported `.L5X` file; `.ACD` stays outside the
+  product.
 - Export / import `.plcproj.json` (full project incl. ladder AST and provenance).
 - Studio 5000 `.L5X` import: controller, programs, routines, rungs (+comments),
   controller & program tags (+descriptions, per-element/member comments,
@@ -747,14 +865,14 @@ the editor, simulator, validator, and import.
   connection dispatch, unicast/multicast enforcement, or connection major-fault
   behavior is attempted.
 - Controller Trend definitions (`<Trends><Trend>`) are imported/exported as
-  model-only Logix Designer workstation configuration. The importer preserves
+  model-only L5X workstation configuration. The importer preserves
   trend attributes, description, TrendX template payload, and pen attributes
   such as color/visibility/width/type/min/max/engineering units. The offline
   review projection flags empty trends, more than eight pens, invalid sample
   periods, and invalid capture counts while confirming no online trend run,
   controller sampling, trend-log capture, or sampled-data export is attempted.
 - Controller Quick Watch Lists (`<QuickWatchLists><QuickWatchList>`) are
-  imported/exported as model-only Logix Designer workstation configuration. The
+  imported/exported as model-only L5X workstation configuration. The
   importer preserves list names, descriptions, watch tag `Specifier` values,
   optional `Scope` values, and extra attributes. The offline review projection
   resolves controller, program-scoped, program-parameter, and AOI-scoped watch
@@ -878,7 +996,7 @@ the editor, simulator, validator, and import.
   source/import metadata, and stable checksums.
 - HMI content bundles export/import screens, popups, Add-On Graphics, asset
   metadata, and unsupported-content metadata as separate deterministic text
-  entries with a manifest and per-file checksums, giving View Designer-style
+  entries with a manifest and per-file checksums, giving ESCO HMI-style
   content exchange a model-layer baseline. The same content can be exported as
   and imported from folder-style path/text entries, with checksums rebuilt from
   file contents and verified against the manifest.
@@ -889,7 +1007,7 @@ the editor, simulator, validator, and import.
 - HMI alarm definitions have an offline runtime-preview engine that evaluates
   digital and analog alarm triggers with deadband, tracks active/returned/
   acknowledged/suppressed states, records history and quality changes, and
-  exposes View Designer-style alarm system-tag counts. Alarm runtime data can be
+  exposes ESCO HMI alarm system-tag counts. Alarm runtime data can be
   projected into deterministic summary, manager, and history table rows with
   current metadata and stable sorting.
 - Automatic Diagnostics have an offline runtime-preview stream for validation,

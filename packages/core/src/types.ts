@@ -139,6 +139,42 @@ export interface ProjectProvenance {
   softController?: SoftControllerProvenance;
 }
 
+/**
+ * Kind of change recorded in a project's persistent change history. Mirrors the
+ * project-actions `AuditEventType` shape (core cannot import from
+ * project-actions) so an `AuditEvent` is structurally assignable to a
+ * {@link ProjectChangeEntry}. Covers the project lifecycle events worth keeping
+ * across save/open: project creation, import/export, save, format migration,
+ * validation runs, and generic edits.
+ */
+export type ProjectChangeType =
+  | "created"
+  | "imported"
+  | "exported"
+  | "saved"
+  | "migrated"
+  | "validated"
+  | "edit";
+
+/**
+ * One entry in a project's persistent change history (audit log). Stored on the
+ * model so it survives a save/open of an `.easproj` file. The shape mirrors the
+ * project-actions `AuditEvent` so an audit event can be appended directly. Pure
+ * data — never used to drive the simulator or talk to a controller.
+ */
+export interface ProjectChangeEntry {
+  /** Stable unique identifier for this entry. */
+  id: string;
+  /** ISO-8601 timestamp the change was recorded. */
+  at: string;
+  /** What kind of change this entry records. */
+  type: ProjectChangeType;
+  /** One-line human-readable summary. */
+  summary: string;
+  /** Optional structured detail (counts, names, etc.). */
+  details?: Record<string, unknown>;
+}
+
 export interface PlcProject {
   id: string;
   name: string;
@@ -153,6 +189,14 @@ export interface PlcProject {
    * simulator.
    */
   provenance?: ProjectProvenance;
+  /**
+   * Persistent project change history (audit log), oldest first. Stored on the
+   * model so the log survives a save/open of an `.easproj` file. Capped to the
+   * most recent entries by {@link appendProjectChange} to avoid unbounded
+   * growth. Pure metadata; never used by the simulator or to talk to a
+   * controller.
+   */
+  changeLog?: ProjectChangeEntry[];
 }
 
 export interface Controller {

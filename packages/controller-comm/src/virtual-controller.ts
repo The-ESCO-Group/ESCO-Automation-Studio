@@ -4,7 +4,7 @@
  * This is an ESCO-owned, fully offline controller backend. It is NOT a link to
  * real hardware and never claims to be: every state is branded "ESCO Virtual
  * Controller", "Offline Driver", or "Simulation Session". What it provides is a
- * real, stateful IDE-style session — Set Path, Go Online, Download, Upload,
+ * stateful IDE-style software session — Set Path, Go Online, Download, Upload,
  * controller mode changes, fault handling, connection health, and an activity
  * log — backed by a deterministic in-memory virtual controller.
  *
@@ -199,7 +199,7 @@ export interface UploadResult extends VirtualActionResult {
 }
 
 // ---------------------------------------------------------------------------
-// Realistic ESCO virtual communication paths
+// Offline ESCO virtualized communication paths
 // ---------------------------------------------------------------------------
 
 export const ESCO_VIRTUAL_PATHS: readonly CommPath[] = [
@@ -255,7 +255,7 @@ const DEFAULT_LOG_LIMIT = 200;
 
 /**
  * The ESCO Virtual Controller session. A deterministic in-memory state machine
- * that behaves like a real IDE online session against an offline/virtual backend.
+ * that behaves like a stateful IDE online session against an offline/virtual backend.
  */
 export class VirtualControllerSession {
   private state: VirtualControllerState = "disconnected";
@@ -337,13 +337,13 @@ export class VirtualControllerSession {
 
   // --- Set Path ------------------------------------------------------------
 
-  /** Enter the path browser (Who Active). */
+  /** Enter the ESCO route browser. */
   beginBrowsing(): VirtualActionResult {
     if (this.state === "online" || this.state === "monitoring") {
       return this.result(false, "warning", "Go Offline before changing the communication path.");
     }
     this.state = "browsing";
-    this.record("set-path", "info", "Opened Who Active — select an ESCO virtual communication path.");
+    this.record("set-path", "info", "Opened ESCO Route Browser - select an ESCO virtual communication path.");
     return this.result(true, "info", "Select an ESCO Virtual Controller path.");
   }
 
@@ -374,8 +374,8 @@ export class VirtualControllerSession {
   goOnline(project: ProjectIdentity | null): VirtualActionResult {
     if (!this.path) {
       this.state = "disconnected";
-      this.record("go-online", "warning", "Go Online requires a communication path. Opening Who Active.");
-      return this.result(false, "warning", "No communication path selected. Use Set Path / Who Active first.");
+      this.record("go-online", "warning", "Go Online requires a communication path. Opening ESCO Route Browser.");
+      return this.result(false, "warning", "No communication path selected. Use Set Path / Route Browser first.");
     }
 
     this.state = "connecting";
@@ -448,7 +448,7 @@ export class VirtualControllerSession {
   download(project: ProjectDownloadInput | null): VirtualActionResult {
     if (!this.path) {
       this.record("download", "warning", "Download requires a communication path.");
-      return this.result(false, "warning", "No communication path selected. Use Set Path / Who Active first.");
+      return this.result(false, "warning", "No communication path selected. Use Set Path / Route Browser first.");
     }
     if (!project) {
       this.record("download", "error", "Download requires an open project.");
@@ -514,7 +514,7 @@ export class VirtualControllerSession {
     });
     if (!this.path) {
       this.record("upload", "warning", "Upload requires a communication path.");
-      return base(false, "warning", "No communication path selected. Use Set Path / Who Active first.");
+      return base(false, "warning", "No communication path selected. Use Set Path / Route Browser first.");
     }
     if (!this.snapshot) {
       this.record("upload", "warning", "Upload found no project image on the virtual controller.");

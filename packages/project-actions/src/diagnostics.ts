@@ -496,6 +496,18 @@ export function createDiagnosticRows(
   });
 }
 
+const DIAGNOSTIC_SEVERITY_RANK: Record<ValidationSeverity, number> = { error: 0, warning: 1, info: 2 };
+
+/**
+ * Order comparator that ranks errors before warnings before info. Stable within
+ * a severity when used with `Array.prototype.sort`, so the underlying
+ * rule/discovery order is preserved among same-severity findings. Used to make
+ * the diagnostics list read errors-first instead of in rule-registration order.
+ */
+export function compareDiagnosticSeverity(a: ValidationSeverity, b: ValidationSeverity): number {
+  return DIAGNOSTIC_SEVERITY_RANK[a] - DIAGNOSTIC_SEVERITY_RANK[b];
+}
+
 export function classifyDiagnosticArea(finding: ValidationFinding, target?: DiagnosticTarget): DiagnosticArea {
   const rule = finding.ruleId.toLowerCase();
   const text = `${finding.message} ${finding.target ?? ""}`.toLowerCase();

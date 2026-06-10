@@ -32,7 +32,9 @@ corepack pnpm build          # build the web app
 
 ## Safety boundaries (non-negotiable)
 
-- No real PLC/controller communication, downloads, uploads, or online edits.
+- No unsafe physical PLC/controller operations. Any read-only PLC-family
+  transport must stay backend-only and guarded; downloads, writes, physical
+  uploads, online edits, forces, and mode changes remain blocked.
 - No `.ACD` reading/writing/compiling/decompiling.
 - No L5X export (import-only today).
 - No external paid APIs and no bundled API keys; nothing is sent off-device.

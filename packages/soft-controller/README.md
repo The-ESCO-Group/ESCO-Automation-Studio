@@ -1,7 +1,7 @@
 # @esco/soft-controller
 
-The **ESCO SoftController** — an in-process, ESCO-native software controller and the
-studio's first real "Go Online" target.
+The **ESCO SoftController** — an in-process, ESCO-native software controller and
+the studio's first stateful software-only "Go Online"-style target.
 
 It is **software, not hardware**. It never claims to be, nor to communicate with, a
 physical PLC. Every identity is branded `ESCO SoftController` with `kind: "software"`
@@ -27,9 +27,10 @@ and the `ESCO-SOFT-CTRL` catalog number.
 - **Fault model** — validation faults and runtime faults, each clearable or
   non-clearable; `clearFaults` recovers the controller only when nothing
   non-clearable remains.
-- **Controller image** — `exportImage()` / `serializeImage()` produce a checksummed,
-  serializable image (identity, mode, loaded-runtime summary, verbatim runtime text,
-  full tag image, faults) for the future upload system.
+- **Controller image** — `exportImage()` / `serializeImage()` produce a
+  checksummed, serializable software image (identity, mode, loaded-runtime
+  summary, verbatim runtime text, full tag image, faults) for software
+  upload/reconstruction flows.
 
 ## Usage
 
@@ -45,7 +46,7 @@ controller.startScan();          // -> Run mode
 controller.scanOnce(10);         // one deterministic 10ms scan tick
 controller.readTag("MotorRun");  // true
 
-const image = controller.exportImage(); // for the upload system
+const image = controller.exportImage(); // for software upload/reconstruction flows
 ```
 
 ## How it executes a runtime

@@ -261,13 +261,17 @@ body {
 
 /* ---- ESCO Simulation Lab ---- */
 .esco-simlab {
+  display: flex;
+  flex-direction: column;
   min-height: 100%;
   padding: 14px;
+  overflow: hidden;
   background: #f6f8fb;
   color: var(--text);
 }
 
 .esco-simlab__header {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   gap: 16px;
@@ -331,6 +335,7 @@ body {
 }
 
 .esco-simlab__tabs {
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -356,6 +361,7 @@ body {
 }
 
 .esco-simlab__notices {
+  flex: 0 0 auto;
   display: grid;
   gap: 4px;
   margin-bottom: 10px;
@@ -369,6 +375,10 @@ body {
 }
 
 .esco-simlab__grid {
+  flex: 1 1 auto;
+  min-height: 180px;
+  overflow: auto;
+  overscroll-behavior: contain;
   display: grid;
   gap: 10px;
 }
@@ -737,6 +747,132 @@ body {
 .esco-lad__remove:hover {
   border-color: var(--error);
   color: var(--error);
+}
+
+.esco-lad__drag-handle {
+  margin-left: 4px;
+  width: 12px;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--text-dim);
+  cursor: grab;
+  opacity: 0.55;
+}
+
+.esco-lad__drag-handle::before {
+  content: "\22EE\22EE";
+  letter-spacing: -3px;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.esco-lad__drag-handle:hover {
+  opacity: 1;
+  color: var(--accent, var(--text));
+}
+
+.esco-lad__drag-handle:active {
+  cursor: grabbing;
+}
+
+.esco-device-tags__preview {
+  margin-top: 8px;
+  grid-column: 1 / -1;
+}
+
+.esco-device-tags__usage {
+  margin: 4px 0;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.esco-device-tags__list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.esco-device-tags__list li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.esco-device-tags__list li.is-existing {
+  opacity: 0.6;
+}
+
+.esco-device-tags__list span {
+  color: var(--text-dim);
+}
+
+.esco-device-tags__list em {
+  color: var(--warning, var(--text-dim));
+  font-style: normal;
+}
+
+.esco-device-conn {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+.esco-device-conn__hint,
+.esco-device-conn__summary {
+  margin: 4px 0;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.esco-device-conn__list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.esco-device-conn__list > li {
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+}
+
+.esco-device-conn__list > li.is-unused {
+  opacity: 0.6;
+}
+
+.esco-device-conn__tag {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+}
+
+.esco-device-conn__dir,
+.esco-device-conn__count {
+  color: var(--text-dim);
+}
+
+.esco-device-conn__refs {
+  list-style: none;
+  margin: 2px 0 0 16px;
+  padding: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.esco-link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent, inherit);
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .esco-undef {
@@ -3758,6 +3894,14 @@ body {
 .esco-copilot__body .esco-ai {
   height: 100%;
   padding: 12px;
+}
+
+.esco-copilot__body > .esco-model,
+.esco-copilot__body > .esco-help {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .esco-copilot__history {
@@ -8998,6 +9142,41 @@ body {
   font: inherit;
 }
 
+.esco-ribbon-menu__submenu {
+  position: relative;
+  z-index: 2;
+}
+
+.esco-ribbon-menu__item--submenu {
+  grid-template-columns: minmax(132px, 1fr) auto;
+}
+
+.esco-ribbon-menu--nested {
+  display: none;
+  top: -3px;
+  left: calc(100% - 1px);
+  min-width: 250px;
+  z-index: 90;
+}
+
+.esco-ribbon-menu__submenu:hover > .esco-ribbon-menu--nested,
+.esco-ribbon-menu__submenu:focus-within > .esco-ribbon-menu--nested {
+  display: block;
+}
+
+.esco-ribbon-menu__section {
+  position: relative;
+  z-index: 1;
+  padding: 6px 12px 2px 32px;
+  color: #4b5563;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .esco-ribbon-menu__separator {
   position: relative;
   z-index: 1;
@@ -10157,7 +10336,7 @@ body {
 .esco-body.is-right-open {
   position: relative;
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) !important;
+  grid-template-columns: var(--esco-left-width, 300px) minmax(0, 1fr) !important;
   grid-template-rows: minmax(0, 1fr);
   gap: 4px;
   min-height: 0;
@@ -10165,12 +10344,12 @@ body {
   background:
     linear-gradient(
       to right,
-      #d9d9d9 0 300px,
-      #8f8f8f 300px 301px,
-      #f7f7f7 301px 302px,
-      #bdbdbd 302px 303px,
-      #e7e7e7 303px 304px,
-      #d9d9d9 304px
+      #d9d9d9 0 var(--esco-left-width, 300px),
+      #8f8f8f var(--esco-left-width, 300px) calc(var(--esco-left-width, 300px) + 1px),
+      #f7f7f7 calc(var(--esco-left-width, 300px) + 1px) calc(var(--esco-left-width, 300px) + 2px),
+      #bdbdbd calc(var(--esco-left-width, 300px) + 2px) calc(var(--esco-left-width, 300px) + 3px),
+      #e7e7e7 calc(var(--esco-left-width, 300px) + 3px) calc(var(--esco-left-width, 300px) + 4px),
+      #d9d9d9 calc(var(--esco-left-width, 300px) + 4px)
     );
 }
 
@@ -10179,7 +10358,7 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 300px;
+  left: var(--esco-left-width, 300px);
   z-index: 5;
   width: 4px;
   background:
@@ -10190,10 +10369,52 @@ body {
   pointer-events: none;
 }
 
+/* Interactive splitter sitting over the decorative boundary; drags the explorer width. */
+.esco-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  transform: translateX(-3px);
+  z-index: 6;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.esco-resize-handle:hover,
+.esco-resize-handle:focus-visible {
+  background: rgba(0, 120, 215, 0.35);
+  outline: none;
+}
+
+.esco-body.is-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
 .esco-activity-rail,
 .esco-right,
 .esco-inspector-handle {
   display: none !important;
+}
+
+.esco-app:not(.esco-app--startup) .esco-body.is-right-open {
+  grid-template-columns: var(--esco-left-width, 300px) minmax(0, 1fr) minmax(300px, 360px) !important;
+}
+
+.esco-app:not(.esco-app--startup) .esco-body.is-right-open .esco-right.is-open {
+  display: flex !important;
+  grid-column: 3;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--studio-border);
+  border-top: 0;
+  background: #ffffff;
 }
 
 .esco-left {
@@ -13514,10 +13735,10 @@ body {
 .esco-new-module__catalog-thumb {
   width: 28px;
   height: 24px;
-  padding: 1px;
+  padding: 0;
   border: 1px solid #c6ccd4;
   background: #0f1b2d;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 .esco-new-module__catalog-footer {
@@ -13713,10 +13934,10 @@ body {
   display: block;
   width: 156px;
   height: 116px;
-  padding: 5px;
+  padding: 0;
   border: 1px solid #a8a8a8;
   background: #0f1b2d;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 .esco-new-module-stage {
@@ -14029,10 +14250,10 @@ body {
   display: block;
   width: 272px;
   height: 216px;
-  padding: 8px;
+  padding: 0;
   border: 1px solid rgba(143, 163, 191, 0.22);
   background: #0b1728;
-  object-fit: contain;
+  object-fit: cover;
   opacity: 0.86;
   transform: none;
 }
@@ -14385,7 +14606,7 @@ body {
   display: block;
   width: 74px;
   height: 58px;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 .esco-tag-props__icon {
@@ -15880,4 +16101,215 @@ body {
   margin-top: 12px;
   color: #6b7280;
   font-size: 12px;
+}
+
+/* ---- Functional scroll ownership ----
+   Keep the fixed Studio frame, but make every visible pane expose native,
+   draggable scrollbars instead of static faux scrollbar artwork. */
+.esco-app {
+  min-width: 0;
+  position: relative;
+}
+
+.esco-app > .esco-titlebar {
+  grid-row: 1;
+  grid-column: 1 / -1;
+}
+
+.esco-app > .esco-ribbon {
+  grid-row: 2;
+  grid-column: 1 / -1;
+}
+
+.esco-app > .esco-body {
+  grid-row: 3;
+  grid-column: 1 / -1;
+}
+
+.esco-app > .esco-statusbar {
+  grid-row: 4;
+  grid-column: 1 / -1;
+}
+
+.esco-app > .esco-recovery {
+  grid-row: 3;
+  grid-column: 1 / -1;
+  align-self: start;
+  justify-self: stretch;
+  z-index: 30;
+}
+
+.esco-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.esco-panel__body,
+.esco-right__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.esco-ribbon__toolbar-row--standard {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.esco-ribbon__toolbar-row--standard::-webkit-scrollbar {
+  height: 12px;
+  background: #f0f0f0;
+}
+
+.esco-ribbon__toolbar-row--standard::-webkit-scrollbar-track {
+  border-top: 1px solid #b6b6b6;
+  background: #f0f0f0;
+}
+
+.esco-ribbon__toolbar-row--standard::-webkit-scrollbar-thumb {
+  border: 1px solid #8f8f8f;
+  background: #c8c8c8;
+}
+
+.esco-controller-organizer .esco-panel__body {
+  padding-bottom: 0;
+}
+
+.esco-controller-organizer .esco-panel__body::before,
+.esco-controller-organizer .esco-panel__body::after,
+.esco-editor__surface::before,
+.esco-editor__surface::after {
+  content: none;
+}
+
+.esco-modal__panel {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---- Scroll ownership hardening ----
+   The Studio shell is fixed-height; every workbench view must either own its
+   scrollbars or delegate to an explicit child scroller. */
+.esco-body,
+.esco-main-stack,
+.esco-center,
+.esco-left,
+.esco-bottom {
+  min-width: 0;
+  min-height: 0;
+}
+
+.esco-center > .esco-editor,
+.esco-center > .esco-detail,
+.esco-center > .esco-tags,
+.esco-center > .esco-cmp,
+.esco-center > .esco-hmi,
+.esco-center > .esco-vcs,
+.esco-center > .eol-root,
+.esco-center > .sim2,
+.esco-center > .esco-simlab {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.esco-center > .esco-detail,
+.esco-center > .esco-cmp,
+.esco-center > .esco-vcs,
+.esco-center > .eol-root {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.esco-center > .esco-simlab {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.esco-center > .esco-simlab > .sim2 {
+  flex: 1 1 auto;
+  min-height: 180px;
+  height: auto;
+  overflow: hidden;
+}
+
+.esco-hmi__workspace,
+.esco-hmi-main,
+.esco-hmi-canvas {
+  min-width: 0;
+  min-height: 0;
+}
+
+.esco-hmi-main {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.esco-hmi-canvas__surface {
+  min-height: 0;
+}
+
+.esco-tags__grid,
+.esco-dock__tabs,
+.esco-dock__body,
+.esco-panel__body,
+.esco-right__content,
+.esco-editor__surface,
+.esco-model,
+.esco-help,
+.esco-help__formats,
+.esco-parity__list--help,
+.esco-ai__scroll,
+.eol-root,
+.eol-table-wrap,
+.eol-audit,
+.sim2__screen,
+.esco-simlab__list,
+.esco-new-module__filters fieldset,
+.esco-new-module__table-wrap,
+.esco-new-module__list,
+.esco-new-module-stage__main,
+.esco-device-definition__body,
+.esco-controller-props__pane,
+.esco-routine-props__pane,
+.esco-program-props__pane,
+.esco-program-props__list,
+.esco-instr-picker__list,
+.esco-instr-picker__preview {
+  overscroll-behavior: contain;
+}
+
+.esco-tags__grid,
+.esco-dock__tabs,
+.esco-dock__body,
+.eol-root,
+.eol-table-wrap,
+.eol-audit,
+.sim2__screen,
+.esco-simlab__list,
+.esco-new-module__filters fieldset,
+.esco-new-module__table-wrap,
+.esco-new-module__list,
+.esco-new-module-stage__main,
+.esco-device-definition__body,
+.esco-controller-props__pane,
+.esco-routine-props__pane,
+.esco-program-props__pane,
+.esco-program-props__list,
+.esco-instr-picker__list,
+.esco-instr-picker__preview {
+  scrollbar-width: thin;
+}
+
+.esco-controller-props__pane,
+.esco-routine-props__pane,
+.esco-program-props__pane,
+.esco-program-props__list {
+  min-height: 0;
+  overflow: auto;
 }

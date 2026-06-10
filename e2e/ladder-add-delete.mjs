@@ -41,6 +41,7 @@ const instructionCount = (page, index) => rung(page, index).locator(".esco-lad__
 const selectedInstructionCount = (page) => page.locator(".esco-lad__node.is-selected, .esco-lad__box.is-selected").count();
 const rungOperands = (page, index) =>
   rung(page, index).locator("input.esco-lad__operand").evaluateAll((inputs) => inputs.map((input) => input.value).join("|"));
+const branchInspectorText = (page) => page.locator(".esco-rung-inspector").innerText().catch(() => "");
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
@@ -141,6 +142,19 @@ try {
     "Removing the empty branch leg preserves existing branch instructions",
     (await instructionCount(page, 0)) === branchInstructionCount + 1 &&
       (await page.locator(".esco-lad__parallel").count()) === 1,
+  );
+  await localButton(page, "Show branch structure").click();
+  await page.locator('.esco-rung-inspector[aria-label="Rung Branch Structure"]').waitFor({ timeout: 8000 });
+  const branchText = await branchInspectorText(page);
+  check(
+    "Branch structure inspector reflects the populated parallel group",
+    /Branch Structure/.test(branchText) &&
+      /Series/.test(branchText) &&
+      /Parallel group\s+1 leg\(s\)/.test(branchText) &&
+      /XIC\(A\)/.test(branchText) &&
+      /OTE\(Out\)/.test(branchText) &&
+      /XIO\(/.test(branchText),
+    branchText,
   );
 
   const beforeUnsafeKeys = await rungCount(page);

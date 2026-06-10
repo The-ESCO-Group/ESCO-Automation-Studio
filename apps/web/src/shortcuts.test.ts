@@ -95,6 +95,20 @@ describe("resolveWorkbenchShortcut", () => {
     expect(resolveWorkbenchShortcut(ev({ key: "Insert" }))).toBeNull();
   });
 
+  it("routes Alt+Arrow to instruction reorder as global commands", () => {
+    expect(resolveWorkbenchShortcut(ev({ key: "ArrowLeft", altKey: true }))).toEqual({
+      command: "moveInstructionEarlier",
+      global: true,
+    });
+    expect(resolveWorkbenchShortcut(ev({ key: "ArrowRight", altKey: true }))).toEqual({
+      command: "moveInstructionLater",
+      global: true,
+    });
+    // Plain arrows (no Alt) and Ctrl+Alt+Arrow are not the reorder chord.
+    expect(resolveWorkbenchShortcut(ev({ key: "ArrowLeft" }))).toBeNull();
+    expect(resolveWorkbenchShortcut(ev({ key: "ArrowRight", altKey: true, ctrlKey: true }))).toBeNull();
+  });
+
   it("routes bare Delete and Backspace to ladder selection delete", () => {
     expect(resolveWorkbenchShortcut(ev({ key: "Delete" }))).toEqual({
       command: "deleteSelection",
@@ -126,6 +140,8 @@ describe("shortcutLabel", () => {
       "pasteRung",
       "addLadderElement",
       "deleteSelection",
+      "moveInstructionEarlier",
+      "moveInstructionLater",
       "undo",
       "redo",
     ];

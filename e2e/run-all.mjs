@@ -19,6 +19,7 @@ const ORDER = [
   "welcome.mjs",
   "dialogs.mjs",
   "ribbon.mjs",
+  "scrollbars.mjs",
   "driver.mjs",
   "instr.mjs",
   "newinstr.mjs",

@@ -57,6 +57,8 @@ interface Props {
   onSetRungComment: (rungId: string, comment: string, routineId?: string) => void;
   onEditOperand: (rungId: string, nodeId: string, index: number, value: string, routineId?: string) => void;
   onRemoveInstruction: (rungId: string, nodeId: string) => void;
+  /** Reorder an instruction relative to another instruction on the same rung (drag-reorder). */
+  onMoveInstruction?: (rungId: string, nodeId: string, targetNodeId: string, position: "before" | "after") => void;
   /** Open the Add Ladder Element picker for a specific empty branch leg. */
   onPickInstructionForBranch?: (rungId: string, branchId: string) => void;
   onCreateTag: (name: string, dataType: string) => void;
@@ -1072,7 +1074,30 @@ function branchOutline(branch: LadderBranch, depth = 0, path = "root"): BranchOu
   return rows;
 }
 
+function findBranchById(branch: LadderBranch, branchId: string): LadderBranch | undefined {
+  if (branch.id === branchId) return branch;
+  for (const leg of branch.parallelBranches ?? []) {
+    const found = findBranchById(leg, branchId);
+    if (found) return found;
+  }
+  return branch.next ? findBranchById(branch.next, branchId) : undefined;
+}
+
+/** The ordered series segment containing `nodeId`, anywhere in the branch tree. */
+function seriesSiblingsOf(branch: LadderBranch, nodeId: string): LadderNode[] | undefined {
+  if (branch.nodes.some((node) => node.id === nodeId)) return branch.nodes;
+  for (const leg of branch.parallelBranches ?? []) {
+    const found = seriesSiblingsOf(leg, nodeId);
+    if (found) return found;
+  }
+  return branch.next ? seriesSiblingsOf(branch.next, nodeId) : undefined;
+}
+
 function findingMatchesRung(finding: ValidationFinding, rung: LadderRung): boolean {
+  // An explicit "Rung <number>" reference (e.g. ladder-structure findings)
+  // attributes straight to that rung within the already routine-scoped set —
+  // this also surfaces structural findings (empty parallel leg) that quote no tag.
+  if (new RegExp(`\\bRung ${rung.number}\\b`).test(finding.message)) return true;
   const text = rungText(rung);
   const quoted = [...finding.message.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
   return quoted.length > 0 ? quoted.some((part) => part && text.includes(part)) : false;
@@ -1123,6 +1148,7 @@ export function EditorArea({
   onSetRungComment,
   onEditOperand,
   onRemoveInstruction,
+  onMoveInstruction,
   onPickInstructionForBranch,
   onCreateTagFromOperand,
   onAddLadderElement,
@@ -1294,9 +1320,26 @@ export function EditorArea({
     onSetRungComment(routineCommand.rungId, routineCommand.value, routineCommand.routineId);
     setRoutineCommand(null);
   };
+  const handleArrowNavigateNode = (rungId: string, nodeId: string, direction: "prev" | "next") => {
+    const rung = ladder?.rungs.find((candidate) => candidate.id === rungId);
+    if (!rung) return;
+    const siblings = seriesSiblingsOf(rung.root, nodeId);
+    if (!siblings) return;
+    const index = siblings.findIndex((node) => node.id === nodeId);
+    const neighbor = direction === "prev" ? siblings[index - 1] : siblings[index + 1];
+    if (!neighbor) return;
+    onSelectNode(rungId, neighbor.id);
+    // The neighbour is already in the DOM (only its selected class changes), so
+    // focus follows immediately to keep arrow navigation flowing.
+    editorSurfaceRef.current
+      ?.querySelector<HTMLElement>(`[data-node-id="${neighbor.id}"]`)
+      ?.focus();
+  };
   const editing = {
     onEditOperand,
     onRemoveInstruction,
+    onMoveInstruction,
+    onArrowNavigate: handleArrowNavigateNode,
     onPickInstructionForBranch,
     onRemoveBranchLeg,
     onSelectNode,
@@ -1340,6 +1383,12 @@ export function EditorArea({
       window.setTimeout(() => target?.focus(), 0);
     }
   }, []);
+  const contextMenuRung =
+    contextMenu && ladder ? ladder.rungs.find((candidate) => candidate.id === contextMenu.rungId) : undefined;
+  const contextMenuBranch =
+    contextMenu?.kind === "instruction" && contextMenuRung
+      ? findBranchById(contextMenuRung.root, contextMenu.branchId ?? contextMenuRung.root.id)
+      : undefined;
 
   const contextMenuItems = () =>
     Array.from(contextMenuRef.current?.querySelectorAll<HTMLButtonElement>(".esco-context-menu__item:not(:disabled)") ?? []);
@@ -1719,6 +1768,20 @@ export function EditorArea({
                 <span className="esco-context-menu__icon" aria-hidden="true" />
                 Add Parallel Branch
               </button>
+              {onAddBranchLeg ? (
+                <button
+                  type="button"
+                  className="esco-context-menu__item"
+                  disabled={editLocked || !(contextMenuBranch?.parallelBranches?.length)}
+                  onClick={() => {
+                    onAddBranchLeg(contextMenu.rungId, contextMenu.branchId);
+                    setContextMenu(null);
+                  }}
+                >
+                  <span className="esco-context-menu__icon" aria-hidden="true" />
+                  Add Branch Leg
+                </button>
+              ) : null}
               {onInsertInstruction ? (
                 <button
                   type="button"

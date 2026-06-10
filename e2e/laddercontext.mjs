@@ -51,6 +51,12 @@ async function openRungContext(page) {
   await contextMenu(page).waitFor({ timeout: 8000 });
 }
 
+async function openRungContextContaining(page, tagName) {
+  await closeContextMenu(page);
+  await page.locator(`${RUNG_SELECTOR}:has(.esco-lad__operand[title="${tagName}"])`).first().click({ button: "right" });
+  await contextMenu(page).waitFor({ timeout: 8000 });
+}
+
 async function openInstructionContext(page, tagName = "StartPB") {
   await closeContextMenu(page);
   await page.locator(`.esco-lad__operand[title="${tagName}"]`).first().click({ button: "right" });
@@ -303,6 +309,7 @@ try {
       return operands.includes("SourceA") && operands.includes("DestC") && !operands.includes("DestB");
     }, null, { timeout: 8000 }).catch(() => {});
     check("Edit Operand updates operand index 1 without changing operand 0", (await movOperands(page)) === "SourceA|DestC", await movOperands(page));
+    check("Edit Operand closes the inline command after Apply", (await page.locator(".esco-routine-command").count()) === 0);
   }
 
   // Insert Rung Above adds a rung above the selected one (real structural edit).
@@ -317,18 +324,38 @@ try {
   }
 
   // Verify Rung runs real offline validation scoped to the rung.
-  await openRungContext(page);
+  await openRungContextContaining(page, "StartPB");
   if (await clickMenuItemIfPresent(page, "Verify Rung", "Verify Rung is available from the rung context menu")) {
-    await page.locator('.esco-toast, .esco-dock__tab.is-active:has-text("Build")').first().waitFor({ timeout: 8000 }).catch(() => {});
-    check("Verify Rung surfaces an offline verification result", (await page.locator(".esco-toast").count()) >= 0);
+    await page.locator('.esco-dock__tab.is-active:has-text("Build")').waitFor({ timeout: 8000 }).catch(() => {});
+    const verifyToast = page.locator(".esco-toast").filter({ hasText: /Rung\s+\d+:/ }).last();
+    await verifyToast.waitFor({ timeout: 8000 }).catch(() => {});
+    const verifyText = await verifyToast.innerText().catch(() => "");
+    check(
+      "Verify Rung reports rung-scoped validation text",
+      (await page.locator('.esco-dock__tab.is-active:has-text("Build")').count()) === 1 &&
+        /Rung\s+\d+:.*\d+\s+errors?/i.test(verifyText) &&
+        /(verification passed in Offline Simulation|Complete.*\d+\s+warnings?|\d+\s+warnings?)/i.test(verifyText),
+      verifyText,
+    );
     await dismissToasts(page);
   }
 
   // Cross Reference Rung opens real cross-reference results in the dock.
-  await openRungContext(page);
+  await openRungContextContaining(page, "StartPB");
   if (await clickMenuItemIfPresent(page, "Cross Reference Rung", "Cross Reference Rung is available from the rung context menu")) {
     await page.locator('.esco-dock__tab.is-active:has-text("Cross Reference"), .esco-dock__tab.is-active:has-text("Reference")').first().waitFor({ timeout: 8000 }).catch(() => {});
-    check("Cross Reference Rung opens the references dock", (await page.locator('.esco-dock__tab.is-active').count()) >= 1);
+    const xrefText = await page.locator(".esco-xref").innerText().catch(() => "");
+    const xrefToast = await page.locator(".esco-toast").last().innerText().catch(() => "");
+    check(
+      "Cross Reference Rung opens StartPB references in the references dock",
+      (await page.locator('.esco-dock__tab.is-active:has-text("Cross Reference")').count()) === 1 &&
+        /StartPB/.test(xrefText) &&
+        /MainProgram\/MainRoutine/.test(xrefText) &&
+        /Location\s+Rung\s+Source\s+Reference/i.test(xrefText) &&
+        /XIC/i.test(xrefText) &&
+        /Cross Reference for rung\s+\d+:\s+StartPB/i.test(xrefToast),
+      `${xrefText} / ${xrefToast}`,
+    );
     await dismissToasts(page);
   }
 

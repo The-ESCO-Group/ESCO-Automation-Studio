@@ -28,6 +28,30 @@ try {
   await page.reload({ waitUntil: "networkidle" });
   await banner(page).waitFor({ timeout: 8000 });
   check("recovery banner appears after reload with unsaved work", (await banner(page).count()) === 1);
+  const bannerLayout = await page.evaluate(() => {
+    const measure = (selector) => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const rect = node.getBoundingClientRect();
+      return {
+        height: Math.round(rect.height),
+        width: Math.round(rect.width),
+        top: Math.round(rect.top),
+        bottom: Math.round(rect.bottom),
+      };
+    };
+    return {
+      body: measure(".esco-body"),
+      left: measure(".esco-left"),
+      center: measure(".esco-center"),
+      organizer: measure(".esco-controller-organizer .esco-panel__body"),
+    };
+  });
+  check(
+    "recovery banner does not collapse scroll panes",
+    bannerLayout.body?.height > 400 && bannerLayout.left?.height > 400 && bannerLayout.center?.height > 400,
+    JSON.stringify(bannerLayout),
+  );
 
   // Restore brings the edited project back (extra rung) and marks it Unsaved.
   await page.locator('.esco-recovery button:has-text("Restore")').click();

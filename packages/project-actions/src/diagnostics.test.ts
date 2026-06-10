@@ -11,11 +11,24 @@ import {
 import type { ValidationFinding } from "@esco/validator";
 import {
   classifyDiagnosticArea,
+  compareDiagnosticSeverity,
   createBuildDiagnostics,
   createDiagnosticRows,
   resolveValidationFindingTarget,
   summarizeValidationFindings,
 } from "./diagnostics";
+
+describe("compareDiagnosticSeverity", () => {
+  it("orders errors before warnings before info, stable within a severity", () => {
+    const severities = ["info", "warning", "error", "warning", "error"] as const;
+    const sorted = severities
+      .map((severity, index) => ({ severity, index }))
+      .sort((a, b) => compareDiagnosticSeverity(a.severity, b.severity));
+    expect(sorted.map((entry) => entry.severity)).toEqual(["error", "error", "warning", "warning", "info"]);
+    // Stable: the two errors keep their original relative order (indices 2 then 4).
+    expect(sorted.filter((entry) => entry.severity === "error").map((entry) => entry.index)).toEqual([2, 4]);
+  });
+});
 
 function demoProject(): PlcProject {
   const project = createProject("DiagProject");

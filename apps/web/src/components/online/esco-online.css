@@ -1,0 +1,355 @@
+/* ESCO Online panel — namespaced eol- to stay isolated from shell styles. */
+
+.eol-root {
+  height: 100%;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #f4f6f8;
+  color: #15212b;
+  font-size: 13px;
+}
+
+.eol-banner {
+  border: 1px solid #c8d2da;
+  border-left: 4px solid #2e6da4;
+  background: #ffffff;
+  padding: 10px 12px;
+  border-radius: 4px;
+  line-height: 1.45;
+}
+
+.eol-banner--down {
+  border-left-color: #b3261e;
+}
+
+.eol-banner--readonly {
+  border-left-color: #8a6d00;
+}
+
+.eol-banner code {
+  background: #eef1f4;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.eol-error {
+  border: 1px solid #e3b9b6;
+  border-left: 4px solid #b3261e;
+  background: #fdf3f2;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.eol-card {
+  background: #ffffff;
+  border: 1px solid #c8d2da;
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.eol-card h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #41576b;
+}
+
+.eol-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.eol-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 180px;
+}
+
+.eol-field label {
+  font-size: 11px;
+  color: #5b6f80;
+}
+
+.eol-field input,
+.eol-field select,
+.eol-field textarea {
+  padding: 5px 8px;
+  border: 1px solid #aebbc7;
+  border-radius: 3px;
+  font: inherit;
+  background: #fff;
+}
+
+.eol-field textarea {
+  min-height: 34px;
+  resize: vertical;
+}
+
+.eol-field--inline {
+  min-width: 200px;
+}
+
+.eol-field--narrow {
+  min-width: 100px;
+}
+
+.eol-field--wide {
+  min-width: min(420px, 100%);
+  flex: 1 1 320px;
+}
+
+.eol-btn {
+  padding: 6px 14px;
+  border: 1px solid #2e6da4;
+  border-radius: 3px;
+  background: #2e6da4;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.eol-btn[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.eol-btn--secondary {
+  background: #fff;
+  color: #2e6da4;
+}
+
+.eol-hidden-input {
+  display: none;
+}
+
+.eol-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-weight: 600;
+  background: #d6dde3;
+  color: #2c3c4a;
+}
+
+.eol-badge--online {
+  background: #e3f2e5;
+  color: #1d6327;
+}
+
+.eol-badge--faulted {
+  background: #fbe4e2;
+  color: #99231c;
+}
+
+.eol-badge--session {
+  max-width: min(260px, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.eol-capabilities {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #d7e0e8;
+}
+
+.eol-capabilities__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 7px;
+}
+
+.eol-capabilities__header span {
+  color: #5b6f80;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.eol-capabilities__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.eol-chip {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.eol-chip--ok {
+  background: #e3f2e5;
+  color: #1d6327;
+}
+
+.eol-chip--off {
+  background: #e7edf2;
+  color: #546879;
+}
+
+.eol-chip--warn {
+  background: #fff1cc;
+  color: #6f5100;
+}
+
+.eol-chip--blocked {
+  background: #fbe4e2;
+  color: #99231c;
+}
+
+.eol-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.eol-evidence__limitations {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: #5b6f80;
+}
+
+.eol-evidence__limitations li + li {
+  margin-top: 2px;
+}
+
+.eol-kv {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+
+.eol-kv dt {
+  color: #5b6f80;
+}
+
+.eol-kv dd {
+  margin: 0;
+}
+
+.eol-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.eol-table-wrap {
+  width: 100%;
+  overflow: auto;
+}
+
+.eol-table--compact {
+  min-width: 980px;
+}
+
+.eol-table th,
+.eol-table td {
+  text-align: left;
+  border-bottom: 1px solid #e2e8ee;
+  padding: 5px 8px;
+  vertical-align: top;
+}
+
+.eol-table th {
+  color: #41576b;
+  font-weight: 600;
+}
+
+.eol-table td:last-child {
+  white-space: nowrap;
+}
+
+.eol-table td:last-child .eol-btn + .eol-btn {
+  margin-left: 6px;
+}
+
+.eol-muted {
+  color: #5b6f80;
+}
+
+.eol-audit {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.eol-watch-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.eol-watch-panel {
+  border-top: 1px solid #d7e0e8;
+  padding-top: 10px;
+  margin: 10px 0;
+}
+
+.eol-watch-panel h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #41576b;
+}
+
+.eol-proof {
+  margin: 10px 0;
+}
+
+.eol-proof h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #41576b;
+}
+
+.eol-error-inline {
+  color: #99231c;
+  font-weight: 600;
+}
+
+.eol-value--changed {
+  background: #fff5c2;
+  box-shadow: inset 3px 0 0 #b88700;
+  font-weight: 600;
+}
+
+.eol-row--changed {
+  background: #fffdf0;
+}
+
+.eol-state {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.eol-state--live {
+  background: #e3f2e5;
+  color: #1d6327;
+}
+
+.eol-state--stale {
+  background: #f3e9c7;
+  color: #6f5100;
+}
+
+.eol-state--bad {
+  background: #fbe4e2;
+  color: #99231c;
+}

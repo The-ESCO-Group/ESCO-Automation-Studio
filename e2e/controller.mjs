@@ -28,6 +28,13 @@ const check = (l, c, d = "") => {
   results.push(!!c);
   console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + d : ""}`);
 };
+const openCommunicationsMenu = async (page) => {
+  await page.locator('.esco-ribbon__tab:has-text("Communications")').click();
+  await page.locator('.esco-ribbon-menu[aria-label="Communications menu"]').waitFor({ timeout: 5000 });
+};
+const commsSubmenu = (page, label) =>
+  page.locator(".esco-ribbon-menu__submenu-trigger:visible").filter({ hasText: label }).first();
+const commsNestedMenu = (page, label) => page.locator(`.esco-ribbon-menu--nested[aria-label="${label} submenu"]`);
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
@@ -43,14 +50,14 @@ try {
 
   // Status bar shows the offline/simulated state by default - never "Connected".
   const statusConn = await page.locator(".esco-statusbar__connection").innerText();
-  check("status bar shows an offline/simulated state by default", /Online|Offline Simulation/i.test(statusConn), statusConn);
+  check("status bar shows an offline/simulated state by default", /Online|Offline(?: Simulation)?/i.test(statusConn), statusConn);
   check("status bar does NOT claim Connected", !/Connected/i.test(statusConn));
 
   check("Go Online is visible but guarded in the Studio toolbar", !(await ribbonButton(page, "Go Online").isDisabled()));
   check("Upload is visible but guarded in the Studio toolbar", !(await ribbonButton(page, "Upload").isDisabled()));
-  check("Download is visible but guarded in the Studio toolbar", !(await ribbonButton(page, "Download").isDisabled()));
+  check("Physical Download is visible but disabled in the Studio toolbar", await ribbonButton(page, "Download").isDisabled());
 
-  await ribbonButton(page, "Go Online").click();
+  await page.locator(".esco-statusbar__connection").click();
   await page.locator(".esco-controller").waitFor({ timeout: 5000 });
   await page.locator('[aria-label="Controller safety evidence"]').waitFor({ timeout: 5000 });
   const safetyEvidenceText = await page.locator('[aria-label="Controller safety evidence"]').innerText();
@@ -118,17 +125,18 @@ try {
       /Real Controller/.test(onlineReadinessText),
     onlineReadinessText,
   );
+  await page.locator(".esco-controller__cmd", { hasText: "Go Online" }).first().locator("button").first().click();
   await page.locator('.esco-toast:has-text("Go Online is blocked")').waitFor({ timeout: 5000 });
   await page.locator(".esco-controller__audit tbody tr").first().waitFor({ timeout: 5000 });
   const onlineAuditText = await page.locator(".esco-controller__audit").innerText();
   check(
     "Go Online records safe unavailable/blocked audit rows",
-    /go-online/.test(onlineAuditText) && /command-blocked/.test(onlineAuditText) && /No tested controller transport/i.test(onlineAuditText),
+    /Go Online/i.test(onlineAuditText) && /command-blocked/.test(onlineAuditText) && /No tested controller transport/i.test(onlineAuditText),
     onlineAuditText,
   );
 
   const beforeUploadAuditRows = await page.locator(".esco-controller__audit tbody tr").count();
-  await ribbonButton(page, "Upload").click();
+  await page.locator(".esco-controller__cmd", { hasText: "Upload from Controller" }).first().locator("button").first().click();
   await page.locator('.esco-toast:has-text("Upload from Controller is blocked")').waitFor({ timeout: 5000 });
   await page.waitForFunction(
     (count) => document.querySelectorAll(".esco-controller__audit tbody tr").length > count,
@@ -137,16 +145,28 @@ try {
   const uploadAuditText = await page.locator(".esco-controller__audit").innerText();
   check("Upload records a blocked command audit row", /Blocked Upload from Controller/.test(uploadAuditText), uploadAuditText);
 
-  await page.locator('.esco-ribbon__tab:has-text("Communications")').click();
+  await openCommunicationsMenu(page);
   const commsText = await page.locator('.esco-ribbon-menu[aria-label="Communications menu"]').innerText();
-  check("Communications menu exposes blocked online actions", /Who Active/.test(commsText) && /Go Online/.test(commsText) && /Download/.test(commsText), commsText);
+  check(
+    "Communications menu keeps blocked real-controller actions under a flyout",
+    /Real Controller \(Blocked\)/.test(commsText) && !/Controller Route Browser/.test(commsText),
+    commsText,
+  );
+  await commsSubmenu(page, "Real Controller (Blocked)").hover();
+  const realControllerMenu = commsNestedMenu(page, "Real Controller (Blocked)");
+  const realControllerMenuText = await realControllerMenu.innerText();
+  check(
+    "Real Controller flyout exposes blocked online actions",
+    /Controller Route Browser/.test(realControllerMenuText) && /Go Online/.test(realControllerMenuText) && /Download/.test(realControllerMenuText),
+    realControllerMenuText,
+  );
   check(
     "Communications menu keeps Go Online clickable but guarded",
-    !(await page.getByRole("menuitem", { name: "Go Online (Unsupported)", exact: true }).isDisabled()),
+    !(await realControllerMenu.getByRole("menuitem", { name: "Go Online (Unsupported)", exact: true }).isDisabled()),
   );
 
   const beforeDownloadAuditRows = await page.locator(".esco-controller__audit tbody tr").count();
-  await page.getByRole("menuitem", { name: "Download... (Unsupported)", exact: true }).click();
+  await realControllerMenu.getByRole("menuitem", { name: "Download... (Unsupported)", exact: true }).click();
   await page.locator('.esco-toast:has-text("Download to Controller is blocked")').waitFor({ timeout: 5000 });
   await page.waitForFunction(
     (count) => document.querySelectorAll(".esco-controller__audit tbody tr").length > count,
@@ -160,22 +180,22 @@ try {
   const controllerMenuText = await page.locator(".esco-context-menu").innerText();
   check(
     "controller organizer context exposes guarded session actions",
-    /Go Online/.test(controllerMenuText) &&
+      /Go Online/.test(controllerMenuText) &&
       /Upload/.test(controllerMenuText) &&
       /Download/.test(controllerMenuText) &&
-      /Who Active/.test(controllerMenuText),
+      /Controller Route Browser/.test(controllerMenuText),
     controllerMenuText,
   );
   const beforeNetworkAuditRows = await page.locator(".esco-controller__audit tbody tr").count();
-  await page.locator('.esco-context-menu__item:has-text("Who Active")').click();
-  await page.locator('.esco-toast:has-text("Who Active is blocked")').waitFor({ timeout: 5000 });
+  await page.locator('.esco-context-menu__item:has-text("Controller Route Browser")').click();
+  await page.locator('.esco-toast:has-text("Controller Route Browser is blocked")').waitFor({ timeout: 5000 });
   await page.waitForFunction(
     (count) => document.querySelectorAll(".esco-controller__audit tbody tr").length > count,
     beforeNetworkAuditRows,
   );
   check(
-    "Who Active from controller context records a blocked audit row",
-    /Blocked Who Active/.test(await page.locator(".esco-controller__audit").innerText()),
+    "Controller Route Browser from controller context records a blocked audit row",
+    /Blocked Controller Route Browser/.test(await page.locator(".esco-controller__audit").innerText()),
   );
 
   // Rich per-command guard detail: risk badge + reason + exact required next step.
@@ -189,7 +209,7 @@ try {
       /Go Offline/.test(commandsText) &&
       /Clear Faults/.test(commandsText) &&
       /Fault Diagnostics/.test(commandsText) &&
-      /Who Active/.test(commandsText) &&
+      /Controller Route Browser/.test(commandsText) &&
       /Path Diagnostics/.test(commandsText) &&
       /Test Edits/.test(commandsText) &&
       /Assemble Edits/.test(commandsText) &&

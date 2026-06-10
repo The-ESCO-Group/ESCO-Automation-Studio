@@ -399,7 +399,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "esco_import_l5x",
-    description: "Import a Studio 5000-style .L5X XML file (offline, review-only) into the PLC project. No .ACD or binary formats.",
+    description: "Import a Logix-compatible .L5X XML file (offline, review-only) into the PLC project. No .ACD or binary formats.",
     inputSchema: obj({ path: str("Path to a .L5X XML file.") }, ["path"]),
     handler: (a) => {
       const xml = readFileSync(arg(a, "path"), "utf8");
@@ -412,7 +412,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "esco_export_l5x",
-    description: "Export the PLC project to a Studio 5000-style .L5X XML file for review (offline-generated, not controller-verified).",
+    description: "Export the PLC project to a Logix-compatible .L5X XML file for review (offline-generated, not controller-verified).",
     inputSchema: obj({ path: str("Target .L5X path.") }, ["path"]),
     handler: (a) => {
       const result = exportL5X(plc);

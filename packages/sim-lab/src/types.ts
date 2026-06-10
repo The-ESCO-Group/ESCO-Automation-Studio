@@ -19,7 +19,8 @@ export type SimProcessType =
   | "tank-farm"
   | "skid"
   | "packaging-line"
-  | "utilities";
+  | "utilities"
+  | "batching";
 
 /** An offline-only, ESCO-owned virtual controller model (never a real PLC). */
 export interface SimControllerModel {
@@ -113,7 +114,8 @@ export type SimDeviceKind =
   | "flow-meter"
   | "level-transmitter"
   | "temperature-sensor"
-  | "safety-input";
+  | "safety-input"
+  | "batch-system";
 
 /** Fault models a device supports having injected (virtual only). */
 export type SimFaultKind =
@@ -249,7 +251,8 @@ export type SimScenarioTemplateKind =
   | "low-flow"
   | "high-tank-level"
   | "estop-input"
-  | "operator-login-ack-reset";
+  | "operator-login-ack-reset"
+  | "batch-fill-drain";
 
 export interface SimTagAssignment {
   tag: string;

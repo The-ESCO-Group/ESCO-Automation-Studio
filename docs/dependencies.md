@@ -27,7 +27,10 @@ assistant) is first-party code under `packages/`.
   explicitly configured AI provider/proxy after workstation setup.
 - **No bundled API keys.** The default AI assistant is local and rule-based; the
   external provider requires an injected model caller and owns no credentials.
-- **No PLC communication, downloads, uploads, or online edits.**
+- **No unsafe physical PLC operations.** The only online foundation is
+  backend-owned, read-only, and guarded; physical downloads, writes, uploads,
+  online edits, forces, mode changes, and proprietary controller binaries remain
+  blocked.
 - **No `.ACD` handling** (no read/write/compile/decompile of controller binaries).
 - **Review-only L5X export** — generated as a new best-effort file with explicit
   warnings; the app never overwrites a user's source file.

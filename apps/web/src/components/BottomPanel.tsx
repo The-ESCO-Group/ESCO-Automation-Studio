@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlcProject } from "@esco/core";
 import {
+  compareDiagnosticSeverity,
   controllerTaskStatusReport,
   createBuildDiagnostics,
   createDiagnosticRows,
@@ -482,12 +483,15 @@ export function BottomPanel({
   const allDiagnosticRows = outputCleared
     ? []
     : createDiagnosticRows(project, findings, { includeIndustrialValidation: true });
-  const diagnosticRows = allDiagnosticRows.filter((row) => {
-    const severityMatches =
-      diagnosticSeverityFilter === "all" || row.finding.severity === diagnosticSeverityFilter;
-    const areaMatches = diagnosticAreaFilter === "all" || row.area === diagnosticAreaFilter;
-    return severityMatches && areaMatches;
-  });
+  const diagnosticRows = allDiagnosticRows
+    .filter((row) => {
+      const severityMatches =
+        diagnosticSeverityFilter === "all" || row.finding.severity === diagnosticSeverityFilter;
+      const areaMatches = diagnosticAreaFilter === "all" || row.area === diagnosticAreaFilter;
+      return severityMatches && areaMatches;
+    })
+    // Read errors-first, then warnings, then info — stable within each severity.
+    .sort((a, b) => compareDiagnosticSeverity(a.finding.severity, b.finding.severity));
   const visibleFindings = diagnosticRows.map((row) => row.finding);
   const summary = summarizeValidationFindings(visibleFindings);
   const unfilteredSummary = summarizeValidationFindings(allDiagnosticRows.map((row) => row.finding));

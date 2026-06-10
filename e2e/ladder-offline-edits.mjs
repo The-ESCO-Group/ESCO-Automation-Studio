@@ -128,8 +128,17 @@ try {
   // 5) Verify Rung runs real offline validation.
   await openRungContext(page, 0);
   check("Verify Rung clicked", await clickItem(page, "Verify Rung"));
-  await page.locator(".esco-toast").first().waitFor({ timeout: 8000 }).catch(() => {});
-  check("Verify Rung produces a real verification result toast", (await page.locator(".esco-toast").count()) >= 1);
+  await page.locator('.esco-dock__tab.is-active:has-text("Build")').waitFor({ timeout: 8000 }).catch(() => {});
+  const verifyToast = page.locator(".esco-toast").filter({ hasText: /Rung\s+\d+:/ }).last();
+  await verifyToast.waitFor({ timeout: 8000 }).catch(() => {});
+  const verifyText = await verifyToast.innerText().catch(() => "");
+  check(
+    "Verify Rung produces rung-scoped verification text",
+    (await page.locator('.esco-dock__tab.is-active:has-text("Build")').count()) === 1 &&
+      /Rung\s+\d+:.*\d+\s+errors?/i.test(verifyText) &&
+      /(verification passed in Offline Simulation|Complete.*\d+\s+warnings?|\d+\s+warnings?)/i.test(verifyText),
+    verifyText,
+  );
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

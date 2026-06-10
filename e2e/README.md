@@ -34,7 +34,7 @@ The runner executes each driver and prints an aggregate summary, e.g.:
 PASS  welcome.mjs      12/12
 PASS  controller.mjs   31/31
 ...
-ALL DRIVERS PASS  —  892/892 checks across 62 drivers
+ALL DRIVERS PASS  —  1208/1208 checks across 90 drivers
 ```
 
 Exit code is `0` only if every driver passes (`2` if the dev server is not
@@ -46,6 +46,19 @@ Set `E2E_URL` to point the suite at a non-default server:
 $env:E2E_URL="http://localhost:5174/"; pnpm e2e
 ```
 
+Goal B's real EtherNet/IP browser smoke (`escoonline-enip.mjs`) also needs the
+ESCO API host and the test-only loopback target:
+
+```
+pnpm --filter @esco/api dev
+node apps/api/dist/fake-target.mjs
+node e2e/escoonline-enip.mjs
+```
+
+`E2E_ENIP_TARGET` can point it at a different `host:port`. This driver proves
+the ESCO UI -> API -> gateway -> EtherNet/IP driver -> TCP loopback path only;
+it is not hardware validation and does not use vendor runtime software.
+
 ## Drivers
 
 The aggregate runner orders known high-signal flows first, then auto-discovers
@@ -53,8 +66,8 @@ any other `.mjs` driver in this directory. Current coverage includes:
 
 | Group | Representative drivers |
 |---|---|
-| Shell and navigation | `desktop-startup.mjs`, `welcome.mjs`, `dialogs.mjs`, `ribbon.mjs`, `shortcuts.mjs`, `workbench.mjs`, `ui-layout.mjs` |
-| Ladder authoring | `driver.mjs`, `instr.mjs`, `newinstr.mjs`, `ladderedit.mjs`, `branchedit.mjs`, `nestedbranch.mjs`, `laddertoolbar.mjs`, `laddercontext.mjs`, `ladder-offline-edits.mjs` |
+| Shell and navigation | `desktop-startup.mjs`, `welcome.mjs`, `dialogs.mjs`, `ribbon.mjs`, `scrollbars.mjs`, `shortcuts.mjs`, `workbench.mjs`, `ui-layout.mjs` |
+| Ladder authoring | `driver.mjs`, `instr.mjs`, `newinstr.mjs`, `ladderedit.mjs`, `branchedit.mjs`, `nestedbranch.mjs`, `laddertoolbar.mjs`, `laddercontext.mjs`, `ladder-offline-edits.mjs`, `ladder-add-delete.mjs` |
 | Editing state | `undoredo.mjs`, `copypaste.mjs`, `dirtystate.mjs`, `recovery.mjs`, `persist.mjs` |
 | Data and diagnostics | `tags.mjs`, `props.mjs`, `inspector.mjs`, `search.mjs`, `xref.mjs`, `arrayvalues.mjs`, `structure.mjs`, `structureedit.mjs`, `verifyoutput.mjs`, `diagnostics.mjs` |
 | Controller and runtime | `controller.mjs`, `virtualcontroller.mjs`, `readonly-monitoring.mjs`, `taskmonitor.mjs`, `taskscanstats.mjs`, `forcetrace.mjs`, `easrt.mjs` |

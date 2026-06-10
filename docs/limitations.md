@@ -1,12 +1,16 @@
 # Current Limitations
 
-ESCO Automation Studio is an **offline engineering and simulation tool**. The
-following are intentional boundaries and known gaps.
+ESCO Automation Studio is an **offline-first engineering, simulation, and
+guarded read-only gateway preview**. The following are intentional boundaries
+and known gaps.
 
 ## Safety boundaries (by design)
 
-- **No real PLC / controller communication.** It cannot connect to, browse, or
-  exchange data with any controller.
+- **No field-cleared physical PLC control.** The ESCO Online gateway foundation
+  has simulator, OPC UA, and EtherNet/IP read-only plumbing plus loopback fake
+  target tests, but no physical-controller path is field-validated. Physical
+  downloads, writes, online edits, forces, mode changes, and proprietary
+  controller-binary operations stay blocked.
 - **Offline Simulation is the default controller mode.** The controller-session
   state machine distinguishes Offline Simulation, Model-only Review,
   Disconnected, Connection Disabled, Controller Link Unavailable, Faulted, and
@@ -40,11 +44,10 @@ following are intentional boundaries and known gaps.
   event-triggered connection dispatch, unicast/multicast enforcement, topology
   browse, electronic-keying enforcement, module profile download, or controller
   major-fault injection is attempted.
-- **No `.ACD` compile / decompile or editing.** `.ACD` is Rockwell's proprietary
-  binary controller-project format and can only be opened or written by licensed
-  Studio 5000 Logix Designer tooling. ESCO never reads, writes, compiles,
-  decompiles, or converts `.ACD` files, and never fakes one on export. Instead it
-  provides a complete, honest **ACD compatibility layer**: selecting an `.ACD`
+- **No `.ACD` compile / decompile or editing.** `.ACD` is a proprietary binary
+  controller-project format. ESCO never reads, writes, compiles, decompiles, or
+  converts `.ACD` files, and never fakes one on export. Instead it provides a
+  complete, honest **blocked-format guard**: selecting an `.ACD`
   (or a compressed ACD archive, a legacy `.L5K`, or a mislabelled binary) for
   import is detected *before any parse* (`@esco/parser-l5x` `parseL5X` guard and
   `@esco/project-actions` `detectUnsupportedProjectFormat`) and surfaced in a
@@ -55,8 +58,9 @@ following are intentional boundaries and known gaps.
   as a renamed file. The tool only reads `.L5X` (XML) and reads/writes its own
   `.plcproj.json`. The in-memory project records honest **provenance** (source
   type, file name, path, timestamp, and any blocked `.ACD` attempt), visible in
-  Project Properties → Source and Help → About → ACD project compatibility. To
-  bring an `.ACD` into ESCO, open it in Studio 5000 and export it to `.L5X` first.
+  Project Properties → Source and Help → About → unsupported project formats. To
+  review controller logic in ESCO, use an offline `.L5X` export; `.ACD` remains
+  outside the product.
 - The AI assistant has **no hardware access** and changes the project **only**
   through `packages/project-actions`, only after explicit user Apply.
 - **Online readiness is scaffolding and safety gates only — not online support.**

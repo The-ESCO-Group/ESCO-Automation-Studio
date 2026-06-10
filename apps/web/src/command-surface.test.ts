@@ -47,9 +47,28 @@ describe("ESCO command surface audit", () => {
     );
   });
 
+  it("tracks the Goal B Online toolbar command set", () => {
+    const onlineToolbar = ESCO_COMMAND_SURFACE_AUDIT
+      .filter((entry) => entry.surface === "Ribbon toolbar" && entry.group === "Online toolbar")
+      .map((entry) => entry.label);
+    expect(onlineToolbar).toEqual([
+      "Set Path",
+      "Go Online",
+      "Go Offline",
+      "Upload Snapshot",
+      "Download",
+      "Compare",
+      "Read Tags",
+      "Watch Tags",
+      "Faults",
+      "Controller Status",
+    ]);
+  });
+
   it("tracks Simulation Lab and editor context commands from the visible IDE", () => {
     const byId = new Map(ESCO_COMMAND_SURFACE_AUDIT.map((entry) => [entry.id, entry]));
     expect(byId.get("ribbon-menu:View:ESCO Simulation Lab")?.kind).toBe("simulation-action");
+    expect(byId.get("ribbon-menu:View:ESCO Online (Gateway)")?.kind).toBe("gateway-online");
     expect(byId.get("ribbon-toolbar:Standard toolbar:Simulation lab")?.kind).toBe("simulation-action");
     expect(byId.get("ribbon-menu:File:Export ESCO Exchange")?.kind).toBe("review-import-export");
     expect(byId.get("ribbon-menu:File:Import ESCO Exchange")?.kind).toBe("review-import-export");
@@ -63,14 +82,55 @@ describe("ESCO command surface audit", () => {
       kind: "guarded-hardware",
       controllerCommandKind: "assemble-edits",
     });
+    expect(byId.get("ribbon-toolbar:Online toolbar:Upload Snapshot")).toMatchObject({
+      kind: "gateway-online",
+      actionPath: "ESCO Online upload snapshot",
+    });
+    expect(byId.get("ribbon-toolbar:Online toolbar:Set Path")).toMatchObject({
+      kind: "gateway-online",
+      actionPath: "ESCO Online gateway path setup",
+    });
+    expect(byId.get("ribbon-toolbar:Online toolbar:Go Online")).toMatchObject({
+      kind: "gateway-online",
+      actionPath: "ESCO Online read-only connect",
+    });
+    expect(byId.get("ribbon-toolbar:Online toolbar:Go Offline")).toMatchObject({
+      kind: "gateway-online",
+      actionPath: "ESCO Online disconnect",
+    });
+    expect(byId.get("ribbon-toolbar:Online toolbar:Download")).toMatchObject({
+      kind: "guarded-hardware",
+      controllerCommandKind: "download",
+    });
+    expect(byId.get("ribbon-toolbar:Online toolbar:Compare")).toMatchObject({
+      kind: "gateway-online",
+      actionPath: "ESCO Online match check",
+    });
+    expect(byId.get("ribbon-toolbar:Online toolbar:Read Tags")).toMatchObject({
+      kind: "gateway-online",
+      actionPath: "ESCO Online Tag Monitor",
+    });
+    expect(byId.get("ribbon-toolbar:Online toolbar:Watch Tags")).toMatchObject({
+      kind: "gateway-online",
+      actionPath: "ESCO Online watch list",
+    });
+    expect(byId.get("ribbon-toolbar:Online toolbar:Faults")).toMatchObject({
+      kind: "gateway-online",
+      actionPath: "ESCO Online fault/status view",
+    });
+    expect(byId.get("ribbon-toolbar:Online toolbar:Controller Status")).toMatchObject({
+      kind: "gateway-online",
+      actionPath: "ESCO Online controller status",
+    });
   });
 
-  it("reports a useful mix of offline, review, simulation, guarded, and informational commands", () => {
+  it("reports a useful mix of offline, review, simulation, gateway, guarded, and informational commands", () => {
     const counts = escoCommandSurfaceCounts();
     expect(counts["offline-action"]).toBeGreaterThan(45);
     expect(counts["offline-navigation"]).toBeGreaterThan(30);
     expect(counts["review-import-export"]).toBeGreaterThan(25);
     expect(counts["simulation-action"]).toBeGreaterThan(10);
+    expect(counts["gateway-online"]).toBe(10);
     expect(counts["guarded-hardware"]).toBeGreaterThan(30);
     expect(counts.informational).toBeGreaterThan(0);
   });

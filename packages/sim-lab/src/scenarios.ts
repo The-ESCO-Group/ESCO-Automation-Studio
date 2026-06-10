@@ -47,6 +47,7 @@ export const SCENARIO_TEMPLATES: readonly SimScenarioTemplateInfo[] = [
   { kind: "high-tank-level", label: "High Tank Level", description: "Drive a level transmitter over range and confirm the high alarm.", requires: ["level-transmitter"] },
   { kind: "estop-input", label: "E-Stop Input", description: "Trip a safety input and confirm the stop and alarm.", requires: ["safety-input"] },
   { kind: "operator-login-ack-reset", label: "Operator Login / Ack / Reset", description: "Acknowledge and reset an alarm through operator actions.", requires: ["motor"] },
+  { kind: "batch-fill-drain", label: "Batch Fill / Hold / Drain", description: "Run a batch system through fill, hold, and drain and confirm the batch count.", requires: ["batch-system"] },
 ] as const;
 
 export function scenarioTemplateInfo(kind: SimScenarioTemplateKind): SimScenarioTemplateInfo {
@@ -89,6 +90,7 @@ function buildParts(project: SimProject, kind: SimScenarioTemplateKind): Scenari
   const flow = find(project, "flow-meter");
   const level = find(project, "level-transmitter");
   const temp = find(project, "temperature-sensor");
+  const batch = find(project, "batch-system");
 
   switch (kind) {
     case "start-motor": {
@@ -192,6 +194,29 @@ function buildParts(project: SimProject, kind: SimScenarioTemplateKind): Scenari
         expectedTags,
         expectedAlarms: [{ alarm: alarmName(safety, "Tripped"), expectActive: true, description: "Safety alarm active." }],
         expectedEvents: [{ contains: "estop", description: "E-Stop is logged." }],
+      };
+    }
+    case "batch-fill-drain": {
+      if (!batch) throw new Error("Batch Fill / Drain requires a batch system.");
+      return {
+        name: "Batch Fill / Hold / Drain",
+        description: "The batch system fills to its target level, holds, then drains; one batch is counted.",
+        durationMs: 2000,
+        actions: [
+          { atMs: 0, kind: "operator-login", note: "Operator login" },
+          { atMs: 100, kind: "set-tag", tag: `${batch.tag}_${TAG.startCmd}`, value: true, note: "Start fill" },
+          { atMs: 1000, kind: "set-tag", tag: `${batch.tag}_${TAG.startCmd}`, value: false, note: "Stop fill (hold)" },
+          { atMs: 1000, kind: "set-tag", tag: `${batch.tag}_${TAG.drainCmd}`, value: true, note: "Start drain" },
+        ],
+        expectedTags: [
+          { tag: `${batch.tag}_${TAG.pv}`, comparison: ">", value: 99, atMs: 700, description: "Vessel is full at the hold point." },
+          { tag: `${batch.tag}_${TAG.done}`, comparison: "==", value: true, atMs: 700, description: "Batch reports done when full." },
+          { tag: `${batch.tag}_${TAG.batchCount}`, comparison: "==", value: 1, description: "Exactly one batch completed." },
+          { tag: `${batch.tag}_${TAG.pv}`, comparison: "<", value: 1, tolerance: 0, description: "Vessel is empty after draining." },
+          { tag: `${batch.tag}_${TAG.run}`, comparison: "==", value: false, description: "Batch is no longer filling at the end." },
+        ],
+        expectedAlarms: [{ alarm: alarmName(batch, "Overfill"), expectActive: true, atMs: 700, description: "Overfill alarm active when full." }],
+        expectedEvents: [{ contains: "logged in", description: "Operator login is logged." }],
       };
     }
     case "operator-login-ack-reset": {

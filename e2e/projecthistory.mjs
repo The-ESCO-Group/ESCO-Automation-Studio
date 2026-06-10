@@ -89,6 +89,7 @@ const installFakeDesktopVcs = async (page) => {
 };
 
 const vcsCalls = async (page) => page.evaluate(() => window.__vcsCalls ?? []);
+const waitForStudioShell = (page) => page.locator(".esco-titlebar").waitFor({ timeout: 30000 });
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 let pageError = "";
@@ -102,7 +103,7 @@ try {
   });
 
   await page.goto(URL, { waitUntil: "domcontentloaded" });
-  await page.locator(".esco-titlebar").waitFor();
+  await waitForStudioShell(page);
   await createBlankProject(page);
   await dismissToasts(page);
 
@@ -142,7 +143,7 @@ try {
   });
 
   await desktopPage.goto(URL, { waitUntil: "domcontentloaded" });
-  await desktopPage.locator(".esco-titlebar").waitFor();
+  await waitForStudioShell(desktopPage);
   await createBlankProject(desktopPage);
   await installFakeDesktopVcs(desktopPage);
 

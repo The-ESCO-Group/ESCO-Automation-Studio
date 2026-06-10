@@ -44,7 +44,7 @@ export const ESCO_CAPABILITY_STATUS_SUMMARY: Record<EscoCapabilityStatus, string
 };
 
 const NO_VERIFIED_TRANSPORT =
-  "No tested real-controller transport ships in this build, so this command is visible for workflow parity only.";
+  "No field-validated physical PLC command/download transport ships in this build, so this command is visible for workflow parity only.";
 
 export const ESCO_CAPABILITY_AREAS: readonly EscoCapabilityArea[] = [
   {
@@ -120,6 +120,16 @@ export const ESCO_CAPABILITY_AREAS: readonly EscoCapabilityArea[] = [
     next: "Keep labels virtual/offline and separate this workflow from any future verified hardware transport.",
   },
   {
+    id: "vendor-neutral-plc-targets",
+    area: "Vendor-neutral PLC target adapters",
+    status: "planned",
+    label: "Future target packs",
+    summary:
+      "ESCO's long-term download path is per-family target adapters: Allen-Bradley first, then other PLC/runtime families behind the same compile, compare, backup, permission, audit, read-back, and validation gates.",
+    visibleIn: "Capability map, future Download/Target panels",
+    next: "Implement the ESCO target-adapter contract and keep every physical PLC download disabled until that specific adapter is lab/field validated.",
+  },
+  {
     id: "hmi-preview",
     area: "HMI preview",
     status: "model-only",
@@ -170,12 +180,12 @@ export const ESCO_CAPABILITY_AREAS: readonly EscoCapabilityArea[] = [
   },
   {
     id: "real-transfer",
-    area: "Hardware upload/download",
+    area: "Physical PLC upload/download",
     status: "unsupported",
     label: "Unsupported hardware",
     summary: NO_VERIFIED_TRANSPORT,
     visibleIn: "Ribbon, Communications menu, Controller dock, organizer context menu",
-    next: "Use virtual Upload/Download only for offline review. Real controller transfer requires a verified transport and commissioning preflight.",
+    next: "Use virtual Upload/Download only for offline review. Real PLC transfer requires a vendor-neutral target adapter plus verified transport and commissioning preflight.",
     commandKinds: ["upload", "download"],
   },
   {
@@ -210,10 +220,10 @@ export const ESCO_CAPABILITY_AREAS: readonly EscoCapabilityArea[] = [
   },
   {
     id: "network-browse",
-    area: "Network browse / Who Active",
+    area: "Controller route browsing",
     status: "unsupported",
     label: "Unsupported hardware",
-    summary: "Who Active, Select Recent Path, and path diagnostics do not browse physical networks in this build.",
+    summary: "Controller Route Browser, Saved Controller Path, and path diagnostics do not browse physical networks in this build.",
     visibleIn: "Ribbon path controls, Communications menu, Status bar, organizer context menu",
     next: "Select virtual paths in the ESCO Virtual Controller or add a verified network browse transport in a future release.",
     commandKinds: ["network-browser", "select-recent-path", "path-diagnostics"],
@@ -229,12 +239,13 @@ export const ESCO_CAPABILITY_AREAS: readonly EscoCapabilityArea[] = [
   },
   {
     id: "verified-controller-transport",
-    area: "Verified controller transport",
+    area: "Verified physical PLC transport",
     status: "planned",
     label: "Future safety gate",
-    summary: "A real controller driver, identity verification, commissioning workflow, and destructive-action preflight are future work.",
+    summary:
+      "A real PLC driver/target adapter, identity verification, commissioning workflow, and destructive-action preflight are future work per PLC family.",
     visibleIn: "Controller dock preflight explanations",
-    next: "Do not enable hardware commands until a transport is tested against real hardware and marked verified.",
+    next: "Do not enable hardware commands until the selected PLC-family adapter is tested against real hardware and marked verified.",
   },
   {
     id: "desktop-release",

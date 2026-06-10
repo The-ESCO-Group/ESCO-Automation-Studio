@@ -1,19 +1,25 @@
-# Studio 5000 View Designer Parity And AI Integration Spec
+# ESCO HMI Authoring Gap Notes (Historical Intake)
 
 Source: `C:\Users\nmodha\Downloads\Designer.pdf`
 
-PDF identified as: **Studio 5000 View Designer User Manual**, 846 pages, Rockwell Automation publication 9324-UM001G-EN-D, June 2023.
+PDF identified as a vendor HMI design manual. This note is historical intake only.
 
 ## Important Boundary
 
-This PDF is for **Studio 5000 View Designer**, the HMI and PanelView 5000 design/runtime side of the Studio 5000 ecosystem. It is not the full Studio 5000 Logix Designer controller programming manual.
+This file must not be used to copy vendor UI, text, workflows, binaries, or runtime
+behavior. Convert any retained ideas into ESCO-authored requirements before
+implementation.
 
-For ESCO Automation Studio, this PDF defines the missing **HMI workstation, screen designer, runtime, alarm, trend, data log, security, device, and project workflow** parity layer. It does not fully define controller-side ladder, ST, FBD, SFC, online edits, motion, safety, or Logix instruction execution semantics.
+For ESCO Automation Studio, this file only marks broad HMI coverage areas such as
+workstation shell, screen authoring, runtime preview, alarms, trends, data logs,
+security, devices, and project workflow. It does not define controller-side ladder,
+ST, FBD, SFC, online edits, motion, safety, or instruction execution semantics.
 
-To reach true full Studio 5000 parity, ESCO needs:
+To reach ESCO-native coverage, ESCO needs:
 
-- Logix Designer controller programming parity from Logix Designer sources.
-- View Designer HMI parity from this PDF.
+- ESCO-authored controller programming requirements from public, licensed, and
+  internally-created sources only.
+- ESCO-authored HMI requirements that avoid vendor UI/text copying.
 - A safe AI layer that can understand both controller logic and HMI design, but only mutates projects through reviewed project actions.
 
 ## Source Page Map
@@ -128,12 +134,13 @@ AI integration:
 
 ### 4. Controller References And Synchronization
 
-View Designer integrates with Logix projects through controller references and synchronized data:
+ESCO HMI projects need controller references and synchronized data:
 
 - Add/copy/remove controller references.
 - Browse controller reference.
 - Remove controller from network tree.
-- Synchronize tags, data types, program tags, and alarms between Logix Designer and View Designer.
+- Synchronize tags, data types, program tags, and alarms between ESCO controller
+  projects and ESCO HMI screens.
 - Show controller reference state icons: synchronizing, not synchronized, error, synchronized.
 - Support tag browsing, including secured project file behavior.
 - Runtime application also checks controller/project consistency.
@@ -1113,4 +1120,3 @@ ESCO can be considered View Designer parity-ready when:
 - Hardware upload/download/online features are either real and safe, or visibly disabled/model-only.
 - AI can explain and propose changes across both ladder and HMI domains without direct mutation.
 - Tests cover creation, editing, import/export, verification, runtime preview, AI plan/apply, and unsupported-content preservation.
-

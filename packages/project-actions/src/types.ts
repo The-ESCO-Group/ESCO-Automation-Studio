@@ -6,7 +6,7 @@ import type {
   TagEngineeringUnit,
   TaskType,
 } from "@esco/core";
-import type { LadderBranch } from "@esco/ladder";
+import type { LadderBranch, LadderNode } from "@esco/ladder";
 import type { ValidationFinding } from "@esco/validator";
 
 /**
@@ -346,6 +346,28 @@ export interface InsertInstructionInput {
   /** The existing instruction the new one is placed relative to. */
   nodeId: string;
   instructionType: string;
+  position: "before" | "after";
+}
+
+/** Paste a copied instruction onto a rung (a fresh-id clone is inserted). */
+export interface PasteInstructionInput {
+  routineId: string;
+  rungId: string;
+  /** Anchor instruction to paste relative to; omit to append to the rung. */
+  nodeId?: string;
+  position?: "before" | "after";
+  /** The instruction to paste; its operands are copied and a fresh id is assigned. */
+  node: LadderNode;
+}
+
+/** Reorder an instruction relative to another instruction on the same rung. */
+export interface MoveInstructionInput {
+  routineId: string;
+  rungId: string;
+  /** The instruction being moved. */
+  nodeId: string;
+  /** The instruction it should land next to (must differ from `nodeId`). */
+  targetNodeId: string;
   position: "before" | "after";
 }
 

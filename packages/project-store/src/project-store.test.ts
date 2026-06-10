@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendProjectChange,
   createController,
   createProgram,
   createProject,
@@ -224,6 +225,31 @@ describe("project-store format and migrations", () => {
   it("rejects a malformed (migrated) project clearly", () => {
     const legacy = JSON.stringify({ formatVersion: 1, project: { id: "x" } });
     expect(() => deserializeProjectFile(legacy)).toThrow(/malformed/i);
+  });
+
+  it("uses format version 5", () => {
+    expect(PLCPROJ_FORMAT_VERSION).toBe(5);
+  });
+
+  it("round-trips a project change history (audit log) through save/load", () => {
+    let project = demoProject();
+    project = appendProjectChange(project, {
+      id: "ch1",
+      at: "2026-06-08T09:00:00.000Z",
+      type: "created",
+      summary: "Created project",
+    });
+    project = appendProjectChange(project, {
+      id: "ch2",
+      at: "2026-06-08T09:05:00.000Z",
+      type: "validated",
+      summary: "Validated: 0 error(s).",
+      details: { errors: 0, warnings: 1 },
+    });
+
+    const restored = deserializeProject(serializeProject(project));
+    // The change history is preserved verbatim across save/load.
+    expect(restored.changeLog).toEqual(project.changeLog);
   });
 
   it("round-trips project provenance (origin + blocked binary import audit) through save/load", () => {

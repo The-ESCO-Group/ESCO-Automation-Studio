@@ -110,7 +110,7 @@ try {
   await page.locator('.esco-toast:has-text("Imported ESCO Snapshot")').waitFor({ timeout: 8000 });
   const titleAfter = await page.locator(".esco-titlebar__name").innerText();
   check("Snapshot import restores the active project", titleAfter === titleBefore, titleAfter);
-  check("Snapshot import keeps the app offline", /Offline Simulation/i.test(await page.locator(".esco-statusbar__connection").innerText()));
+  check("Snapshot import keeps the app offline", /Offline(?: Simulation)?/i.test(await page.locator(".esco-statusbar__connection").innerText()));
 
   const passed = results.filter(Boolean).length;
   console.log(`\nSUMMARY: ${passed}/${results.length} checks passed`);

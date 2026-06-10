@@ -100,7 +100,8 @@ provider (the UI uses this — see `DEFAULT_PROVIDER_MODE`).
   reviewed before applying** (the UI states this).
 - The assistant **cannot** mutate React state, project JSON, or files directly —
   only via the controlled action layer, only on explicit Apply.
-- **No PLC communication.** No download, no online edit, no controller comms.
+- **No AI-driven PLC communication.** The assistant cannot download, online
+  edit, force, mode-change, or directly operate controller comms.
 - **No `.ACD` editing.** The tool only reads/writes its own `.plcproj.json` and
   imports `.L5X` text.
 

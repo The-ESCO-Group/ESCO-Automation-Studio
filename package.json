@@ -2,7 +2,7 @@
   "name": "esco-automation-studio",
   "version": "0.0.1",
   "private": true,
-  "description": "ESCO Automation Studio - a Studio 5000-style PLC/automation IDE",
+  "description": "ESCO Automation Studio - an ESCO-native PLC/automation IDE",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {

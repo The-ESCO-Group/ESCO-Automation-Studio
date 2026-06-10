@@ -20,6 +20,7 @@ import {
   isParallelLeg,
   isValidOperandIndex,
   mapRoutineNodes,
+  moveNode as ladderMoveNode,
   removeBranchLeg as ladderRemoveBranchLeg,
   removeInstruction as ladderRemoveInstruction,
   removeRung as ladderRemoveRung,
@@ -44,6 +45,8 @@ import type {
   DuplicateRungInput,
   InsertInstructionInput,
   InsertRungInput,
+  MoveInstructionInput,
+  PasteInstructionInput,
   PasteRungInput,
   ProjectActionResult,
   RemoveBranchLegInput,
@@ -609,6 +612,67 @@ export function insertInstruction(
     input.position,
   );
   return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { nodeId: node.id }, warnings);
+}
+
+/**
+ * Reorder an instruction on a rung by moving it before/after another
+ * instruction on the same rung (drag-reorder and keyboard "move" use this). The
+ * moved instruction keeps its id and operands, so cross-references and undo/redo
+ * stay stable. Moving in or out of a parallel leg is allowed — the instruction
+ * lands wherever the target instruction lives. Rejected (no project change) when
+ * source and target are the same, either id is missing/duplicated in the rung,
+ * or the move would corrupt the rung structure.
+ */
+export function moveInstruction(
+  project: PlcProject,
+  input: MoveInstructionInput,
+): ProjectActionResult<{ nodeId: string }> {
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const positionError = instructionPositionError(input.position);
+  if (positionError) return fail(project, positionError);
+  if (input.nodeId === input.targetNodeId) {
+    return fail(project, "An instruction cannot be moved relative to itself.");
+  }
+  const rung = target.rung;
+  const movedError = uniqueInstructionIdError(rung, input.nodeId);
+  if (movedError) return fail(project, movedError);
+  const anchorError = uniqueInstructionIdError(rung, input.targetNodeId);
+  if (anchorError) return fail(project, anchorError);
+  const nextLadder = ladderMoveNode(target.ladder, input.rungId, input.nodeId, input.targetNodeId, input.position);
+  return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { nodeId: input.nodeId });
+}
+
+/**
+ * Paste a copied instruction onto a rung. The clipboard node's operands are
+ * copied and a brand-new id is assigned, so pasting never collides with the
+ * source instruction's id. With `nodeId`/`position` it lands before/after that
+ * anchor instruction (within the anchor's branch leg); otherwise it is appended
+ * to the rung's terminal series. Mirrors {@link insertInstruction}, but carries
+ * the copied operands instead of starting from registry defaults.
+ */
+export function pasteInstruction(
+  project: PlcProject,
+  input: PasteInstructionInput,
+): ProjectActionResult<{ nodeId: string }> {
+  const target = uniqueRungTarget(project, input.routineId, input.rungId);
+  if (isTargetError(target)) return fail(project, target.error);
+  const sourceType = typeof input.node?.instructionType === "string" ? input.node.instructionType.trim() : "";
+  if (!sourceType) return fail(project, "Nothing to paste.");
+  const operands = Array.isArray(input.node.operands) ? input.node.operands.map((operand) => ({ ...operand })) : [];
+  const clone = createNode(sourceType, operands);
+
+  let nextLadder: LadderRoutine;
+  if (input.nodeId !== undefined) {
+    const positionError = instructionPositionError(input.position);
+    if (positionError) return fail(project, positionError);
+    const anchorError = uniqueInstructionIdError(target.rung, input.nodeId);
+    if (anchorError) return fail(project, anchorError);
+    nextLadder = ladderInsertNodeRelativeToNode(target.ladder, input.rungId, input.nodeId, clone, input.position!);
+  } else {
+    nextLadder = appendNode(target.ladder, input.rungId, clone);
+  }
+  return commitLadderEdit(project, input.routineId, target.ladder, nextLadder, { nodeId: clone.id });
 }
 
 /** Remove a single instruction from a rung. */

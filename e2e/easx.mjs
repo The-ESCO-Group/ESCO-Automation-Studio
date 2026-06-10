@@ -119,7 +119,7 @@ try {
   await page.locator('.esco-toast:has-text("Imported ESCO Exchange")').waitFor({ timeout: 8000 });
   const titleAfter = await page.locator(".esco-titlebar__name").innerText();
   check("Exchange import restores the active project", titleAfter === titleBefore, titleAfter);
-  check("Exchange import keeps the app offline", /Offline Simulation/i.test(await page.locator(".esco-statusbar__connection").innerText()));
+  check("Exchange import keeps the app offline", /Offline(?: Simulation)?/i.test(await page.locator(".esco-statusbar__connection").innerText()));
   await dismissToasts(page);
 
   const tampered = {

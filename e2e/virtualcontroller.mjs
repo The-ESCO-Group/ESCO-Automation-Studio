@@ -1,5 +1,5 @@
 // E2E: ESCO Virtual Controller offline/virtual session. Drives the full IDE-style
-// workflow — Set Path / Who Active -> Go Online (no project => no-project state) ->
+// workflow — Set Path / Route Browser -> Go Online (no project => no-project state) ->
 // Download (commission) -> Go Online (matched) -> mode change (Run) -> Upload —
 // through the ESCO Virtual Controller panel. ESCO branding only; never real hardware.
 import { chromium } from "playwright-core";
@@ -38,11 +38,11 @@ try {
   check("panel declares it is not real hardware", /(?:no|not) real hardware/i.test(await vctrl().innerText()));
   check("panel exposes the ESCO SoftController software-runtime path", /SoftController upload\/download uses the scan-capable local software runtime/i.test(await vctrl().innerText()));
 
-  // 1) Set Path / Who Active -> realistic ESCO virtual paths.
+  // 1) Set Path / Route Browser -> realistic ESCO virtual paths.
   await vctrl().locator("button", { hasText: "Select Virtual Path" }).first().click();
   await page.locator(".esco-vctrl__paths").waitFor({ timeout: 5000 });
   const pathText = await page.locator(".esco-vctrl__paths").innerText();
-  check("Who Active lists realistic ESCO virtual paths", /EtherNet\/IP/i.test(pathText) && /local emulation/i.test(pathText) && /USB/i.test(pathText), pathText);
+  check("Route Browser lists realistic ESCO virtual paths", /EtherNet\/IP/i.test(pathText) && /local emulation/i.test(pathText) && /USB/i.test(pathText), pathText);
   await page.locator(".esco-vctrl__pathpick", { hasText: "EtherNet/IP" }).first().click();
   await toast("Path selected").waitFor({ timeout: 5000 });
   check("selecting a path reports the ESCO controller identity", /ESCO_Controller/.test(await vctrl().innerText()));

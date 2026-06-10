@@ -29,3 +29,7 @@ e2e/*.csv
 # Internal AI agent orchestration scratch (prompts, skill defs, lock) — not part of the shipped app
 /.agents/
 /skills-lock.json
+
+# Generated AI-pipeline audit bundle + its archive — not part of the shipped app
+/ai_pipeline_audit/
+/esco_ai_pipeline_audit.zip

@@ -191,7 +191,7 @@
   display: block;
   width: 52px;
   height: 42px;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 .esco-io-config__eyebrow,
@@ -335,7 +335,7 @@
   display: block;
   width: 46px;
   height: 38px;
-  object-fit: contain;
+  object-fit: cover;
   justify-self: center;
 }
 
@@ -414,7 +414,7 @@
   display: block;
   width: 78px;
   height: 58px;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 .esco-io-profile-review__visual div {

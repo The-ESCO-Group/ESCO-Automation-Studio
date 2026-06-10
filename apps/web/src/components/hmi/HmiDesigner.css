@@ -899,6 +899,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
   gap: 12px;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -906,7 +907,11 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   padding: 8px;
 }
 
@@ -963,7 +968,11 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .esco-hmi-live-preview__panel {
@@ -974,7 +983,7 @@
 
 .esco-hmi-live-preview__panel h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; color: #6b7280; }
 
-.esco-hmi-live-preview__tags { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow: auto; }
+.esco-hmi-live-preview__tags { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .esco-hmi-live-preview__tag { display: flex; align-items: center; gap: 6px; justify-content: space-between; font-size: 12px; }
 .esco-hmi-live-preview__tag.is-bad .esco-hmi-live-preview__tag-name { color: #b42318; }
 .esco-hmi-live-preview__tag.is-uncertain .esco-hmi-live-preview__tag-name { color: #b54708; }
@@ -2174,6 +2183,8 @@
   gap: 4px;
   max-height: 210px;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   margin: 0;
   padding: 0;
   list-style: none;

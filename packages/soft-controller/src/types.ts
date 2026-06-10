@@ -2,9 +2,10 @@
  * ESCO SoftController — type model.
  *
  * The SoftController is an ESCO-native, **in-process software controller**. It is
- * the first real "Go Online" target for the studio: it loads a compiled ESCO
- * `.easruntime` artifact, scans it deterministically, and exposes identity,
- * status, tag memory, faults, and an exportable controller image.
+ * the first stateful software-only "Go Online"-style target for the studio: it
+ * loads a compiled ESCO `.easruntime` artifact, scans it deterministically, and
+ * exposes identity, status, tag memory, faults, and an exportable controller
+ * image.
  *
  * It is software, not hardware. Nothing in this package claims to be, or to talk
  * to, a physical PLC. Every identity is branded "ESCO SoftController" with
@@ -181,10 +182,10 @@ export interface ScanResult extends SoftControllerResult {
 }
 
 /**
- * A serializable image of the controller, for the (future) upload system. It
- * carries identity, mode, the loaded runtime summary, the original runtime text
- * (so the project can be reconstructed), the full tag image, faults, and an
- * integrity checksum over everything else.
+ * A serializable image of the software controller for upload/reconstruction
+ * flows. It carries identity, mode, the loaded runtime summary, the original
+ * runtime text (so the project can be reconstructed), the full tag image,
+ * faults, and an integrity checksum over everything else.
  */
 export interface SoftControllerImage {
   formatName: string;

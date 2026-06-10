@@ -103,9 +103,12 @@ import {
   importProjectFile,
   insertInstruction,
   insertRung,
+  moveInstruction,
+  pasteInstruction,
   pasteRung,
   verifyRung,
   crossReferenceRung,
+  generateDeviceTags,
   previewTagCsvImport,
   applyTagCsvImport,
   removeAoiLocalTag,
@@ -185,7 +188,7 @@ import {
   type HmiGraphicElement,
   type HmiSurfaceKind,
 } from "@esco/hmi-model";
-import { rungNodes, type LadderBranch } from "@esco/ladder";
+import { rungNodes, type LadderBranch, type LadderNode } from "@esco/ladder";
 import { createDefaultRegistry, inferOperandTagType } from "@esco/instructions";
 import type { ImportSummary } from "@esco/parser-l5x";
 import { applyPlan, type ApplyResult, type AssistantPlan } from "@esco/ai-assistant";
@@ -203,6 +206,8 @@ import { WelcomeDashboard } from "./components/WelcomeDashboard";
 import { TagsView } from "./components/TagsView";
 import { CompareView } from "./components/CompareView";
 import { SimulationLab } from "./components/simlab/SimulationLab";
+import { EscoOnlinePanel } from "./components/online/EscoOnlinePanel";
+import { getDefaultEscoOnlineSession } from "./esco-online-session";
 import { FloatingAssistant } from "./components/FloatingAssistant";
 import { LiveBridge } from "./components/LiveBridge";
 import { ProjectHistoryView } from "./components/ProjectHistoryView";
@@ -234,6 +239,8 @@ import { NewIoModuleDialog } from "./components/NewIoModuleDialog";
 import { NewProgramDialog, type NewProgramInput } from "./components/NewProgramDialog";
 import { AddExistingProgramDialog, type AddExistingProgramInput } from "./components/AddExistingProgramDialog";
 import { NewTagDialog, type NewTagInput } from "./components/NewTagDialog";
+import { DeviceTagsDialog, type DeviceTagsInput } from "./components/DeviceTagsDialog";
+import { DeviceConnectionsDialog } from "./components/DeviceConnectionsDialog";
 import { InstructionPicker } from "./components/InstructionPicker";
 import { HmiDesigner, type BindingDraft, type ElementPatch, type EventCommandDraft } from "./components/hmi/HmiDesigner";
 import type { Selection } from "./selection";
@@ -297,7 +304,7 @@ function isOfflineEditLifecycleAction(action: ControllerCommunicationAction): ac
 }
 // Shared instruction registry for editor-side metadata (operand type inference).
 const instructionRegistry = createDefaultRegistry();
-type CenterView = "welcome" | "routine" | "tags" | "compare" | "history" | "structure" | "hmi" | "simulation";
+type CenterView = "welcome" | "routine" | "tags" | "compare" | "history" | "structure" | "hmi" | "simulation" | "esco-online";
 
 function createClientId(prefix: string): string {
   const random =
@@ -371,6 +378,20 @@ function routineWindowIdsForProject(project: PlcProject): string[] {
   );
 }
 
+/**
+ * The ordered series segment (a branch's `nodes`) that contains `nodeId`, found
+ * anywhere in the rung's branch tree — including parallel legs and continuations.
+ * Used to find an instruction's left/right neighbour for keyboard reorder/nav.
+ */
+function seriesSiblingsOf(branch: LadderBranch, nodeId: string): LadderNode[] | undefined {
+  if (branch.nodes.some((node) => node.id === nodeId)) return branch.nodes;
+  for (const leg of branch.parallelBranches ?? []) {
+    const found = seriesSiblingsOf(leg, nodeId);
+    if (found) return found;
+  }
+  return branch.next ? seriesSiblingsOf(branch.next, nodeId) : undefined;
+}
+
 export function App() {
   const [initialProject] = useState(createInitialProject);
   const history = useHistoryState(initialProject);
@@ -396,6 +417,7 @@ export function App() {
   const taskSchedulerStateRef = useRef<OfflineTaskSchedulerState>(createOfflineTaskSchedulerState());
   const [projectOpen, setProjectOpen] = useState(false);
   const [view, setView] = useState<CenterView>("welcome");
+  const [escoOnlinePathFocusRequest, setEscoOnlinePathFocusRequest] = useState(0);
   const [openRoutineId, setOpenRoutineId] = useState<string | undefined>(undefined);
   const [openRoutineWindowIds, setOpenRoutineWindowIds] = useState<string[]>([]);
   // Restore how the workbench was last parked (active dock/inspector tabs, panel state).
@@ -459,6 +481,8 @@ export function App() {
     | null
   >(null);
   const [newTagDialogOpen, setNewTagDialogOpen] = useState(false);
+  const [deviceTagsDialogOpen, setDeviceTagsDialogOpen] = useState(false);
+  const [deviceConnectionsDialogOpen, setDeviceConnectionsDialogOpen] = useState(false);
   const [newTagDefaults, setNewTagDefaults] = useState<{
     scope: "controller" | "program";
     programId?: string;
@@ -561,6 +585,7 @@ export function App() {
   const [lastImport, setLastImport] = useState<{ name: string; summary: ImportSummary } | null>(null);
   const [comparison, setComparison] = useState<{ name: string; project: PlcProject } | null>(null);
   const [clipboardRung, setClipboardRung] = useState<{ root: LadderBranch; comment?: string } | null>(null);
+  const [clipboardInstruction, setClipboardInstruction] = useState<LadderNode | null>(null);
   const [offlineEditLifecycle, setOfflineEditLifecycle] = useState<Record<string, OfflineEditLifecycleState>>({});
   const { toasts, push, dismiss } = useToasts();
   const controllerSession = useControllerSession();
@@ -1114,8 +1139,75 @@ export function App() {
       push("error", result.error ?? "Could not delete instruction.");
     }
   };
+  const handleMoveInstruction = (
+    rungId: string,
+    nodeId: string,
+    targetNodeId: string,
+    position: "before" | "after",
+  ) => {
+    if (blockControllerLockedEdit("Move instruction")) return;
+    const rid = targetRoutineId(project);
+    if (!rid) return;
+    const result = moveInstruction(project, { routineId: rid, rungId, nodeId, targetNodeId, position });
+    if (result.ok) {
+      commitLadderStructureEdit(result.project);
+      setSelection({ kind: "instruction", routineId: rid, rungId, nodeId });
+    } else {
+      push("error", result.error ?? "Could not move instruction.");
+    }
+  };
+  const handleCopyInstruction = (rungId: string, nodeId: string) => {
+    const rung = openLadder?.rungs.find((r) => r.id === rungId);
+    const node = rung && rungNodes(rung).find((candidate) => candidate.id === nodeId);
+    if (node) {
+      setClipboardInstruction(node);
+      push("info", `Copied instruction ${node.instructionType}.`);
+    }
+  };
+  const handleCutInstruction = (rungId: string, nodeId: string) => {
+    if (blockControllerLockedEdit("Cut instruction")) return;
+    handleCopyInstruction(rungId, nodeId);
+    handleRemoveInstruction(rungId, nodeId);
+  };
+  const handlePasteInstruction = (rungId: string, anchorNodeId?: string) => {
+    if (blockControllerLockedEdit("Paste instruction")) return;
+    if (!clipboardInstruction) return;
+    const rid = targetRoutineId(project);
+    if (!rid) return;
+    const result = pasteInstruction(project, {
+      routineId: rid,
+      rungId,
+      ...(anchorNodeId ? { nodeId: anchorNodeId, position: "after" as const } : {}),
+      node: clipboardInstruction,
+    });
+    if (result.ok) {
+      commitLadderStructureEdit(result.project);
+      if (result.data?.nodeId) setSelection({ kind: "instruction", routineId: rid, rungId, nodeId: result.data.nodeId });
+    } else {
+      push("error", result.error ?? "Could not paste instruction.");
+    }
+  };
   const handleCreateTag = (name: string, dataType: string) =>
     applyAction((p) => createTag(p, { name, dataType }), "Create tag");
+  const handleGenerateDeviceTags = (input: DeviceTagsInput) => {
+    if (blockControllerLockedEdit("Generate device tags")) return;
+    const result = generateDeviceTags(project, {
+      profile: { kind: input.kind, prefix: input.prefix },
+      scope: input.scope,
+      programId: input.programId,
+    });
+    if (!result.ok) {
+      push("error", result.error ?? "Could not generate device tags.");
+      return;
+    }
+    setProject(result.project);
+    setDeviceTagsDialogOpen(false);
+    const created = result.data?.created.length ?? 0;
+    const skipped = result.data?.skipped.length ?? 0;
+    const summary = `Generated ${created} tag${created === 1 ? "" : "s"} for ${input.prefix}${skipped ? `, skipped ${skipped} existing` : ""}.`;
+    push(skipped ? "warning" : "success", summary);
+    logActivity("info", summary);
+  };
   /**
    * "Insert Instruction Before/After": select the anchor rung, remember the
    * insertion target, and open the Add Ladder Element picker. When the picker
@@ -4176,6 +4268,8 @@ export function App() {
   const hasDeleteLadderSelectionRef = useRef(false);
   const canCopyRungRef = useRef(false);
   const canPasteRungRef = useRef(false);
+  const moveInstructionStepRef = useRef<(direction: "earlier" | "later") => void>(() => {});
+  const canMoveInstructionRef = useRef(false);
   const rungClipboardActive = view === "routine" && !!openLadder;
   undoRef.current = handleUndo;
   redoRef.current = handleRedo;
@@ -4196,16 +4290,49 @@ export function App() {
     const next = (start + direction + ids.length) % ids.length;
     handleOpenRoutine(ids[next]);
   };
-  canCopyRungRef.current = rungClipboardActive && !!selectedRungId;
-  canPasteRungRef.current = rungClipboardActive && clipboardRung !== null && !controllerEditLocked;
+  // Clipboard/move accelerators act on the selected instruction when one is
+  // selected (Studio-style), otherwise on the selected rung.
+  const instructionSelectionActive =
+    rungClipboardActive &&
+    selection?.kind === "instruction" &&
+    selection.routineId === openRoutineId &&
+    !!selectedRungId &&
+    !!selectedNodeId;
+  canCopyRungRef.current = rungClipboardActive && (instructionSelectionActive || !!selectedRungId);
+  canPasteRungRef.current =
+    rungClipboardActive &&
+    !controllerEditLocked &&
+    (instructionSelectionActive ? clipboardInstruction !== null : clipboardRung !== null);
+  canMoveInstructionRef.current = instructionSelectionActive && !controllerEditLocked;
   copyRungRef.current = () => {
-    if (canCopyRungRef.current && selectedRungId) handleCopyRung(selectedRungId);
+    if (instructionSelectionActive && selectedRungId && selectedNodeId) handleCopyInstruction(selectedRungId, selectedNodeId);
+    else if (selectedRungId) handleCopyRung(selectedRungId);
   };
   cutRungRef.current = () => {
-    if (canCopyRungRef.current && selectedRungId) handleCutRung(selectedRungId);
+    if (instructionSelectionActive && selectedRungId && selectedNodeId) handleCutInstruction(selectedRungId, selectedNodeId);
+    else if (selectedRungId) handleCutRung(selectedRungId);
   };
   pasteRungRef.current = () => {
-    if (canPasteRungRef.current) handlePasteRung();
+    if (instructionSelectionActive && selectedRungId && clipboardInstruction !== null) {
+      handlePasteInstruction(selectedRungId, selectedNodeId ?? undefined);
+    } else if (clipboardRung !== null && !controllerEditLocked) {
+      handlePasteRung();
+    }
+  };
+  moveInstructionStepRef.current = (direction) => {
+    if (controllerEditLocked) {
+      blockControllerLockedEdit("Move instruction");
+      return;
+    }
+    if (!selectedRungId || !selectedNodeId) return;
+    const rung = openLadder?.rungs.find((candidate) => candidate.id === selectedRungId);
+    if (!rung) return;
+    const siblings = seriesSiblingsOf(rung.root, selectedNodeId);
+    if (!siblings) return;
+    const index = siblings.findIndex((node) => node.id === selectedNodeId);
+    const neighbor = direction === "earlier" ? siblings[index - 1] : siblings[index + 1];
+    if (!neighbor) return;
+    handleMoveInstruction(selectedRungId, selectedNodeId, neighbor.id, direction === "earlier" ? "before" : "after");
   };
   hasDeleteLadderSelectionRef.current =
     rungClipboardActive &&
@@ -4334,6 +4461,14 @@ export function App() {
           if (!hasDeleteLadderSelectionRef.current || !isLadderShortcutTarget()) return;
           event.preventDefault();
           deleteLadderSelectionRef.current();
+          return;
+        case "moveInstructionEarlier":
+        case "moveInstructionLater":
+          // Allow the operand input to hold focus so an instruction can be nudged
+          // while its tag is being edited.
+          if (!canMoveInstructionRef.current || !isLadderShortcutTarget(true)) return;
+          event.preventDefault();
+          moveInstructionStepRef.current(resolution.command === "moveInstructionEarlier" ? "earlier" : "later");
           return;
         case "undo":
           event.preventDefault();
@@ -4482,6 +4617,28 @@ export function App() {
     focusWorkbenchSurface();
     push("info", "Main project window focused.");
   };
+
+  const focusEscoOnlinePathInput = (attempt = 0) => {
+    window.setTimeout(() => {
+      const endpointInput = document.getElementById("eol-endpoint") as HTMLInputElement | null;
+      if (endpointInput && !endpointInput.disabled) {
+        endpointInput.focus();
+        endpointInput.select();
+        return;
+      }
+      if (attempt < 20) focusEscoOnlinePathInput(attempt + 1);
+    }, attempt === 0 ? 0 : 50);
+  };
+
+  const openEscoOnlinePathSetup = () => {
+    setEscoOnlinePathFocusRequest((request) => request + 1);
+    setView("esco-online");
+    focusEscoOnlinePathInput();
+  };
+  const goEscoOnlineOffline = () => {
+    setView("esco-online");
+    void getDefaultEscoOnlineSession().disconnect();
+  };
   const handleVerify = (source?: DockTab) => {
     // Most Verify entry points focus the PLC-style Build/Output dock. Task
     // Monitor keeps focus so its per-task verification rows stay visible.
@@ -4627,7 +4784,7 @@ export function App() {
           openRoutineName={openRoutine?.name}
           validationLabel={validationLabel}
           validationClass={validationClass}
-          connectionLabel={controllerSession.snapshot.stateLabel}
+          connectionLabel={controllerSession.onlineStateLabel}
           connected={controllerSession.snapshot.connected}
           controllerCatalog={activeContext.controller?.catalogNumber}
           controllerRevision={activeContext.controller?.firmwareRevision}
@@ -4649,6 +4806,7 @@ export function App() {
           canEditLadder={!!openLadder && !controllerEditLocked}
           canClose={projectOpen}
           communicationPath={activeCommunicationPath}
+          onlineStateLabel={controllerSession.onlineStateLabel}
           forceCount={forceCount}
           pendingTestEditCount={pendingTestEditCount}
           onHome={() => setView("welcome")}
@@ -4658,6 +4816,9 @@ export function App() {
           onCompare={() => requireProject(() => setView("compare"))}
           onProjectHistory={() => requireProject(() => setView("history"))}
           onSimulationLab={() => setView("simulation")}
+          onEscoOnline={() => setView("esco-online")}
+          onEscoOnlineSetPath={openEscoOnlinePathSetup}
+          onEscoOnlineGoOffline={goEscoOnlineOffline}
           onGit={handleOpenGitTerminal}
           onMainWindow={handleMainWindow}
           onExport={() => requireProject(handleExport)}
@@ -4826,6 +4987,21 @@ export function App() {
             initialDataType={newTagDefaults.dataType}
             onClose={() => setNewTagDialogOpen(false)}
             onCreate={handleCreateTagFromDialog}
+          />
+          <DeviceTagsDialog
+            open={deviceTagsDialogOpen}
+            project={project}
+            onClose={() => setDeviceTagsDialogOpen(false)}
+            onGenerate={handleGenerateDeviceTags}
+          />
+          <DeviceConnectionsDialog
+            open={deviceConnectionsDialogOpen}
+            project={project}
+            onClose={() => setDeviceConnectionsDialogOpen(false)}
+            onOpenTagReferences={(tagName) => {
+              setDeviceConnectionsDialogOpen(false);
+              handleCrossReferenceTag(tagName);
+            }}
           />
           <InstructionPicker
             open={instructionPickerOpen}
@@ -5037,6 +5213,8 @@ export function App() {
           onDeleteRoutine={handleDeleteRoutine}
           onExportRoutine={handleExportRoutineComponent}
           onNewTag={handleOpenNewTagDialog}
+          onGenerateDeviceTags={() => setDeviceTagsDialogOpen(true)}
+          onViewDeviceConnections={() => setDeviceConnectionsDialogOpen(true)}
           onMonitorTags={handleMonitorTags}
           onImportTags={handleImportTagsCsvClick}
           onImportTagComponent={handleImportTagComponentClick}
@@ -5084,6 +5262,11 @@ export function App() {
       center={
         view === "simulation" ? (
           <SimulationLab />
+        ) : view === "esco-online" ? (
+          <EscoOnlinePanel
+            localProject={projectOpen ? project : undefined}
+            focusPathRequestId={escoOnlinePathFocusRequest}
+          />
         ) : view === "tags" ? (
           <TagsView
             project={project}
@@ -5223,6 +5406,7 @@ export function App() {
             onSetRungComment={handleSetRungComment}
             onEditOperand={handleEditOperand}
             onRemoveInstruction={handleRemoveInstruction}
+            onMoveInstruction={handleMoveInstruction}
             onPickInstructionForBranch={handlePickInstructionForBranch}
             onCreateTag={handleCreateTag}
             onCreateTagFromOperand={handleCreateTagFromOperand}
@@ -5356,7 +5540,7 @@ export function App() {
           running={running}
           selectedRungLabel={selectedRungLabel}
           path={activeStatusPath}
-          connectionLabel={controllerSession.snapshot.stateLabel}
+          connectionLabel={controllerSession.onlineStateLabel}
           connected={controllerSession.snapshot.connected}
           virtualStateLabel={virtualController.snapshot.stateLabel}
           virtualModeLabel={virtualController.snapshot.online ? virtualController.snapshot.modeLabel : undefined}

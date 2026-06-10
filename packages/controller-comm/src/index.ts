@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./state-machine";
 export * from "./transports";
+export * from "./read-only-driver";
 export * from "./commands";
 export * from "./drivers";
 export * from "./connection-provider";

@@ -63,6 +63,7 @@ const COUNT_TO_KIND: Record<keyof SimDeviceCounts, SimDeviceKind> = {
   levelTransmitters: "level-transmitter",
   temperatureSensors: "temperature-sensor",
   safetyInputs: "safety-input",
+  batchSystems: "batch-system",
 };
 
 export function defaultDeviceTag(kind: SimDeviceKind, index: number): string {

@@ -8,7 +8,7 @@ import {
   serializeProject,
   willMigrate,
 } from "./index";
-import { migrateV2toV3, migrateV3toV4 } from "./migrations";
+import { migrateV2toV3, migrateV3toV4, migrateV4toV5 } from "./migrations";
 
 function demoProject(): PlcProject {
   const project = createProject("Migrations");
@@ -138,6 +138,55 @@ describe("v3->v4 normalize project metadata", () => {
     expect(result.project.createdAt).toBe(legacy.savedAt);
     expect(result.project.updatedAt).toBe(legacy.savedAt);
     expect(result.project.controllers[0]!.projectId).toBe(project.id);
+  });
+});
+
+describe("v4->v5 backfill project change history", () => {
+  it("backfills an empty changeLog when absent", () => {
+    const legacy = {
+      formatVersion: 4,
+      project: {
+        id: "p1",
+        name: "Plant",
+        controllers: [{ id: "c1", name: "Ctl", tasks: [], programs: [], controllerTags: [] }],
+      },
+    };
+    const migrated = migrateV4toV5(structuredClone(legacy));
+    expect((migrated.project as any).changeLog).toEqual([]);
+  });
+
+  it("leaves an existing changeLog untouched (idempotent)", () => {
+    const existing = [
+      { id: "ch1", at: "2026-06-01T00:00:00.000Z", type: "created", summary: "Created project" },
+    ];
+    const file = {
+      formatVersion: 4,
+      project: {
+        id: "p1",
+        name: "Plant",
+        controllers: [{ id: "c1", name: "Ctl", tasks: [], programs: [], controllerTags: [] }],
+        changeLog: structuredClone(existing),
+      },
+    };
+    const migrated = migrateV4toV5(structuredClone(file));
+    expect((migrated.project as any).changeLog).toEqual(existing);
+  });
+
+  it("leaves a structurally broken project for the loader to reject", () => {
+    const broken = { formatVersion: 4, project: { id: "x" } };
+    const migrated = migrateV4toV5(structuredClone(broken));
+    expect(migrated).toEqual(broken); // unchanged; no changeLog backfilled
+  });
+
+  it("lets the loader migrate a v4 file (no changeLog) to v5 with an empty log", () => {
+    const project = demoProject();
+    const legacy = JSON.parse(serializeProject(project));
+    legacy.formatVersion = 4;
+    delete legacy.project.changeLog;
+
+    const result = deserializeProjectFile(JSON.stringify(legacy));
+    expect(result.migrationsApplied).toContain("v4->v5: backfill project change history");
+    expect(result.project.changeLog).toEqual([]);
   });
 });
 

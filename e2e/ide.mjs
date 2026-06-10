@@ -514,7 +514,7 @@ try {
   );
   check(
     "status bar matches Studio-like offline simulation state",
-    /Offline Simulation/.test(await txt(page, ".esco-statusbar")) && /Controller Mode: Offline/.test(await txt(page, ".esco-statusbar")),
+    /Offline(?: Simulation)?/.test(await txt(page, ".esco-statusbar")) && /Controller Mode: Offline/.test(await txt(page, ".esco-statusbar")),
   );
   const statusChrome = await page.evaluate(() => {
     const bar = document.querySelector(".esco-statusbar");

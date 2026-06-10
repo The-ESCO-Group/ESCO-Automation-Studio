@@ -8,5 +8,5 @@ labels: enhancement
 
 **Proposed feature**
 
-**Must stay offline/safe** (no PLC comms, no `.ACD`, no external APIs) — confirm
-the request fits these boundaries.
+**Must stay offline/safe** (no unsafe physical PLC operations, no `.ACD`, no
+external APIs) — confirm the request fits these boundaries.

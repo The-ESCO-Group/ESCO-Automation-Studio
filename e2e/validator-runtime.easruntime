@@ -1,7 +1,7 @@
 {
   "checksum": {
     "algorithm": "sha256",
-    "value": "89a87c927862e6bf19228e7baedf88fdb5c20e0158771cfafa79230e4e1d96ee"
+    "value": "0e152f428f3768a0e686467d6d00fd6ed894c5b504734f32a3f6207c75324585"
   },
   "extension": ".easruntime",
   "formatName": "ESCO Automation Studio Runtime",
@@ -9,7 +9,7 @@
     "build": {
       "controllerCount": 1,
       "executionOrder": [
-        "rtn_c168c643-b053-4328-a6cc-2055ad52f31c"
+        "rtn_b3c1a35f-dcc4-460a-b8c6-8e6801562be0"
       ],
       "instructionFidelity": {
         "byStatus": {
@@ -42,25 +42,25 @@
       {
         "addOnInstructions": [],
         "dataTypes": [],
-        "id": "ctrl_4eea0921-797a-44da-ac36-39244cbdf74f",
+        "id": "ctrl_c19f29c9-8173-47c8-990f-505499ff8d96",
         "io": [],
         "name": "E2E_Starter",
         "tasks": [
           {
-            "id": "task_7da8c684-0780-4488-bcd5-e6b8f8763f83",
+            "id": "task_a49f4c8d-8b84-4413-9754-ba249fbf5a63",
             "inhibited": false,
             "name": "MainTask",
             "programs": [
               {
-                "id": "prog_11d51776-43de-47df-bdcc-d60655be6871",
+                "id": "prog_c988ce6b-c01c-44d8-bba6-933ad62896f4",
                 "inhibited": false,
-                "mainRoutineId": "rtn_c168c643-b053-4328-a6cc-2055ad52f31c",
+                "mainRoutineId": "rtn_b3c1a35f-dcc4-460a-b8c6-8e6801562be0",
                 "name": "MainProgram",
                 "routines": [
                   {
                     "executable": true,
                     "executionIndex": 0,
-                    "id": "rtn_c168c643-b053-4328-a6cc-2055ad52f31c",
+                    "id": "rtn_b3c1a35f-dcc4-460a-b8c6-8e6801562be0",
                     "language": "ladder",
                     "name": "MainRoutine",
                     "payload": {
@@ -86,7 +86,7 @@
     "formatName": "ESCO Automation Studio Runtime",
     "identity": {
       "description": "Imported from an L5X file.",
-      "projectId": "proj_2bd502af-a73a-4661-874b-aa39d98d203d",
+      "projectId": "proj_1adeb0d6-c99c-488b-ab9f-642563ca6d15",
       "projectName": "E2E_Starter"
     },
     "initialValues": {
@@ -96,7 +96,7 @@
     },
     "provenance": {
       "appVersion": "0.1.0",
-      "builtAt": "2026-06-05T16:59:15.342Z",
+      "builtAt": "2026-06-05T20:02:48.012Z",
       "builtBy": "ESCO Automation Studio",
       "source": "esco-native"
     },

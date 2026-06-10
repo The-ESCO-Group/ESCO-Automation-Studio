@@ -176,7 +176,7 @@ Status legend: ✅ done · 🔜 next · ⏳ later
 - ✅ ESCO Virtual Controller — offline driver / simulation session in
   `@esco/controller-comm`: a real state machine (disconnected → browsing →
   path-selected → connecting → online/monitoring/uploading/downloading/faulted)
-  with Set Path / Who Active (realistic ESCO virtual paths + recents), Go Online
+  with Set Path / Route Browser (realistic ESCO virtual paths + recents), Go Online
   (matched / mismatch / no-project comparison), Download (validate → store signed
   snapshot → online), Upload (reconstruct image for inspection), controller mode
   changes (Program / Run / Remote Program / Remote Run with run-mode edit guard),
@@ -197,12 +197,13 @@ Status legend: ✅ done · 🔜 next · ⏳ later
   `docs/esco-native-formats.md`
 - ✅ L5X export — generated offline, review-only `.L5X` with explicit warnings
   and supported-content preservation
-- ✅ ACD compatibility layer — offline-safe detection of `.ACD` / ACD-archive /
-  `.L5K` / mislabelled-binary imports before any parse, a professional
-  compatibility modal (Import L5X instead / Compatibility notes / Cancel), an
+- ✅ Proprietary binary guard — offline-safe detection of `.ACD` / ACD-archive /
+  `.L5K` / mislabelled-binary imports before any parse, a professional blocked
+  format modal (Import L5X instead / Compatibility notes / Cancel), an
   export-target guard so `.acd` is never faked, honest project provenance (source
   type, file, path, timestamp, blocked-attempt audit), and Project Properties /
-  About visibility. Routes the engineer to the safe Studio 5000 → L5X path
+  About visibility. Routes the engineer to offline `.L5X` review while keeping
+  `.ACD` outside the product
 - ✅ UDT tag member values — imported UDT members expand into watch/simulation
   paths, including member arrays
 - ✅ MESSAGE control tag values — common MSG status/configuration members expand
@@ -295,7 +296,7 @@ Status legend: ✅ done · 🔜 next · ⏳ later
   tags/members/typed literals, plus exact REAL selector warnings
 - ✅ Non-ladder AOI body preservation — unprotected AOI ST/FBD/SFC routines stay
   read-only and round-trip through generated L5X when source XML is available
-- ✅ HMI controller references — offline View Designer-style sync-state metadata
+- ✅ HMI controller references — offline ESCO sync-state metadata
   with controller/program tag, UDT/AOI data type, and alarm browser rows, plus
   action-layer add/update/remove support and IDE status visibility
 - ✅ HMI usage/capacity reporting — target-device Usage panel projection for
@@ -354,22 +355,32 @@ Status legend: ✅ done · 🔜 next · ⏳ later
 
 ## Next milestones
 
-1. **Deeper model-only families:** firmware-faithful execution strategy for
+1. **Vendor-neutral PLC target adapters:** implement and validate real adapters
+   under the ESCO `TargetAdapter` contract for physical PLC families.
+   Allen-Bradley/EtherNet/IP stays the first high-value track, but Siemens,
+   CODESYS/IEC runtimes, Beckhoff, Schneider/Modicon, Omron, Mitsubishi, and
+   ESCO runtime targets should all use the same compile, compare, backup,
+   permission, audit, read-back, and validation gates. See
+   `docs/vendor-neutral-plc-download-architecture.md`.
+2. **Deeper model-only families:** firmware-faithful execution strategy for
    selected process/message/motion behavior, hardware-specific ASCII
    handshaking, and protected/non-ladder AOI review behavior.
-2. **Structured Text execution hardening** — remaining instruction/function call
+3. **Structured Text execution hardening** — remaining instruction/function call
    forms, remaining CASE selector coercion/fault semantics, prescan/postscan behavior, and
    firmware-faithful type/status behavior.
-3. **AOI execution hardening** — deeper non-ladder AOI semantic viewing/execution
+4. **AOI execution hardening** — deeper non-ladder AOI semantic viewing/execution
    strategy plus controller-fault/status/signature fidelity.
-4. **Desktop release hardening** — Microsoft Entra ID sign-in, code signing,
+5. **Desktop release hardening** — Microsoft Entra ID sign-in, code signing,
    and distribution/release validation.
-5. **L5X export fidelity hardening** — round-trip deeper module/port, AOI
+6. **L5X export fidelity hardening** — round-trip deeper module/port, AOI
    routine, safety/signature, and remaining complex branch metadata.
 
 ## Constraints (unchanged)
 
-- No PLC/controller communication, download, or online editing.
+- No physical PLC download or online editing without a field-validated target
+  adapter and destructive-action safety gate.
+- Read-only software-wired monitoring foundations may exist, but they do not
+  make a PLC family download-ready.
 - No `.ACD` reading, writing, compiling, decompiling, or conversion (proprietary
   binary format; a guarded, honest L5X-based compatibility layer is provided instead).
 - No unsafe automation affecting real hardware.

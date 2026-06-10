@@ -13,6 +13,10 @@ import {
   type PreflightReport,
   type SessionSnapshot,
 } from "@esco/controller-comm";
+import {
+  ONLINE_CONNECTION_STATE_LABELS,
+  type OnlineConnectionState,
+} from "./gateway-contract";
 
 export type ControllerCommunicationAction =
   | ControllerCommandKind
@@ -27,6 +31,9 @@ export interface ControllerCommunicationActionResult {
 
 export interface ControllerSessionApi {
   snapshot: SessionSnapshot;
+  /** Goal B online-state projection used by the Studio shell while the gateway is phased in. */
+  onlineState: OnlineConnectionState;
+  onlineStateLabel: string;
   audit: ConnectionAuditEvent[];
   /** Availability of each guarded command, for rendering enabled/disabled buttons. */
   commands: {
@@ -49,6 +56,29 @@ export interface ControllerSessionApi {
 const GUARDED = CONTROLLER_COMMAND_LIST;
 const NO_TESTED_TRANSPORT =
   "No tested controller transport is configured. Hardware Go Online is unavailable.";
+
+function toGoalBOnlineState(state: SessionSnapshot["state"]): OnlineConnectionState {
+  switch (state) {
+    case "offline-simulation":
+    case "model-only":
+      return "offline";
+    case "connecting":
+    case "connecting-disabled":
+      return "connecting";
+    case "connected-readonly":
+      return "online-readonly";
+    case "connected-monitor":
+      return "online-monitor";
+    case "faulted":
+      return "faulted";
+    case "disconnected":
+    case "connected-unavailable":
+    case "safety-blocked":
+      return "disconnected";
+    default:
+      return "disconnected";
+  }
+}
 
 /**
  * React hook over a single {@link ControllerSession}. The session lives outside
@@ -174,9 +204,12 @@ export function useControllerSession(): ControllerSessionApi {
       preflight: session.preflight(command, true),
     };
   });
+  const onlineState = toGoalBOnlineState(snapshot.state);
 
   return {
     snapshot,
+    onlineState,
+    onlineStateLabel: ONLINE_CONNECTION_STATE_LABELS[onlineState],
     audit,
     commands,
     goOnlineSimulation,

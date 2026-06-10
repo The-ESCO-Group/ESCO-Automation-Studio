@@ -39,6 +39,7 @@ export interface SimDeviceCounts {
   levelTransmitters: number;
   temperatureSensors: number;
   safetyInputs: number;
+  batchSystems: number;
 }
 
 export const EMPTY_DEVICE_COUNTS: SimDeviceCounts = {
@@ -49,6 +50,7 @@ export const EMPTY_DEVICE_COUNTS: SimDeviceCounts = {
   levelTransmitters: 0,
   temperatureSensors: 0,
   safetyInputs: 0,
+  batchSystems: 0,
 };
 
 export const PROCESS_TYPES: readonly SimProcessTypeInfo[] = [
@@ -56,37 +58,43 @@ export const PROCESS_TYPES: readonly SimProcessTypeInfo[] = [
     id: "pump-station",
     label: "Pump Station",
     description: "Lift/transfer pumps with flow and level instrumentation.",
-    defaults: { motors: 2, vfds: 1, valves: 1, flowMeters: 1, levelTransmitters: 1, temperatureSensors: 0, safetyInputs: 1 },
+    defaults: { motors: 2, vfds: 1, valves: 1, flowMeters: 1, levelTransmitters: 1, temperatureSensors: 0, safetyInputs: 1, batchSystems: 0 },
   },
   {
     id: "conveyor",
     label: "Conveyor",
     description: "Belt/roller conveyor segments with motor drives and safety inputs.",
-    defaults: { motors: 2, vfds: 1, valves: 0, flowMeters: 0, levelTransmitters: 0, temperatureSensors: 1, safetyInputs: 2 },
+    defaults: { motors: 2, vfds: 1, valves: 0, flowMeters: 0, levelTransmitters: 0, temperatureSensors: 1, safetyInputs: 2, batchSystems: 0 },
   },
   {
     id: "tank-farm",
     label: "Tank Farm",
     description: "Storage tanks with level, valves, and transfer pumps.",
-    defaults: { motors: 1, vfds: 0, valves: 2, flowMeters: 1, levelTransmitters: 2, temperatureSensors: 1, safetyInputs: 1 },
+    defaults: { motors: 1, vfds: 0, valves: 2, flowMeters: 1, levelTransmitters: 2, temperatureSensors: 1, safetyInputs: 1, batchSystems: 0 },
   },
   {
     id: "skid",
     label: "Skid",
     description: "Packaged process skid with mixed instrumentation.",
-    defaults: { motors: 1, vfds: 1, valves: 2, flowMeters: 1, levelTransmitters: 1, temperatureSensors: 1, safetyInputs: 1 },
+    defaults: { motors: 1, vfds: 1, valves: 2, flowMeters: 1, levelTransmitters: 1, temperatureSensors: 1, safetyInputs: 1, batchSystems: 1 },
   },
   {
     id: "packaging-line",
     label: "Packaging Line",
     description: "Sequenced packaging stations with drives and sensors.",
-    defaults: { motors: 3, vfds: 2, valves: 1, flowMeters: 0, levelTransmitters: 0, temperatureSensors: 1, safetyInputs: 2 },
+    defaults: { motors: 3, vfds: 2, valves: 1, flowMeters: 0, levelTransmitters: 0, temperatureSensors: 1, safetyInputs: 2, batchSystems: 0 },
   },
   {
     id: "utilities",
     label: "Utilities",
     description: "Plant utilities (air, water, steam) with metering.",
-    defaults: { motors: 1, vfds: 1, valves: 2, flowMeters: 2, levelTransmitters: 1, temperatureSensors: 2, safetyInputs: 1 },
+    defaults: { motors: 1, vfds: 1, valves: 2, flowMeters: 2, levelTransmitters: 1, temperatureSensors: 2, safetyInputs: 1, batchSystems: 0 },
+  },
+  {
+    id: "batching",
+    label: "Batching",
+    description: "Recipe-driven batch vessels with fill/drain control, level, and safety inputs.",
+    defaults: { motors: 1, vfds: 0, valves: 2, flowMeters: 1, levelTransmitters: 1, temperatureSensors: 1, safetyInputs: 1, batchSystems: 1 },
   },
 ] as const;
 
@@ -141,6 +149,10 @@ export const TAG = {
   commFail: "CommFail",
   ok: "OK",
   tripped: "Tripped",
+  startCmd: "StartCmd",
+  drainCmd: "DrainCmd",
+  done: "Done",
+  batchCount: "BatchCount",
 } as const;
 
 export interface SimDeviceTagSpec {
@@ -355,6 +367,34 @@ export const DEVICE_BLUEPRINTS: Record<SimDeviceKind, SimDeviceBlueprint> = {
     ],
     faultStates: ["estop"] as const,
   },
+  "batch-system": {
+    kind: "batch-system",
+    label: "Batching System",
+    prefixHint: "BT",
+    units: "%",
+    scaling: ANALOG_RAW,
+    limits: { high: 95, highHigh: 99 },
+    pvSuffix: TAG.pv,
+    signalBehavior: (t) => ({ kind: "follow-command", commandTag: `${t}_${TAG.startCmd}`, low: 0, high: 100, ratePerSec: 200 }),
+    tags: [
+      { suffix: TAG.startCmd, dataType: "BOOL", direction: "output", initial: false, description: "Start/fill command for the batch." },
+      { suffix: TAG.drainCmd, dataType: "BOOL", direction: "output", initial: false, description: "Drain command (empties the batch)." },
+      { suffix: TAG.run, dataType: "BOOL", direction: "input", initial: false, description: "Batch actively filling/running." },
+      { suffix: TAG.done, dataType: "BOOL", direction: "input", initial: false, description: "Batch complete (target level reached)." },
+      { suffix: TAG.pv, dataType: "REAL", direction: "input", units: "%", scaling: ANALOG_RAW, initial: 0, description: "Batch vessel level (0-100%)." },
+      { suffix: TAG.batchCount, dataType: "DINT", direction: "internal", initial: 0, description: "Accumulated completed batches." },
+      { suffix: TAG.high, dataType: "BOOL", direction: "internal", initial: false, description: "High/overflow status." },
+      { suffix: TAG.fault, dataType: "BOOL", direction: "internal", initial: false, description: "Latched device fault." },
+    ],
+    alarms: [
+      { nameSuffix: "Overfill", tagSuffix: TAG.pv, severity: "high", trigger: { kind: "high", limit: 95, deadband: 2 }, message: "Batch vessel level high (overfill)." },
+      { nameSuffix: "CommFail", tagSuffix: TAG.fault, severity: "high", trigger: { kind: "digital", activeValue: true }, message: "Batch system communication failure." },
+    ],
+    interlocks: [
+      { name: "Overfill Trip", kind: "interlock", tagSuffix: TAG.high, comparison: "==", value: true, description: "Trips the fill command on high level." },
+    ],
+    faultStates: ["comm-loss", "sensor-fail"] as const,
+  },
 };
 
 export function deviceBlueprint(kind: SimDeviceKind): SimDeviceBlueprint {
@@ -370,4 +410,5 @@ export const DEVICE_KINDS: readonly SimDeviceKind[] = [
   "level-transmitter",
   "temperature-sensor",
   "safety-input",
+  "batch-system",
 ];

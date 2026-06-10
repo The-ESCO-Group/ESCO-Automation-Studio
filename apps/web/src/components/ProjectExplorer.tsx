@@ -44,6 +44,10 @@ interface Props {
   onDeleteRoutine?: (routineId: string) => void;
   onExportRoutine?: (routineId: string) => void;
   onNewTag?: (scope?: "controller" | "program", programId?: string) => void;
+  /** Open the Generate Device Tags dialog (vendor-neutral device → controller tags). */
+  onGenerateDeviceTags?: () => void;
+  /** Open the Device Connections panel (which logic uses a device's tags). */
+  onViewDeviceConnections?: () => void;
   onMonitorTags?: (scope?: "controller" | "program", programId?: string) => void;
   onImportTags?: () => void;
   onImportTagComponent?: (controllerId: string, scope: "controller" | "program", programId?: string) => void;
@@ -199,6 +203,8 @@ export function ProjectExplorer({
   onDeleteRoutine,
   onExportRoutine,
   onNewTag,
+  onGenerateDeviceTags,
+  onViewDeviceConnections,
   onMonitorTags,
   onImportTags,
   onImportTagComponent,
@@ -472,6 +478,8 @@ export function ProjectExplorer({
             item("Controller Tags", () => onSelect({ kind: "tag", id: contextMenu.controller.controllerTags[0]?.id ?? `${contextMenu.controller.id}:controller-tags` })),
             separator("controller-a"),
             item("New Tag...", () => onNewTag?.("controller")),
+            item("Generate Device Tags...", () => onGenerateDeviceTags?.()),
+            item("Device Connections...", () => onViewDeviceConnections?.()),
             item("New Task...", () => onNewTask?.(contextMenu.controller.id)),
             item("New Program...", () => onNewProgram?.(contextMenu.controller.id)),
             item("Import Program...", () => onImportProgram?.(contextMenu.controller.id)),
@@ -486,7 +494,7 @@ export function ProjectExplorer({
             hardwareItem("upload", "Upload..."),
             hardwareItem("download", "Download..."),
             hardwareItem("select-recent-path", "Set Path..."),
-            hardwareItem("network-browser", "Who Active..."),
+            hardwareItem("network-browser", "Controller Route Browser..."),
             separator("controller-d"),
             item("Select Virtual Path...", onVirtualSelectPath),
             item("Go Online (Virtual)", onVirtualGoOnline),
@@ -505,6 +513,8 @@ export function ProjectExplorer({
           ? [
               item("Open", () => onSelect({ kind: "tag", id: contextMenu.controller.controllerTags[0]?.id ?? `${contextMenu.controller.id}:controller-tags` })),
               item("New Tag...", () => onNewTag?.("controller")),
+              item("Generate Device Tags...", () => onGenerateDeviceTags?.()),
+              item("Device Connections...", () => onViewDeviceConnections?.()),
               item("Edit Tags", () => onSelect({ kind: "tag", id: contextMenu.controller.controllerTags[0]?.id ?? `${contextMenu.controller.id}:controller-tags` })),
               item("Monitor Tags", () => onMonitorTags?.("controller")),
               separator("tags-a"),
@@ -636,7 +646,7 @@ export function ProjectExplorer({
                           item("Export I/O Profile Pack...", () => onExportIoProfilePack?.(contextMenu.controller.id)),
                           item("Export Device Tree...", () => onExportDeviceTree?.(contextMenu.controller.id)),
                           separator("io-b"),
-                          hardwareItem("network-browser", "Who Active..."),
+                          hardwareItem("network-browser", "Controller Route Browser..."),
                           item("Select Virtual Path...", onVirtualSelectPath),
                         ]
                         : [

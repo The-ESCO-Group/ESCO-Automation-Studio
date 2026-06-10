@@ -146,6 +146,18 @@ export function deviceVisualState(device: SimDevice, tags: Map<string, SimLiveTa
       if (tripped || !ok) return { ...base, state: "tripped", tone: "fault", label: "Tripped", running: false, faulted: true, value: false };
       return { ...base, state: "healthy", tone: "good", label: "Healthy", running: true, faulted: false, value: true };
     }
+    case "batch-system": {
+      const level = num(tags, `${t}_${TAG.pv}`);
+      const faultBit = bool(tags, `${t}_${TAG.fault}`);
+      const high = bool(tags, `${t}_${TAG.high}`);
+      const run = bool(tags, `${t}_${TAG.run}`);
+      const done = bool(tags, `${t}_${TAG.done}`);
+      if (faultBit) return { ...base, state: "comm-fail", tone: "fault", label: "Comm fail", running: false, faulted: true, value: level, units: "%" };
+      if (high) return { ...base, state: "high", tone: "fault", label: "Overfill", running: run, faulted: false, value: level, units: "%" };
+      if (run) return { ...base, state: "running", tone: "good", label: "Filling", running: true, faulted: false, value: level, units: "%" };
+      if (done) return { ...base, state: "normal", tone: "good", label: "Batch done", running: false, faulted: false, value: level, units: "%" };
+      return { ...base, state: "stopped", tone: "idle", label: "Idle", running: false, faulted: false, value: level, units: "%" };
+    }
   }
 }
 
@@ -480,6 +492,7 @@ function maintenanceNote(device: SimDevice): string {
     "level-transmitter": "Confirm high/low setpoints and check for sensor drift.",
     "temperature-sensor": "Verify sensor type and confirm scaling matches range.",
     "safety-input": "Function-test the safety circuit and confirm reset behavior.",
+    "batch-system": "Calibrate level transmitter; verify fill/drain valves and overfill interlock.",
   };
   return notes[device.kind];
 }
@@ -509,7 +522,7 @@ export function pidViewModel(src: SimViewSource): PidViewVM {
   const tags = buildTagMap(src.liveTags);
   const symbols: PidSymbolVM[] = src.project.devices.map((device) => {
     const visual = deviceVisualState(device, tags);
-    const instrument = ["flow-meter", "level-transmitter", "temperature-sensor"].includes(device.kind);
+    const instrument = ["flow-meter", "level-transmitter", "temperature-sensor", "batch-system"].includes(device.kind);
     const setpoints: { label: string; value: number; units?: string }[] = [];
     if (device.limits) {
       if (device.limits.high != null) setpoints.push({ label: "Hi", value: device.limits.high, units: device.units });

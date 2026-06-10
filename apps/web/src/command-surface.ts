@@ -5,6 +5,7 @@ export const ESCO_COMMAND_SURFACE_KINDS = [
   "offline-action",
   "offline-navigation",
   "simulation-action",
+  "gateway-online",
   "review-import-export",
   "guarded-hardware",
   "informational",
@@ -16,6 +17,7 @@ export const ESCO_COMMAND_SURFACE_KIND_LABELS: Record<EscoCommandSurfaceKind, st
   "offline-action": "Offline action",
   "offline-navigation": "Offline navigation",
   "simulation-action": "Simulation action",
+  "gateway-online": "Gateway online",
   "review-import-export": "Review/import/export",
   "guarded-hardware": "Guarded hardware",
   informational: "Informational",
@@ -46,6 +48,7 @@ export interface EscoCommandSurfaceGroupSummary {
   offline: number;
   review: number;
   simulation: number;
+  gatewayOnline: number;
   guarded: number;
   informational: number;
 }
@@ -146,6 +149,7 @@ export const ESCO_COMMAND_SURFACE_AUDIT: readonly EscoCommandSurfaceEntry[] = [
     ["Model Summary", "offline-navigation", "BottomPanel model tab"],
     ["Task Monitor", "simulation-action", "BottomPanel tasks tab"],
     ["ESCO Simulation Lab", "simulation-action", "App.setView(simulation)"],
+    ["ESCO Online (Gateway)", "gateway-online", "App.setView(esco-online)"],
     ["Watch", "simulation-action", "BottomPanel watch tab"],
     ["Trend", "simulation-action", "BottomPanel trend tab"],
     ["Forces", "simulation-action", "BottomPanel forces tab"],
@@ -172,8 +176,8 @@ export const ESCO_COMMAND_SURFACE_AUDIT: readonly EscoCommandSurfaceEntry[] = [
     ["Count Down (CTD)", "offline-action", "App.handleInsertInstructionType(CTD)"],
   ]),
   ...menu("Communications", [
-    ["Who Active", "guarded-hardware", "Controller session guard/audit", "network-browser"],
-    ["Select Recent Path", "guarded-hardware", "Controller session guard/audit", "select-recent-path"],
+    ["Controller Route Browser", "guarded-hardware", "Controller session guard/audit", "network-browser"],
+    ["Saved Controller Path", "guarded-hardware", "Controller session guard/audit", "select-recent-path"],
     ["Go Online", "guarded-hardware", "Controller session guard/audit", "go-online"],
     ["Monitor", "guarded-hardware", "Controller session guard/audit", "monitor"],
     ["Upload", "guarded-hardware", "Controller session guard/audit", "upload"],
@@ -244,11 +248,16 @@ export const ESCO_COMMAND_SURFACE_AUDIT: readonly EscoCommandSurfaceEntry[] = [
     ["Simulation lab", "simulation-action", "App.setView(simulation)"],
   ]),
   ...toolbar("Online toolbar", [
-    ["Go Online", "guarded-hardware", "Controller session guard/audit", "go-online"],
-    ["Monitor", "guarded-hardware", "Controller session guard/audit", "monitor"],
-    ["Upload", "guarded-hardware", "Controller session guard/audit", "upload"],
+    ["Set Path", "gateway-online", "ESCO Online gateway path setup"],
+    ["Go Online", "gateway-online", "ESCO Online read-only connect"],
+    ["Go Offline", "gateway-online", "ESCO Online disconnect"],
+    ["Upload Snapshot", "gateway-online", "ESCO Online upload snapshot"],
     ["Download", "guarded-hardware", "Controller session guard/audit", "download"],
-    ["Go Offline", "simulation-action", "Controller session offline state", "go-offline"],
+    ["Compare", "gateway-online", "ESCO Online match check"],
+    ["Read Tags", "gateway-online", "ESCO Online Tag Monitor"],
+    ["Watch Tags", "gateway-online", "ESCO Online watch list"],
+    ["Faults", "gateway-online", "ESCO Online fault/status view"],
+    ["Controller Status", "gateway-online", "ESCO Online controller status"],
   ]),
   ...toolbar("Path/status bar", [
     ["RUN status", "guarded-hardware", "Controller session guard/audit", "run-mode"],
@@ -330,7 +339,7 @@ export const ESCO_COMMAND_SURFACE_AUDIT: readonly EscoCommandSurfaceEntry[] = [
     ["Upload", "guarded-hardware", "Controller session guard/audit", "upload"],
     ["Download", "guarded-hardware", "Controller session guard/audit", "download"],
     ["Set Path", "guarded-hardware", "Controller session guard/audit", "select-recent-path"],
-    ["Who Active", "guarded-hardware", "Controller session guard/audit", "network-browser"],
+    ["Controller Route Browser", "guarded-hardware", "Controller session guard/audit", "network-browser"],
     ["Select Virtual Path", "simulation-action", "VirtualController.beginBrowsing"],
     ["Go Online (Virtual)", "simulation-action", "VirtualController.goOnline"],
     ["Monitor (Virtual)", "simulation-action", "VirtualController.monitor"],
@@ -406,7 +415,7 @@ export const ESCO_COMMAND_SURFACE_AUDIT: readonly EscoCommandSurfaceEntry[] = [
     ["Import I/O Profile Pack", "review-import-export", "App.handleImportIoProfilePackClick"],
     ["Export I/O Profile Pack", "review-import-export", "App.handleExportIoProfilePack"],
     ["Export Device Tree", "review-import-export", "App.handleExportDeviceTreeComponent"],
-    ["Who Active", "guarded-hardware", "Controller session guard/audit", "network-browser"],
+    ["Controller Route Browser", "guarded-hardware", "Controller session guard/audit", "network-browser"],
     ["Select Virtual Path", "simulation-action", "VirtualController.beginBrowsing"],
     ["Module Properties", "offline-action", "App.handleIoModuleProperties"],
     ["Configure Module", "offline-action", "App.handleIoModuleProperties"],
@@ -441,6 +450,7 @@ export function escoCommandSurfaceGroupSummaries(
       offline: 0,
       review: 0,
       simulation: 0,
+      gatewayOnline: 0,
       guarded: 0,
       informational: 0,
     };
@@ -448,6 +458,7 @@ export function escoCommandSurfaceGroupSummaries(
     if (entry.kind === "offline-action" || entry.kind === "offline-navigation") summary.offline += 1;
     else if (entry.kind === "review-import-export") summary.review += 1;
     else if (entry.kind === "simulation-action") summary.simulation += 1;
+    else if (entry.kind === "gateway-online") summary.gatewayOnline += 1;
     else if (entry.kind === "guarded-hardware") summary.guarded += 1;
     else summary.informational += 1;
     groups.set(key, summary);

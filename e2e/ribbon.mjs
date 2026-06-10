@@ -7,14 +7,16 @@ const check = (label, cond, detail = "") => {
   console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? "  - " + String(detail).replace(/\s+/g, " ").slice(0, 100) : ""}`);
 };
 const menu = (page, name) => page.locator(`.esco-ribbon__tab:has-text("${name}")`).first();
-const menuItem = (page, label) => page.locator(`.esco-ribbon-menu__item:has-text("${label}")`).first();
+const menuItem = (page, label) => page.locator(".esco-ribbon-menu__item:visible").filter({ hasText: label }).first();
+const submenu = (page, label) => page.locator(".esco-ribbon-menu__submenu-trigger:visible").filter({ hasText: label }).first();
+const nestedMenu = (page, label) => page.locator(`.esco-ribbon-menu--nested[aria-label="${label} submenu"]`);
 const button = (page, label) => page.locator(`.esco-ribbon__button[aria-label="${label}"]`).first();
 const activeDockTab = (page, label) => page.locator(`.esco-dock__tab.is-active:has-text("${label}")`).first();
 const activeMenuText = async (page) => (await page.locator(".esco-ribbon__tab.is-open").first().innerText()).trim();
 
 const openMenu = async (page, name) => {
   await menu(page, name).click();
-  await page.locator(".esco-ribbon-menu").waitFor({ timeout: 5000 });
+  await page.locator(`.esco-ribbon-menu[aria-label="${name} menu"]`).waitFor({ timeout: 5000 });
 };
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
@@ -72,11 +74,11 @@ try {
   );
   check(
     "title bar exposes routed status command chips",
-    (await page.locator('.esco-titlebar__command-chip:has-text("Offline Simulation")').count()) === 1 &&
+    (await page.locator('.esco-titlebar__command-chip:has-text("Offline")').count()) === 1 &&
       (await page.locator('.esco-titlebar__command-chip:has-text("Verification Passed")').count()) === 1 &&
       (await page.locator(".esco-titlebar__user-chip").count()) === 1,
   );
-  await page.locator('.esco-titlebar__command-chip:has-text("Offline Simulation")').click();
+  await page.locator('.esco-titlebar__command-chip:has-text("Offline")').click();
   await activeDockTab(page, "Controller").waitFor({ timeout: 5000 });
   check("title bar connection chip opens controller dock", (await activeDockTab(page, "Controller").count()) === 1);
   await page.locator('.esco-titlebar__command-chip:has-text("Verification Passed")').click();
@@ -95,10 +97,10 @@ try {
     /Blocked Program Mode/.test(await page.locator(".esco-controller__audit").innerText()),
   );
   await page.locator('.esco-ribbon__path-value[aria-label="Select controller communication path"]').click();
-  await page.waitForFunction(() => /Blocked Select Recent Path/.test(document.querySelector(".esco-controller__audit")?.textContent ?? ""));
+  await page.waitForFunction(() => /Blocked Saved Controller Path/.test(document.querySelector(".esco-controller__audit")?.textContent ?? ""));
   check(
     "communication path field records guarded path-selection audit",
-    /Blocked Select Recent Path/.test(await page.locator(".esco-controller__audit").innerText()),
+    /Blocked Saved Controller Path/.test(await page.locator(".esco-controller__audit").innerText()),
   );
   const beforeBatteryAuditRows = await page.locator(".esco-controller__audit tbody tr").count();
   await page.locator('.esco-ribbon__controller-flags [aria-label="Battery diagnostics"]').click();
@@ -133,17 +135,42 @@ try {
   check("status bar verification segment opens diagnostics dock", (await activeDockTab(page, "Errors").count()) === 1);
   await page.locator('.esco-statusbar__path').click();
   await activeDockTab(page, "Controller").waitFor({ timeout: 5000 });
-  await page.waitForFunction(() => /Blocked Select Recent Path/.test(document.querySelector(".esco-controller__audit")?.textContent ?? ""));
-  check("status bar path segment records guarded path-selection audit", /Blocked Select Recent Path/.test(await page.locator(".esco-controller__audit").innerText()));
+  await page.waitForFunction(() => /Blocked Saved Controller Path/.test(document.querySelector(".esco-controller__audit")?.textContent ?? ""));
+  check("status bar path segment records guarded path-selection audit", /Blocked Saved Controller Path/.test(await page.locator(".esco-controller__audit").innerText()));
 
   await openMenu(page, "File");
   check("File menu opens as active Windows menu", /File/.test(await activeMenuText(page)));
-  check("File menu exposes project and controller properties", (await menuItem(page, "Project Properties").count()) === 1 && (await menuItem(page, "Controller Properties").count()) === 1);
-  const fileMenuText = await page.locator(".esco-ribbon-menu").innerText();
+  const fileTopRows = await page
+    .locator(
+      '.esco-ribbon-menu[aria-label="File menu"] > .esco-ribbon-menu__item:visible, .esco-ribbon-menu[aria-label="File menu"] > .esco-ribbon-menu__submenu > .esco-ribbon-menu__submenu-trigger:visible',
+    )
+    .evaluateAll((nodes) => nodes.map((node) => node.textContent?.trim().replace(/\s+/g, " ")));
+  const fileMenuText = await page.locator('.esco-ribbon-menu[aria-label="File menu"]').innerText();
   check(
-    "File menu exposes ESCO SoftController software runtime actions",
-    /Download Runtime to ESCO SoftController/.test(fileMenuText) && /Open ESCO SoftController Upload/.test(fileMenuText),
-    fileMenuText,
+    "File menu keeps the top level compact with nested groups",
+    fileTopRows.length <= 8 &&
+      fileTopRows.includes("Import / Export>") &&
+      fileTopRows.includes("Runtime / SoftController>") &&
+      fileTopRows.includes("Properties>") &&
+      !/Download Runtime to ESCO SoftController/.test(fileMenuText),
+    fileTopRows.join("|"),
+  );
+  await submenu(page, "Properties").hover();
+  const filePropertiesText = await nestedMenu(page, "Properties").innerText();
+  check(
+    "File Properties submenu exposes project and controller property sheets",
+    /Project Properties/.test(filePropertiesText) && /Controller Properties/.test(filePropertiesText),
+    filePropertiesText,
+  );
+  await submenu(page, "Import / Export").hover();
+  const fileImportText = await nestedMenu(page, "Import / Export").innerText();
+  check("File Import / Export submenu groups legacy, snapshots, and packages", /Import L5X/.test(fileImportText) && /Export ESCO Snapshot/.test(fileImportText) && /Import ESCO Package/.test(fileImportText), fileImportText);
+  await submenu(page, "Runtime / SoftController").hover();
+  const fileRuntimeText = await nestedMenu(page, "Runtime / SoftController").innerText();
+  check(
+    "File Runtime / SoftController submenu exposes software runtime actions",
+    /Download Runtime to ESCO SoftController/.test(fileRuntimeText) && /Open ESCO SoftController Upload/.test(fileRuntimeText),
+    fileRuntimeText,
   );
 
   await openMenu(page, "Edit");
@@ -158,6 +185,7 @@ try {
 
   await openMenu(page, "File");
   check("File menu remains active for project metadata", /File/.test(await activeMenuText(page)));
+  await submenu(page, "Properties").hover();
   await menuItem(page, "Project Properties").click();
   await page.locator(".esco-project-props").waitFor({ timeout: 5000 });
   const projectPropsText = await page.locator(".esco-project-props").innerText();
@@ -167,6 +195,7 @@ try {
   await page.locator(".esco-project-props").waitFor({ state: "detached", timeout: 5000 });
 
   await openMenu(page, "File");
+  await submenu(page, "Properties").hover();
   await menuItem(page, "Controller Properties").click();
   await page.locator(".esco-controller-props").waitFor({ timeout: 5000 });
   check("Controller Properties opens Studio property sheet", /Controller Properties/.test(await page.locator(".esco-controller-props").innerText()));
@@ -201,45 +230,114 @@ try {
 
   await openMenu(page, "Communications");
   check("Communications menu activates", /Communications/.test(await activeMenuText(page)));
-  check("online toolbar actions open guarded controller workflow", !(await button(page, "Go Online").isDisabled()) && !(await button(page, "Download").isDisabled()));
-  const commsText = await page.locator(".esco-ribbon-menu").innerText();
   check(
-    "Communications menu exposes mode/fault/path guarded commands",
-    /Select Recent Path/.test(commsText) &&
-      /Monitor/.test(commsText) &&
-      /Run Mode/.test(commsText) &&
-      /Program Mode/.test(commsText) &&
-      /Clear Faults/.test(commsText) &&
-      /Go To Faults/.test(commsText),
-    commsText,
+    "online toolbar routes read-only gateway actions and disables real download",
+    !(await button(page, "Go Online").isDisabled()) &&
+      !(await button(page, "Go Offline").isDisabled()) &&
+      (await button(page, "Download").isDisabled()) &&
+      !(await button(page, "Faults").isDisabled()) &&
+      !(await button(page, "Controller Status").isDisabled()),
   );
+  await page.keyboard.press("Escape");
+  await button(page, "Set Path").click();
+  await page.locator(".eol-root").waitFor({ timeout: 5000 });
+  await page.waitForFunction(() => document.activeElement?.id === "eol-endpoint", { timeout: 5000 });
   check(
-    "Communications menu exposes explicit ESCO virtual/software actions beside guarded hardware",
-    /Select Virtual Path/.test(commsText) &&
-      /Go Online \(Virtual\)/.test(commsText) &&
-      /Download to ESCO Virtual Controller/.test(commsText) &&
-      /Upload from ESCO Virtual Controller/.test(commsText) &&
-      /Run Mode \(Virtual\)/.test(commsText) &&
-      /Clear Faults \(Virtual\)/.test(commsText),
-    commsText,
+    "Set Path toolbar button opens ESCO Online gateway path setup",
+    /Driver path/.test(await page.locator(".eol-root").innerText()) &&
+      (await page.evaluate(() => document.activeElement?.id)) === "eol-endpoint",
   );
+  await button(page, "Go Online").click();
+  await page.locator(".eol-root").waitFor({ timeout: 5000 });
+  check("Go Online toolbar button opens ESCO Online read-only connection", /Go Online \(Read-Only\)|Open Snapshot \(Read-Only\)/.test(await page.locator(".eol-root").innerText()));
+  await button(page, "Go Offline").click();
+  await page.locator(".eol-root").waitFor({ timeout: 5000 });
+  check("Go Offline toolbar button opens ESCO Online disconnect controls", /Read-only milestone/.test(await page.locator(".eol-root").innerText()));
+  await button(page, "Upload Snapshot").click();
+  await page.locator(".eol-root").waitFor({ timeout: 5000 });
+  check("Upload Snapshot toolbar button opens ESCO Online snapshot panel", /Read-only milestone/.test(await page.locator(".eol-root").innerText()));
+  await button(page, "Compare").click();
+  await page.locator(".eol-root").waitFor({ timeout: 5000 });
+  check("Compare toolbar button opens ESCO Online match check", /Read-only milestone/.test(await page.locator(".eol-root").innerText()));
+  await button(page, "Read Tags").click();
+  await page.locator(".eol-root").waitFor({ timeout: 5000 });
+  check("Read Tags toolbar button opens ESCO Online Tag Monitor", /Read-only milestone/.test(await page.locator(".eol-root").innerText()));
+  await button(page, "Watch Tags").click();
+  await page.locator(".eol-root").waitFor({ timeout: 5000 });
+  check("Watch Tags toolbar button opens ESCO Online watch list", /Read-only milestone/.test(await page.locator(".eol-root").innerText()));
+  await button(page, "Faults").click();
+  await page.locator(".eol-root").waitFor({ timeout: 5000 });
+  check("Faults toolbar button opens ESCO Online fault/status surface", /Read-only milestone/.test(await page.locator(".eol-root").innerText()));
+  await button(page, "Controller Status").click();
+  await page.locator(".eol-root").waitFor({ timeout: 5000 });
+  check("Controller Status toolbar button opens ESCO Online status surface", /Read-only milestone/.test(await page.locator(".eol-root").innerText()));
+  await openMenu(page, "Communications");
+  const commsTopRows = await page
+    .locator(
+      '.esco-ribbon-menu[aria-label="Communications menu"] > .esco-ribbon-menu__item:visible, .esco-ribbon-menu[aria-label="Communications menu"] > .esco-ribbon-menu__submenu > .esco-ribbon-menu__submenu-trigger:visible',
+    )
+    .evaluateAll((nodes) => nodes.map((node) => node.textContent?.trim().replace(/\s+/g, " ")));
+  check(
+    "Communications menu keeps the top level compact with nested groups",
+    commsTopRows.length <= 7 &&
+      commsTopRows.includes("ESCO Online Gateway>") &&
+      commsTopRows.includes("Real Controller (Blocked)>") &&
+      commsTopRows.includes("Mode / Faults (Blocked)>") &&
+      commsTopRows.includes("Online Edits (Blocked)>") &&
+      commsTopRows.includes("ESCO Virtual Controller>"),
+    commsTopRows.join("|"),
+  );
+  await submenu(page, "Real Controller (Blocked)").hover();
+  const realControllerText = await nestedMenu(page, "Real Controller (Blocked)").innerText();
+  await submenu(page, "Mode / Faults (Blocked)").hover();
+  const modeFaultText = await nestedMenu(page, "Mode / Faults (Blocked)").innerText();
+  check(
+    "Communications guarded submenus expose path, monitor, mode, and fault commands",
+    /Saved Controller Path/.test(realControllerText) &&
+      /Monitor/.test(realControllerText) &&
+      /Go Online/.test(realControllerText) &&
+      /Download/.test(realControllerText) &&
+      /Run Mode/.test(modeFaultText) &&
+      /Program Mode/.test(modeFaultText) &&
+      /Clear Faults/.test(modeFaultText) &&
+      /Go To Faults/.test(modeFaultText),
+    `${realControllerText}\n${modeFaultText}`,
+  );
+  await submenu(page, "ESCO Virtual Controller").hover();
+  const virtualMenuText = await nestedMenu(page, "ESCO Virtual Controller").innerText();
+  check(
+    "Communications virtual submenu exposes explicit ESCO software controller actions",
+    /Select Virtual Path/.test(virtualMenuText) &&
+      /Go Online \(Virtual\)/.test(virtualMenuText) &&
+      /Download to ESCO Virtual Controller/.test(virtualMenuText) &&
+      /Upload from ESCO Virtual Controller/.test(virtualMenuText) &&
+      /Run Mode \(Virtual\)/.test(virtualMenuText) &&
+      /Clear Faults \(Virtual\)/.test(virtualMenuText),
+    virtualMenuText,
+  );
+  await submenu(page, "ESCO Virtual Controller").hover();
   await menuItem(page, "Select Virtual Path").click();
   await activeDockTab(page, "Controller").waitFor({ timeout: 5000 });
   await page.locator(".esco-vctrl__paths .esco-vctrl__pathpick").first().click();
   await page.locator('.esco-toast:has-text("Virtual path selected")').waitFor({ timeout: 5000 });
   await openMenu(page, "Communications");
+  await submenu(page, "ESCO Virtual Controller").hover();
   await menuItem(page, "Download to ESCO Virtual Controller").click();
   await page.locator('.esco-toast:has-text("Downloaded")').waitFor({ timeout: 5000 });
   await openMenu(page, "Communications");
+  await submenu(page, "ESCO Virtual Controller").hover();
   await menuItem(page, "Go Online (Virtual)").click();
   await page.locator('.esco-toast:has-text("Online (Virtual)")').waitFor({ timeout: 5000 });
   await openMenu(page, "Communications");
+  await submenu(page, "ESCO Virtual Controller").hover();
   await menuItem(page, "Monitor (Virtual)").click();
   await page.locator('.esco-toast:has-text("Monitoring (Virtual)")').waitFor({ timeout: 5000 });
   await openMenu(page, "Communications");
+  await submenu(page, "ESCO Virtual Controller").hover();
   await menuItem(page, "Run Mode (Virtual)").click();
   await page.locator('.esco-toast:has-text("destructive edits are guarded")').waitFor({ timeout: 5000 });
   await openMenu(page, "Communications");
+  await submenu(page, "ESCO Virtual Controller").hover();
   await menuItem(page, "Clear Faults (Virtual)").click();
   await page.locator(".esco-vctrl").waitFor({ timeout: 5000 });
   const virtualText = await page.locator(".esco-vctrl").innerText();
@@ -249,7 +347,8 @@ try {
     virtualText,
   );
   await openMenu(page, "Communications");
-  const onlineEditMenu = await page.locator(".esco-ribbon-menu__item").evaluateAll((nodes) =>
+  await submenu(page, "Online Edits (Blocked)").hover();
+  const onlineEditMenu = await page.locator(".esco-ribbon-menu__item:visible").evaluateAll((nodes) =>
     nodes
       .filter((node) => /Test Edits|Assemble Edits|Finalize All Edits|Cancel Edits/.test(node.textContent ?? ""))
       .map((node) => ({
@@ -263,6 +362,8 @@ try {
       onlineEditMenu.every((item) => !item.disabled),
     JSON.stringify(onlineEditMenu),
   );
+  await openMenu(page, "Communications");
+  await submenu(page, "Real Controller (Blocked)").hover();
   await menuItem(page, "Go Online").click();
   await page.locator(".esco-controller").waitFor({ timeout: 5000 });
   check("Go Online opens the guarded controller dock", /no tested controller transport/i.test(await page.locator(".esco-controller").innerText()));
@@ -276,6 +377,7 @@ try {
   for (const label of ["Test Edits", "Assemble Edits", "Finalize All Edits", "Cancel Edits"]) {
     const beforeEditAuditRows = await page.locator(".esco-controller__audit tbody tr").count();
     await openMenu(page, "Communications");
+    await submenu(page, "Online Edits (Blocked)").hover();
     await menuItem(page, label).click();
     await page.locator(`.esco-toast:has-text("${label} is blocked")`).waitFor({ timeout: 5000 });
     await page.waitForFunction(
@@ -293,7 +395,11 @@ try {
     editAuditText,
   );
   await openMenu(page, "Communications");
-  await page.locator(".esco-ribbon-menu__item").filter({ hasText: /^Go Offline$/ }).first().click();
+  await page
+    .locator('.esco-ribbon-menu[aria-label="Communications menu"] > .esco-ribbon-menu__item:visible')
+    .filter({ hasText: /^Go Offline$/ })
+    .first()
+    .click();
   await page.locator('.esco-toast:has-text("Offline Simulation is active.")').waitFor({ timeout: 5000 });
   check("Go Offline reports offline simulation", /Offline Simulation/.test(await page.locator('.esco-toast:has-text("Offline Simulation is active.")').innerText()));
   await dismissToasts(page);

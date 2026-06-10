@@ -37,7 +37,7 @@ describe("initial state", () => {
     expect(snap.path).toBeNull();
   });
 
-  it("offers the realistic ESCO virtual paths", () => {
+  it("offers the offline ESCO virtualized paths", () => {
     const paths = session().availablePaths();
     expect(paths.map((p) => p.kind)).toEqual(expect.arrayContaining(["ethernet-ip", "local-emulation", "usb-virtual"]));
     expect(paths[0]!.label).toMatch(/EtherNet\/IP/);

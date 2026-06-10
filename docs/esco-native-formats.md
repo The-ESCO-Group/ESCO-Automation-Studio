@@ -2,7 +2,8 @@
 
 ESCO Automation Studio owns a family of native file formats. They are open,
 inspectable ESCO-defined JSON artifacts. They do not depend on, copy, or mirror
-Rockwell `.ACD` binary project files, and they are not hardware-online workflows.
+proprietary `.ACD` binary project files, and they are not hardware-online
+workflows.
 
 The code registry lives in `@esco/project-actions` as `ESCO_FILE_FORMATS`.
 

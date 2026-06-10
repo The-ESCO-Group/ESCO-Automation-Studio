@@ -2,7 +2,7 @@
   "formatName": "ESCO Automation Studio Project",
   "formatVersion": 4,
   "appVersion": "0.1.0",
-  "savedAt": "2026-06-05T16:57:21.370Z",
+  "savedAt": "2026-06-05T20:01:40.944Z",
   "compatibility": {
     "minFormatVersion": 1,
     "formatVersion": 4,
@@ -10,48 +10,48 @@
     "producedBy": "ESCO Automation Studio Project 0.1.0"
   },
   "project": {
-    "id": "proj_5907ca5c-439b-4aa1-bd6d-285d37e92962",
+    "id": "proj_f4faac7b-ee96-4268-aea8-c8ba623f8c63",
     "name": "E2E_Starter",
     "description": "Imported from an L5X file.",
     "controllers": [
       {
-        "id": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
-        "projectId": "proj_5907ca5c-439b-4aa1-bd6d-285d37e92962",
+        "id": "ctrl_7ec6fa8b-f523-4aed-a0c4-48120dede912",
+        "projectId": "proj_f4faac7b-ee96-4268-aea8-c8ba623f8c63",
         "name": "E2E_Starter",
         "tasks": [
           {
-            "id": "task_bda2040d-a65f-4598-a439-cda5b56c9344",
-            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "id": "task_954ffc32-8281-4ad1-837d-02717bc579ec",
+            "controllerId": "ctrl_7ec6fa8b-f523-4aed-a0c4-48120dede912",
             "name": "MainTask",
             "type": "continuous",
             "scheduledProgramIds": [
-              "prog_0318502a-a3b0-4742-b093-5424cc5ffbd1"
+              "prog_14bede92-c119-4fa1-b834-1c187ef57741"
             ]
           }
         ],
         "programs": [
           {
-            "id": "prog_0318502a-a3b0-4742-b093-5424cc5ffbd1",
-            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "id": "prog_14bede92-c119-4fa1-b834-1c187ef57741",
+            "controllerId": "ctrl_7ec6fa8b-f523-4aed-a0c4-48120dede912",
             "name": "MainProgram",
             "routines": [
               {
-                "id": "rtn_8d38cc5f-3f3c-4483-a279-7c8eae2479ed",
-                "programId": "prog_0318502a-a3b0-4742-b093-5424cc5ffbd1",
+                "id": "rtn_cd4610e8-4c4a-4a8e-aff8-c682db4d6a8d",
+                "programId": "prog_14bede92-c119-4fa1-b834-1c187ef57741",
                 "name": "MainRoutine",
                 "language": "ladder",
                 "ladder": {
-                  "id": "ladder_a1ea62bb-067f-49b5-a456-04b2ad94125b",
+                  "id": "ladder_d07191a7-1d50-497e-8164-b854b3c4a158",
                   "rungs": [
                     {
-                      "id": "rung_8f834925-1738-4d32-b805-abedd106cd89",
-                      "routineId": "ladder_a1ea62bb-067f-49b5-a456-04b2ad94125b",
+                      "id": "rung_69ab23ce-d330-4183-9092-cb0191fc6076",
+                      "routineId": "ladder_d07191a7-1d50-497e-8164-b854b3c4a158",
                       "number": 0,
                       "root": {
-                        "id": "branch_e7871377-5fbe-493b-9444-47ede2623b21",
+                        "id": "branch_2656e595-a5e5-4470-ae16-b03048d61577",
                         "nodes": [
                           {
-                            "id": "node_21213acf-99f2-4723-bd06-1c01f89f1a17",
+                            "id": "node_2b5f7df6-169f-40ef-b0f8-1f2e5baffd6e",
                             "instructionType": "XIC",
                             "operands": [
                               {
@@ -62,7 +62,7 @@
                             ]
                           },
                           {
-                            "id": "node_b0621e63-2ceb-49da-910c-397432dea759",
+                            "id": "node_c24d0a5c-918c-4b88-8774-5aeeb54e506a",
                             "instructionType": "XIO",
                             "operands": [
                               {
@@ -73,7 +73,7 @@
                             ]
                           },
                           {
-                            "id": "node_bb45c0cd-b6e4-4351-b800-6610a629cc55",
+                            "id": "node_237eb4c6-e616-4cea-ba44-1a47ffbf9727",
                             "instructionType": "OTE",
                             "operands": [
                               {
@@ -88,14 +88,14 @@
                       "sourceText": "XIC(StartPB)XIO(StopPB)OTE(MotorRun);"
                     },
                     {
-                      "id": "rung_f13c5fbc-31c3-466c-8eec-4db7e638ef3f",
-                      "routineId": "ladder_a1ea62bb-067f-49b5-a456-04b2ad94125b",
+                      "id": "rung_09ff7e39-3437-4a25-8646-91bc6898315a",
+                      "routineId": "ladder_d07191a7-1d50-497e-8164-b854b3c4a158",
                       "number": 1,
                       "root": {
-                        "id": "branch_7f5c41ab-6fe7-4c48-896d-3d6f97f9c494",
+                        "id": "branch_eb4993a2-3e97-4777-8053-e0a4fc17093b",
                         "nodes": [
                           {
-                            "id": "node_f99fdbc8-211a-434a-80f7-255189e224f2",
+                            "id": "node_56688c64-3bfc-4bfb-9f9e-24c3533289f0",
                             "instructionType": "XIC",
                             "operands": [
                               {
@@ -106,7 +106,7 @@
                             ]
                           },
                           {
-                            "id": "node_72411e2a-4556-47e8-93cd-8b7d25c5919a",
+                            "id": "node_3c9a382f-4918-4b14-82d7-e148f42789fc",
                             "instructionType": "OTE",
                             "operands": [
                               {
@@ -124,37 +124,37 @@
               }
             ],
             "programTags": [],
-            "mainRoutineId": "rtn_8d38cc5f-3f3c-4483-a279-7c8eae2479ed"
+            "mainRoutineId": "rtn_cd4610e8-4c4a-4a8e-aff8-c682db4d6a8d"
           }
         ],
         "controllerTags": [
           {
-            "id": "tag_8554ea5b-0164-4aa8-adde-ade6f9fee79a",
-            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "id": "tag_34a7a5a2-879c-4f01-ab8e-a2ea3106e672",
+            "controllerId": "ctrl_7ec6fa8b-f523-4aed-a0c4-48120dede912",
             "name": "StartPB",
             "dataType": "BOOL",
             "scope": "controller",
             "value": false
           },
           {
-            "id": "tag_56052595-4746-4156-af60-5840ca54ec13",
-            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "id": "tag_a641dcaa-de72-43ef-b71c-389b61f126ef",
+            "controllerId": "ctrl_7ec6fa8b-f523-4aed-a0c4-48120dede912",
             "name": "StopPB",
             "dataType": "BOOL",
             "scope": "controller",
             "value": false
           },
           {
-            "id": "tag_aa7f8f7a-395a-4f21-8201-8c9eff404354",
-            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "id": "tag_6c61741a-3519-4909-adeb-6551f1c92e24",
+            "controllerId": "ctrl_7ec6fa8b-f523-4aed-a0c4-48120dede912",
             "name": "MotorRun",
             "dataType": "BOOL",
             "scope": "controller",
             "value": false
           },
           {
-            "id": "tag_2f3116e8-adf0-4d37-93a4-7ef4abfb0ac5",
-            "controllerId": "ctrl_084b3a37-9f41-44ec-8e74-09ac4d4c7c5d",
+            "id": "tag_dee83e84-e72b-4d6f-a93b-a3e1145b3698",
+            "controllerId": "ctrl_7ec6fa8b-f523-4aed-a0c4-48120dede912",
             "name": "Lamp",
             "dataType": "BOOL",
             "scope": "controller",
@@ -172,11 +172,11 @@
         "parameterConnections": []
       }
     ],
-    "createdAt": "2026-06-05T16:57:19.681Z",
-    "updatedAt": "2026-06-05T16:57:19.681Z",
+    "createdAt": "2026-06-05T20:01:39.306Z",
+    "updatedAt": "2026-06-05T20:01:39.306Z",
     "provenance": {
       "sourceType": "xml-review-import",
-      "importedAt": "2026-06-05T16:57:19.689Z",
+      "importedAt": "2026-06-05T20:01:39.312Z",
       "fileName": "starter.L5X"
     }
   }

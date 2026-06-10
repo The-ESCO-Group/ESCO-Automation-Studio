@@ -486,6 +486,53 @@ export function removeInstruction(
   });
 }
 
+/** Find a node by id anywhere in a branch tree (series, parallel legs, continuation). */
+function findNodeInTreeById(branch: LadderBranch, nodeId: string): LadderNode | undefined {
+  const local = branch.nodes.find((node) => node.id === nodeId);
+  if (local) return local;
+  for (const leg of branch.parallelBranches ?? []) {
+    const found = findNodeInTreeById(leg, nodeId);
+    if (found) return found;
+  }
+  return branch.next ? findNodeInTreeById(branch.next, nodeId) : undefined;
+}
+
+/**
+ * Relocate an existing instruction (by node id) to sit immediately before or
+ * after a target node anywhere in the rung's branch tree. The moved node keeps
+ * its id and operands — this is a true reorder, not a copy — so undo/redo and
+ * cross-references stay stable. Moving across series segments and into/out of
+ * parallel legs is allowed (drop wherever the target lives). Powers drag-reorder
+ * and keyboard "move instruction" actions.
+ *
+ * No-op (returns the input routine unchanged) when: `nodeId === targetNodeId`,
+ * `position` is not "before"/"after", either node is missing or appears more
+ * than once in the rung, or the resulting tree fails structural validation.
+ */
+export function moveNode(
+  routine: LadderRoutine,
+  rungId: string,
+  nodeId: string,
+  targetNodeId: string,
+  position: "before" | "after",
+): LadderRoutine {
+  if (nodeId === targetNodeId) return routine;
+  if (position !== "before" && position !== "after") return routine;
+  return withEditTransaction(routine, (draft) => {
+    const rung = draft.rungs.find((candidate) => candidate.id === rungId);
+    if (!rung) return undefined;
+    if (countNodeIdInBranch(rung.root, nodeId) !== 1) return undefined;
+    if (countNodeIdInBranch(rung.root, targetNodeId) !== 1) return undefined;
+    const moving = findNodeInTreeById(rung.root, nodeId);
+    if (!moving) return undefined;
+    const captured = cloneNodePreservingId(moving);
+    return mapRung(draft, rungId, (current) => {
+      const withoutNode = mapBranch(current.root, (node) => (node.id === nodeId ? null : node));
+      return { ...current, root: insertNodeIntoTree(withoutNode, targetNodeId, captured, position) };
+    });
+  });
+}
+
 /** Set (or clear) a rung's comment. */
 export function setRungComment(
   routine: LadderRoutine,

@@ -30,6 +30,8 @@ export type WorkbenchCommand =
   | "pasteRung"
   | "addLadderElement"
   | "deleteSelection"
+  | "moveInstructionEarlier"
+  | "moveInstructionLater"
   | "undo"
   | "redo";
 
@@ -72,6 +74,16 @@ export function resolveWorkbenchShortcut(event: ShortcutEventLike): ShortcutReso
   // operand field is focused, so an engineer can insert without leaving the rung.
   if (event.altKey && !event.ctrlKey && !event.metaKey && event.key === "Insert") {
     return GLOBAL("addLadderElement");
+  }
+
+  // Alt+Left / Alt+Right nudge the selected instruction earlier/later within its
+  // series. Global so the move works whether the instruction box or one of its
+  // operand fields holds focus; the shell guards it to the ladder editor surface.
+  if (event.altKey && !event.ctrlKey && !event.metaKey && event.key === "ArrowLeft") {
+    return GLOBAL("moveInstructionEarlier");
+  }
+  if (event.altKey && !event.ctrlKey && !event.metaKey && event.key === "ArrowRight") {
+    return GLOBAL("moveInstructionLater");
   }
 
   if (!event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "Delete" || event.key === "Backspace")) {
@@ -142,6 +154,10 @@ export function shortcutLabel(command: WorkbenchCommand): string {
       return "Alt+Insert";
     case "deleteSelection":
       return "Del";
+    case "moveInstructionEarlier":
+      return "Alt+Left";
+    case "moveInstructionLater":
+      return "Alt+Right";
     case "undo":
       return "Ctrl+Z";
     case "redo":

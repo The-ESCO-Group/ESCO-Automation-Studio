@@ -195,7 +195,7 @@ export function VirtualControllerPanel({ virtual, onToast, onLoadUploaded }: Pro
         </ul>
       </details>
 
-      {/* Path / Who Active */}
+      {/* Path / ESCO Route Browser */}
       <div className="esco-vctrl__path">
         <span className="esco-vctrl__pathlabel">
           Virtual path: {snapshot.path ? virtualCommPathDisplayLabel(snapshot.path) : "No virtual path selected"}

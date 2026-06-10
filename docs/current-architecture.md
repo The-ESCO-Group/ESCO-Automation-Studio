@@ -1,7 +1,8 @@
 # Current Architecture
 
-ESCO Automation Studio is a Studio 5000-style offline PLC/automation IDE. It is
-a pnpm monorepo built in dependency order, with React only at the top.
+ESCO Automation Studio is an ESCO-native PLC/automation IDE with offline
+engineering, simulation, and guarded online-read-only foundations. It is a pnpm
+monorepo built in dependency order, with React only at the top.
 
 ## Dependency order
 

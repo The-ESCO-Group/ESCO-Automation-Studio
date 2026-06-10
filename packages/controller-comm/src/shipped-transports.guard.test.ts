@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   MODEL_ONLY_DRIVER,
@@ -33,6 +36,17 @@ const SHIPPED_TRANSPORTS: { transport: ControllerTransport; driver: DriverDescri
   { transport: new ModelOnlyTransport(), driver: MODEL_ONLY_DRIVER },
 ];
 
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const BOUNDARY_WORDING_FILES = [
+  "packages/soft-controller/src/soft-controller.ts",
+  "packages/soft-controller/src/types.ts",
+  "packages/soft-controller/README.md",
+  "packages/controller-comm/src/virtual-controller.ts",
+  "docs/current-features.md",
+  "docs/limitations.md",
+  "docs/roadmap.md",
+].map((file) => resolve(REPO_ROOT, file));
+
 describe("no shipped controller transport is verified", () => {
   for (const { transport } of SHIPPED_TRANSPORTS) {
     it(`${transport.kind} (${transport.displayName}) reports verified: false`, () => {
@@ -58,6 +72,22 @@ describe("no shipped controller transport is verified", () => {
       expect(readiness).not.toBe("ready");
     }
   });
+});
+
+describe("controller boundary wording stays unambiguous", () => {
+  const banned = [
+    /first real ["“]?Go Online/i,
+    /ACD compatibility(?:\s+layer|\s*\(offline-safe\)|\b)/i,
+    /Realistic ESCO virtual communication paths/i,
+    /behaves like a real IDE online session/i,
+  ];
+
+  for (const pattern of banned) {
+    it(`does not contain ambiguous phrase ${pattern}`, () => {
+      const offenders = BOUNDARY_WORDING_FILES.filter((file) => pattern.test(readFileSync(file, "utf8")));
+      expect(offenders, `Ambiguous controller boundary wording found in: ${offenders.join(", ")}`).toEqual([]);
+    });
+  }
 });
 
 describe("driver descriptors do not drift from the transports they describe", () => {

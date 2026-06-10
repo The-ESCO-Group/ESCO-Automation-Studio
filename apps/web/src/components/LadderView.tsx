@@ -1,4 +1,9 @@
-import { createContext, useContext, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  createContext,
+  useContext,
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { createDefaultRegistry, isNumericLiteral, type InstructionDefinition } from "@esco/instructions";
 import type { LadderBranch, LadderNode, LadderRung } from "@esco/ladder";
 
@@ -45,6 +50,10 @@ interface InstructionMenuRequest {
 export interface LadderEditingHandlers {
   onEditOperand: (rungId: string, nodeId: string, index: number, value: string) => void;
   onRemoveInstruction: (rungId: string, nodeId: string) => void;
+  /** Reorder an instruction relative to another on the same rung (drag-reorder). */
+  onMoveInstruction?: (rungId: string, nodeId: string, targetNodeId: string, position: "before" | "after") => void;
+  /** Move selection to the previous/next instruction in the same series (arrow-key nav). */
+  onArrowNavigate?: (rungId: string, nodeId: string, direction: "prev" | "next") => void;
   onPickInstructionForBranch?: (rungId: string, branchId: string) => void;
   onRemoveBranchLeg?: (rungId: string, branchId: string) => void;
   isUndefinedTag: (name: string) => boolean;
@@ -226,6 +235,64 @@ function nodeClass(base: string, editing: EditingContextValue | null, nodeId: st
   return editing && editing.selectedNodeId === nodeId ? `${base} is-selected` : base;
 }
 
+const NODE_DRAG_MIME = "application/x-esco-node";
+
+/** A grip that drags an instruction to a new position on the rung. */
+function NodeDragHandle({ editing, node }: { editing: EditingContextValue; node: LadderNode }) {
+  if (!editing.onMoveInstruction) return null;
+  return (
+    <span
+      className="esco-lad__drag-handle"
+      role="button"
+      aria-label={`Drag ${node.instructionType} to reorder`}
+      title="Drag to reorder (or Alt+←/→)"
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData(NODE_DRAG_MIME, node.id);
+        event.dataTransfer.effectAllowed = "move";
+        editing.onSelectNode?.(editing.rungId, node.id);
+      }}
+      onClick={(event) => event.stopPropagation()}
+    />
+  );
+}
+
+/** Drop-target props that reorder a dragged instruction before/after this node. */
+function nodeDropProps(editing: EditingContextValue, node: LadderNode) {
+  if (!editing.onMoveInstruction) return {};
+  return {
+    onDragOver: (event: ReactDragEvent<HTMLElement>) => {
+      if (!event.dataTransfer.types.includes(NODE_DRAG_MIME)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    },
+    onDrop: (event: ReactDragEvent<HTMLElement>) => {
+      const draggedId = event.dataTransfer.getData(NODE_DRAG_MIME);
+      if (!draggedId || draggedId === node.id) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const after = event.clientX > rect.left + rect.width / 2;
+      editing.onMoveInstruction?.(editing.rungId, draggedId, node.id, after ? "after" : "before");
+    },
+  };
+}
+
+/** Arrow Left/Right on a focused instruction moves selection along the series. */
+function handleNodeArrowKey<T extends HTMLElement>(
+  event: ReactKeyboardEvent<T>,
+  editing: EditingContextValue,
+  node: LadderNode,
+): boolean {
+  if (!editing.onArrowNavigate) return false;
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return false;
+  // Alt+Arrow is the global reorder accelerator; modified arrows are not nav.
+  if (event.altKey || event.ctrlKey || event.metaKey) return false;
+  event.preventDefault();
+  editing.onArrowNavigate(editing.rungId, node.id, event.key === "ArrowLeft" ? "prev" : "next");
+  return true;
+}
+
 function openInstructionMenuFromKeyboard<T extends HTMLElement>(
   event: ReactKeyboardEvent<T>,
   editing: EditingContextValue,
@@ -319,9 +386,11 @@ function ContactGlyph({ node }: { node: LadderNode }) {
     <span
       className={nodeClass(`esco-lad__node esco-lad__node--${kind} ${typeClass}`, editing, node.id)}
       title={node.instructionType}
+      data-node-id={node.id}
       tabIndex={0}
       role="group"
       aria-label={`${node.instructionType} instruction`}
+      {...nodeDropProps(editing, node)}
       onFocus={(event) => {
         if (event.target === event.currentTarget) editing.onSelectNode?.(editing.rungId, node.id);
       }}
@@ -330,6 +399,7 @@ function ContactGlyph({ node }: { node: LadderNode }) {
         editing.onSelectNode?.(editing.rungId, node.id);
       }}
       onKeyDown={(event) => {
+        if (handleNodeArrowKey(event, editing, node)) return;
         if (openInstructionMenuFromKeyboard(event, editing, node)) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -354,6 +424,7 @@ function ContactGlyph({ node }: { node: LadderNode }) {
         <OperandInput editing={editing} node={node} index={0} value={value} placeholder="tag" />
       </span>
       <BitInstructionSymbol type={node.instructionType} />
+      <NodeDragHandle editing={editing} node={node} />
       <RemoveButton editing={editing} nodeId={node.id} />
     </span>
   );
@@ -399,9 +470,11 @@ function BoxGlyph({ node }: { node: LadderNode }) {
     <span
       className={nodeClass(boxBase, editing, node.id)}
       title={title}
+      data-node-id={node.id}
       tabIndex={0}
       role="group"
       aria-label={`${node.instructionType} instruction`}
+      {...nodeDropProps(editing, node)}
       onFocus={(event) => {
         if (event.target === event.currentTarget) editing.onSelectNode?.(editing.rungId, node.id);
       }}
@@ -410,6 +483,7 @@ function BoxGlyph({ node }: { node: LadderNode }) {
         editing.onSelectNode?.(editing.rungId, node.id);
       }}
       onKeyDown={(event) => {
+        if (handleNodeArrowKey(event, editing, node)) return;
         if (openInstructionMenuFromKeyboard(event, editing, node)) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -443,6 +517,7 @@ function BoxGlyph({ node }: { node: LadderNode }) {
           />
         </span>
       ))}
+      <NodeDragHandle editing={editing} node={node} />
       <RemoveButton editing={editing} nodeId={node.id} />
     </span>
   );

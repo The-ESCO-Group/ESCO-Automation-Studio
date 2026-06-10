@@ -1,4 +1,4 @@
-import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import type { ControllerCommandKind, ControllerMode } from "@esco/controller-comm";
 import type { ControllerCommunicationAction } from "../controller-session";
 import {
@@ -16,6 +16,7 @@ interface Props {
   canEditLadder: boolean;
   canClose: boolean;
   communicationPath?: string;
+  onlineStateLabel?: string;
   forceCount?: number;
   pendingTestEditCount?: number;
   onHome: () => void;
@@ -25,6 +26,9 @@ interface Props {
   onCompare: () => void;
   onProjectHistory: () => void;
   onSimulationLab: () => void;
+  onEscoOnline: () => void;
+  onEscoOnlineSetPath: () => void;
+  onEscoOnlineGoOffline: () => void;
   onGit: () => void;
   onMainWindow: () => void;
   onExport: () => void;
@@ -226,6 +230,8 @@ interface ToolbarButton {
 
 type MenuCommand =
   | { kind: "item"; label: string; shortcut?: string; title?: string; disabled?: boolean; action: () => void }
+  | { kind: "submenu"; label: string; title?: string; disabled?: boolean; items: MenuCommand[] }
+  | { kind: "section"; label: string }
   | { kind: "separator" };
 
 const UNSAFE_ONLINE_MESSAGE =
@@ -413,6 +419,7 @@ export function RibbonToolbar({
   canEditLadder,
   canClose,
   communicationPath = "No hardware path selected",
+  onlineStateLabel = "Offline",
   forceCount = 0,
   pendingTestEditCount = 0,
   onClose,
@@ -421,6 +428,9 @@ export function RibbonToolbar({
   onCompare,
   onProjectHistory,
   onSimulationLab,
+  onEscoOnline,
+  onEscoOnlineSetPath,
+  onEscoOnlineGoOffline,
   onGit,
   onMainWindow,
   onExport,
@@ -576,30 +586,41 @@ export function RibbonToolbar({
 
   const onlineToolbar: ToolbarButton[] = [
     {
-      label: hardwareCommandLabel("go-online", "Go Online"),
+      label: "Set Path",
+      icon: "path",
+      title: "Open ESCO Online gateway path setup",
+      action: onEscoOnlineSetPath,
+    },
+    {
+      label: "Go Online",
       icon: "online",
-      title: hardwareCommandTitle("go-online"),
-      action: () => runControllerAction("go-online"),
+      title: "Open ESCO Online read-only connection",
+      action: onEscoOnline,
     },
+    { label: "Go Offline", icon: "offline", title: "Disconnect the ESCO Online gateway session", action: onEscoOnlineGoOffline },
     {
-      label: hardwareCommandLabel("monitor", "Monitor"),
-      icon: "monitor",
-      title: hardwareCommandTitle("monitor"),
-      action: () => runControllerAction("monitor"),
-    },
-    {
-      label: hardwareCommandLabel("upload", "Upload"),
+      label: "Upload Snapshot",
       icon: "upload",
-      title: hardwareCommandTitle("upload"),
-      action: () => runControllerAction("upload"),
+      title: "Open ESCO Online read-only upload snapshot",
+      action: onEscoOnline,
     },
     {
       label: hardwareCommandLabel("download", "Download"),
       icon: "download",
       title: hardwareCommandTitle("download"),
+      disabled: true,
       action: () => runControllerAction("download"),
     },
-    { label: "Go Offline", icon: "offline", title: "Return to Offline Simulation", action: () => runControllerAction("go-offline") },
+    { label: "Compare", icon: "compare", title: "Open ESCO Online match check", action: onEscoOnline },
+    { label: "Read Tags", icon: "tags", title: "Open ESCO Online Tag Monitor", action: onEscoOnline },
+    { label: "Watch Tags", icon: "watch", title: "Open ESCO Online watch list", action: onEscoOnline },
+    {
+      label: "Faults",
+      icon: "faults",
+      title: "Open ESCO Online read-only fault/status view",
+      action: onEscoOnline,
+    },
+    { label: "Controller Status", icon: "status", title: "Open ESCO Online controller status", action: onEscoOnline },
   ];
 
   const instructionToolbar: ToolbarButton[] = (CATEGORY_INSTRUCTIONS[activeInstructionCategory] ?? FAVORITE_INSTRUCTIONS)
@@ -617,33 +638,45 @@ export function RibbonToolbar({
     }));
 
   const separator = (): MenuCommand => ({ kind: "separator" });
+  const submenu = (label: string, items: MenuCommand[], title?: string): MenuCommand => ({
+    kind: "submenu",
+    label,
+    title,
+    items,
+  });
   const menuCommands: Record<MenuName, MenuCommand[]> = {
     File: [
       { kind: "item", label: "New ESCO Project", shortcut: "Ctrl+N", action: onNew },
       { kind: "item", label: "Open ESCO Project...", shortcut: "Ctrl+O", action: onImportProject },
-      { kind: "item", label: "Import L5X (Legacy Review)...", action: onImportL5X },
-      separator(),
       { kind: "item", label: "Save ESCO Project", shortcut: "Ctrl+S", action: onExport },
       { kind: "item", label: "Save ESCO Project As...", action: onSaveAs },
-      { kind: "item", label: "Export L5X (Review Only)...", action: onExportL5X },
       separator(),
-      { kind: "item", label: "Build ESCO Runtime", action: onBuildRuntime },
-      { kind: "item", label: "Export ESCO Runtime...", action: onExportRuntime },
-      { kind: "item", label: "Import ESCO Runtime...", action: onImportRuntime },
-      { kind: "item", label: "Download Runtime to ESCO SoftController", action: onSoftControllerDownloadRuntime },
-      { kind: "item", label: "Open ESCO SoftController Upload...", action: onOpenSoftControllerUpload },
-      { kind: "item", label: "Export ESCO Snapshot...", action: onExportSnapshot },
-      { kind: "item", label: "Import ESCO Snapshot...", action: onImportSnapshot },
-      { kind: "item", label: "Export ESCO Library...", action: onExportLibrary },
-      { kind: "item", label: "Export ESCO Exchange...", action: onExportExchange },
-      { kind: "item", label: "Import ESCO Exchange...", action: onImportExchange },
-      { kind: "item", label: "Export ESCO Package...", action: onExportPackage },
-      { kind: "item", label: "Import ESCO Package...", action: onImportPackage },
-      { kind: "item", label: "Validate ESCO Package / Runtime Files...", action: onValidateEscoArtifact },
+      submenu("Import / Export", [
+        { kind: "item", label: "Import L5X...", action: onImportL5X },
+        { kind: "item", label: "Export L5X (Review Only)...", action: onExportL5X },
+        separator(),
+        { kind: "item", label: "Export ESCO Snapshot...", action: onExportSnapshot },
+        { kind: "item", label: "Import ESCO Snapshot...", action: onImportSnapshot },
+        separator(),
+        { kind: "item", label: "Export ESCO Library...", action: onExportLibrary },
+        { kind: "item", label: "Export ESCO Exchange...", action: onExportExchange },
+        { kind: "item", label: "Import ESCO Exchange...", action: onImportExchange },
+        { kind: "item", label: "Export ESCO Package...", action: onExportPackage },
+        { kind: "item", label: "Import ESCO Package...", action: onImportPackage },
+      ]),
+      submenu("Runtime / SoftController", [
+        { kind: "item", label: "Build ESCO Runtime", action: onBuildRuntime },
+        { kind: "item", label: "Export ESCO Runtime...", action: onExportRuntime },
+        { kind: "item", label: "Import ESCO Runtime...", action: onImportRuntime },
+        { kind: "item", label: "Download Runtime to ESCO SoftController", action: onSoftControllerDownloadRuntime },
+        { kind: "item", label: "Open ESCO SoftController Upload...", action: onOpenSoftControllerUpload },
+        { kind: "item", label: "Validate ESCO Package / Runtime Files...", action: onValidateEscoArtifact },
+      ]),
       separator(),
-      { kind: "item", label: "Project Properties...", action: onProjectProperties },
-      { kind: "item", label: "Controller Properties...", action: onControllerProperties },
-      separator(),
+      submenu("Properties", [
+        { kind: "item", label: "Project Properties...", action: onProjectProperties },
+        { kind: "item", label: "Controller Properties...", action: onControllerProperties },
+      ]),
       { kind: "item", label: "Close", disabled: !canClose, action: onClose },
     ],
     Edit: [
@@ -663,6 +696,7 @@ export function RibbonToolbar({
       { kind: "item", label: "Controller Tags", action: onTags },
       { kind: "item", label: "HMI Designer", action: onHmi },
       { kind: "item", label: "ESCO Simulation Lab", action: onSimulationLab },
+      { kind: "item", label: "ESCO Online (Gateway)", action: onEscoOnline },
       { kind: "item", label: "Controller Status", action: () => onDockTab("controller") },
       { kind: "item", label: "Model Summary", action: () => onDockTab("model") },
       { kind: "item", label: "Task Monitor", action: () => onDockTab("tasks") },
@@ -694,33 +728,43 @@ export function RibbonToolbar({
       { kind: "item", label: "Count Down (CTD)", disabled: !canEditLadder, action: addInstruction("CTD") },
     ],
     Communications: [
-      unavailableMenuItem("network-browser", "Who Active..."),
-      unavailableMenuItem("select-recent-path", "Select Recent Path"),
-      unavailableMenuItem("go-online", "Go Online"),
-      unavailableMenuItem("monitor", "Monitor"),
-      unavailableMenuItem("upload", "Upload..."),
-      unavailableMenuItem("download", "Download..."),
-      separator(),
-      unavailableMenuItem("run-mode", "Run Mode"),
-      unavailableMenuItem("program-mode", "Program Mode"),
-      unavailableMenuItem("test-mode", "Test Mode"),
-      unavailableMenuItem("clear-faults", "Clear Faults"),
-      unavailableMenuItem("go-to-faults", "Go To Faults"),
-      separator(),
-      unavailableMenuItem("test-edits", "Test Edits"),
-      unavailableMenuItem("assemble-edits", "Assemble Edits"),
-      unavailableMenuItem("finalize-edits", "Finalize All Edits"),
-      unavailableMenuItem("cancel-edits", "Cancel Edits"),
-      separator(),
-      { kind: "item", label: "Select Virtual Path...", action: onVirtualSelectPath },
-      { kind: "item", label: "Go Online (Virtual)", action: onVirtualGoOnline },
-      { kind: "item", label: "Monitor (Virtual)", action: onVirtualMonitor },
-      { kind: "item", label: "Download to ESCO Virtual Controller", action: onVirtualDownload },
-      { kind: "item", label: "Upload from ESCO Virtual Controller", action: onVirtualUpload },
-      { kind: "item", label: "Program Mode (Virtual)", action: () => onVirtualSetMode("program") },
-      { kind: "item", label: "Run Mode (Virtual)", action: () => onVirtualSetMode("run") },
-      { kind: "item", label: "Clear Faults (Virtual)", action: onVirtualClearFaults },
-      { kind: "item", label: "Go Offline (Virtual)", action: onVirtualGoOffline },
+      submenu("ESCO Online Gateway", [
+        { kind: "item", label: "Open ESCO Online Gateway...", action: onEscoOnline },
+        { kind: "item", label: "Set ESCO Online Path...", action: onEscoOnlineSetPath },
+        { kind: "item", label: "Go Offline (Gateway)", action: onEscoOnlineGoOffline },
+      ]),
+      submenu("Real Controller (Blocked)", [
+        unavailableMenuItem("network-browser", "Controller Route Browser..."),
+        unavailableMenuItem("select-recent-path", "Saved Controller Path"),
+        unavailableMenuItem("go-online", "Go Online"),
+        unavailableMenuItem("monitor", "Monitor"),
+        unavailableMenuItem("upload", "Upload..."),
+        unavailableMenuItem("download", "Download..."),
+      ]),
+      submenu("Mode / Faults (Blocked)", [
+        unavailableMenuItem("run-mode", "Run Mode"),
+        unavailableMenuItem("program-mode", "Program Mode"),
+        unavailableMenuItem("test-mode", "Test Mode"),
+        unavailableMenuItem("clear-faults", "Clear Faults"),
+        unavailableMenuItem("go-to-faults", "Go To Faults"),
+      ]),
+      submenu("Online Edits (Blocked)", [
+        unavailableMenuItem("test-edits", "Test Edits"),
+        unavailableMenuItem("assemble-edits", "Assemble Edits"),
+        unavailableMenuItem("finalize-edits", "Finalize All Edits"),
+        unavailableMenuItem("cancel-edits", "Cancel Edits"),
+      ]),
+      submenu("ESCO Virtual Controller", [
+        { kind: "item", label: "Select Virtual Path...", action: onVirtualSelectPath },
+        { kind: "item", label: "Go Online (Virtual)", action: onVirtualGoOnline },
+        { kind: "item", label: "Monitor (Virtual)", action: onVirtualMonitor },
+        { kind: "item", label: "Download to ESCO Virtual Controller", action: onVirtualDownload },
+        { kind: "item", label: "Upload from ESCO Virtual Controller", action: onVirtualUpload },
+        { kind: "item", label: "Program Mode (Virtual)", action: () => onVirtualSetMode("program") },
+        { kind: "item", label: "Run Mode (Virtual)", action: () => onVirtualSetMode("run") },
+        { kind: "item", label: "Clear Faults (Virtual)", action: onVirtualClearFaults },
+        { kind: "item", label: "Go Offline (Virtual)", action: onVirtualGoOffline },
+      ]),
       separator(),
       { kind: "item", label: "Go Offline", action: () => runControllerAction("go-offline") },
     ],
@@ -756,9 +800,57 @@ export function RibbonToolbar({
   };
 
   const runMenuCommand = (command: MenuCommand) => {
-    if (command.kind === "separator" || command.disabled) return;
+    if (command.kind !== "item" || command.disabled) return;
     command.action();
     setOpenMenu(null);
+  };
+
+  const renderMenuCommand = (menu: MenuName, command: MenuCommand, index: number, path = `${menu}-${index}`): ReactNode => {
+    if (command.kind === "separator") {
+      return <div key={`${path}-sep`} className="esco-ribbon-menu__separator" role="separator" />;
+    }
+    if (command.kind === "section") {
+      return (
+        <div key={`${path}-section`} className="esco-ribbon-menu__section" role="presentation">
+          {command.label}
+        </div>
+      );
+    }
+    if (command.kind === "submenu") {
+      return (
+        <div key={`${path}-${command.label}`} className="esco-ribbon-menu__submenu" role="none">
+          <button
+            type="button"
+            role="menuitem"
+            aria-haspopup="menu"
+            className="esco-ribbon-menu__item esco-ribbon-menu__item--submenu esco-ribbon-menu__submenu-trigger"
+            title={command.title ?? command.label}
+            disabled={command.disabled}
+            onClick={(event) => event.preventDefault()}
+          >
+            <span>{command.label}</span>
+            <kbd aria-hidden="true">&gt;</kbd>
+          </button>
+          <div className="esco-ribbon-menu esco-ribbon-menu--nested" role="menu" aria-label={`${command.label} submenu`}>
+            {command.items.map((child, childIndex) => renderMenuCommand(menu, child, childIndex, `${path}-${command.label}-${childIndex}`))}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <button
+        key={`${path}-${command.label}`}
+        type="button"
+        role="menuitem"
+        className="esco-ribbon-menu__item"
+        title={command.title ?? command.label}
+        disabled={command.disabled}
+        onClick={() => runMenuCommand(command)}
+      >
+        <span>{command.label}</span>
+        {command.shortcut ? <kbd>{command.shortcut}</kbd> : null}
+      </button>
+    );
   };
 
   const renderButton = (
@@ -819,24 +911,7 @@ export function RibbonToolbar({
             </button>
             {openMenu === menu ? (
               <div className="esco-ribbon-menu" role="menu" aria-label={`${menu} menu`}>
-                {menuCommands[menu].map((command, index) =>
-                  command.kind === "separator" ? (
-                    <div key={`${menu}-sep-${index}`} className="esco-ribbon-menu__separator" role="separator" />
-                  ) : (
-                    <button
-                      key={`${menu}-${command.label}`}
-                      type="button"
-                      role="menuitem"
-                      className="esco-ribbon-menu__item"
-                      title={command.title ?? command.label}
-                      disabled={command.disabled}
-                      onClick={() => runMenuCommand(command)}
-                    >
-                      <span>{command.label}</span>
-                      {command.shortcut ? <kbd>{command.shortcut}</kbd> : null}
-                    </button>
-                  ),
-                )}
+                {menuCommands[menu].map((command, index) => renderMenuCommand(menu, command, index))}
               </div>
             ) : null}
           </span>
@@ -896,6 +971,9 @@ export function RibbonToolbar({
         <div className="esco-ribbon__button-strip esco-ribbon__button-strip--online" aria-label="Online toolbar commands">
           {onlineToolbar.map((button) => renderButton(button))}
         </div>
+        <span className="esco-ribbon__online-state" title="Goal B online session state">
+          {onlineStateLabel}
+        </span>
         <span className="esco-ribbon__rail-label">Online toolbar</span>
       </div>
 

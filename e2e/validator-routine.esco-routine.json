@@ -2,17 +2,17 @@
   "format": "esco.component.export.v1",
   "kind": "routine",
   "name": "MainRoutine",
-  "exportedAt": "2026-06-05T16:59:15.015Z",
+  "exportedAt": "2026-06-05T20:02:47.713Z",
   "project": {
-    "id": "proj_2bd502af-a73a-4661-874b-aa39d98d203d",
+    "id": "proj_1adeb0d6-c99c-488b-ab9f-642563ca6d15",
     "name": "E2E_Starter"
   },
   "controller": {
-    "id": "ctrl_4eea0921-797a-44da-ac36-39244cbdf74f",
+    "id": "ctrl_c19f29c9-8173-47c8-990f-505499ff8d96",
     "name": "E2E_Starter"
   },
   "owner": {
-    "id": "prog_11d51776-43de-47df-bdcc-d60655be6871",
+    "id": "prog_c988ce6b-c01c-44d8-bba6-933ad62896f4",
     "name": "MainProgram",
     "type": "program"
   },
@@ -31,22 +31,22 @@
     "devices": []
   },
   "payload": {
-    "id": "rtn_c168c643-b053-4328-a6cc-2055ad52f31c",
-    "programId": "prog_11d51776-43de-47df-bdcc-d60655be6871",
+    "id": "rtn_b3c1a35f-dcc4-460a-b8c6-8e6801562be0",
+    "programId": "prog_c988ce6b-c01c-44d8-bba6-933ad62896f4",
     "name": "MainRoutine",
     "language": "ladder",
     "ladder": {
-      "id": "ladder_24141be7-2e54-4a2b-8ead-c811fd3d0b3f",
+      "id": "ladder_2b1f45ec-7fce-4736-a2b1-c25c47bbd1fe",
       "rungs": [
         {
-          "id": "rung_ab8dbd7b-5ca4-4a7b-8556-562312cc2e21",
-          "routineId": "ladder_24141be7-2e54-4a2b-8ead-c811fd3d0b3f",
+          "id": "rung_857b2e52-f24b-4e31-a74f-4b46b9c4847f",
+          "routineId": "ladder_2b1f45ec-7fce-4736-a2b1-c25c47bbd1fe",
           "number": 0,
           "root": {
-            "id": "branch_559e648d-0ea1-4cdf-bd9a-de8e4a7e7fab",
+            "id": "branch_b197c7d0-41af-47a5-a13f-df91585d1f74",
             "nodes": [
               {
-                "id": "node_4ec8fb1a-cc75-43a4-ae1c-f94acd02cbf7",
+                "id": "node_7c35fd86-8831-4447-aece-cabeb7ad87fb",
                 "instructionType": "XIC",
                 "operands": [
                   {
@@ -57,7 +57,7 @@
                 ]
               },
               {
-                "id": "node_c16eab1b-a26c-4058-aba7-65222cee4a94",
+                "id": "node_8f11a905-c5e1-405f-8c06-f237fd22e95f",
                 "instructionType": "XIO",
                 "operands": [
                   {
@@ -68,7 +68,7 @@
                 ]
               },
               {
-                "id": "node_50d0131a-20e0-4306-b6b1-764effcf2860",
+                "id": "node_f6196c1f-c584-4db5-bc22-23230903c45a",
                 "instructionType": "OTE",
                 "operands": [
                   {

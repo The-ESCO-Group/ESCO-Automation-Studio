@@ -26,6 +26,8 @@ import {
   deleteRung,
   insertInstruction,
   insertRung,
+  moveInstruction,
+  pasteInstruction,
   pasteRung,
   removeInstruction,
   setRungComment,
@@ -106,6 +108,133 @@ describe("insertRung", () => {
     const result = insertRung(base.project, { routineId: base.routineId, rungId: "missing", position: "above" });
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/not found/i);
+  });
+});
+
+describe("moveInstruction", () => {
+  it("reorders an instruction after a target within the series", () => {
+    const built = buildMotorRung(baseProject());
+    const result = moveInstruction(built.project, {
+      routineId: built.routineId,
+      rungId: built.rungId,
+      nodeId: built.ids.StartPB!,
+      targetNodeId: built.ids.MotorRun!,
+      position: "after",
+    });
+    expect(result.ok).toBe(true);
+    const series = rungNodes(ladderOf(result.project).rungs[0]!);
+    expect(series.map((node) => node.operands[0]?.value)).toEqual(["StopPB", "MotorRun", "StartPB"]);
+    // The moved instruction keeps its id (cross-references stay stable).
+    expect(series.find((node) => node.operands[0]?.value === "StartPB")!.id).toBe(built.ids.StartPB);
+  });
+
+  it("reorders an instruction before a target within the series", () => {
+    const built = buildMotorRung(baseProject());
+    const result = moveInstruction(built.project, {
+      routineId: built.routineId,
+      rungId: built.rungId,
+      nodeId: built.ids.MotorRun!,
+      targetNodeId: built.ids.StartPB!,
+      position: "before",
+    });
+    expect(result.ok).toBe(true);
+    expect(rungNodes(ladderOf(result.project).rungs[0]!).map((node) => node.operands[0]?.value)).toEqual([
+      "MotorRun",
+      "StartPB",
+      "StopPB",
+    ]);
+  });
+
+  it("fails when an instruction is moved relative to itself", () => {
+    const built = buildMotorRung(baseProject());
+    const result = moveInstruction(built.project, {
+      routineId: built.routineId,
+      rungId: built.rungId,
+      nodeId: built.ids.StartPB!,
+      targetNodeId: built.ids.StartPB!,
+      position: "after",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/itself/i);
+  });
+
+  it("fails for an unknown instruction id", () => {
+    const built = buildMotorRung(baseProject());
+    const result = moveInstruction(built.project, {
+      routineId: built.routineId,
+      rungId: built.rungId,
+      nodeId: "missing",
+      targetNodeId: built.ids.StartPB!,
+      position: "after",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/not found/i);
+  });
+
+  it("fails for an invalid position and does not mutate the input project", () => {
+    const built = buildMotorRung(baseProject());
+    const snapshot = JSON.stringify(built.project);
+    const result = moveInstruction(built.project, {
+      routineId: built.routineId,
+      rungId: built.rungId,
+      nodeId: built.ids.StartPB!,
+      targetNodeId: built.ids.MotorRun!,
+      position: "sideways" as "before",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/before/i);
+    expect(JSON.stringify(built.project)).toBe(snapshot);
+  });
+});
+
+describe("pasteInstruction", () => {
+  it("appends a fresh-id clone of a copied instruction, operands intact", () => {
+    const built = buildMotorRung(baseProject());
+    const source = rungNodes(ladderOf(built.project).rungs[0]!).find((n) => n.operands[0]?.value === "StartPB")!;
+    const result = pasteInstruction(built.project, {
+      routineId: built.routineId,
+      rungId: built.rungId,
+      node: source,
+    });
+    expect(result.ok).toBe(true);
+    const series = rungNodes(ladderOf(result.project).rungs[0]!);
+    // Appended to the terminal series, after the existing OTE.
+    expect(series.map((n) => n.operands[0]?.value)).toEqual(["StartPB", "StopPB", "MotorRun", "StartPB"]);
+    const pasted = series.at(-1)!;
+    expect(pasted.instructionType).toBe("XIC");
+    expect(pasted.id).not.toBe(source.id); // fresh id, never a duplicate
+    expect(result.data!.nodeId).toBe(pasted.id);
+  });
+
+  it("pastes before an anchor instruction", () => {
+    const built = buildMotorRung(baseProject());
+    const motorRun = rungNodes(ladderOf(built.project).rungs[0]!).find((n) => n.operands[0]?.value === "MotorRun")!;
+    const start = rungNodes(ladderOf(built.project).rungs[0]!).find((n) => n.operands[0]?.value === "StartPB")!;
+    const result = pasteInstruction(built.project, {
+      routineId: built.routineId,
+      rungId: built.rungId,
+      nodeId: motorRun.id,
+      position: "before",
+      node: start,
+    });
+    expect(result.ok).toBe(true);
+    expect(rungNodes(ladderOf(result.project).rungs[0]!).map((n) => n.operands[0]?.value)).toEqual([
+      "StartPB",
+      "StopPB",
+      "StartPB",
+      "MotorRun",
+    ]);
+  });
+
+  it("fails when there is nothing to paste", () => {
+    const built = buildMotorRung(baseProject());
+    const result = pasteInstruction(built.project, {
+      routineId: built.routineId,
+      rungId: built.rungId,
+      node: { id: "x", instructionType: "", operands: [] },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/nothing to paste/i);
   });
 });
 
