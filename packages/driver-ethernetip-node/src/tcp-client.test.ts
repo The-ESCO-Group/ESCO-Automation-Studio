@@ -255,7 +255,11 @@ describe("connected (class-3) messaging over loopback", () => {
 });
 
 describe("read-only by construction", () => {
-  it("exports no controller-mutating or write-capable surface", async () => {
+  // Importing the package index pulls the full module graph (gateway driver,
+  // readonly comms, fake server) through the transform pipeline; on a cold
+  // cache that alone can exceed the 5s default, so this test gets its own
+  // generous timeout.
+  it("exports no controller-mutating or write-capable surface", { timeout: 30000 }, async () => {
     const pkg = await import("./index");
     const mutating = Object.keys(pkg).filter((name) =>
       /(write|download|onlineEdit|modeChange|clearFault|force|setAttribute)/i.test(name),
