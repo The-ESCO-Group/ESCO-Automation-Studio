@@ -2355,3 +2355,149 @@
 
 .esco-hmi-authoring__import { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #475467; }
 .esco-hmi-authoring__import input[type="file"] { font-size: 10px; max-width: 130px; }
+
+/* ---- HMI full-screen pop-out shell ---- */
+.esco-hmi__popout-toggle[aria-pressed="true"] {
+  border-color: #0b6dad;
+  background: #0b6dad;
+  color: #ffffff;
+}
+
+.esco-hmi--popout {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  background: #cfd7df;
+}
+
+.esco-hmi--popout:fullscreen {
+  width: 100vw;
+  height: 100vh;
+}
+
+.esco-hmi--popout .esco-hmi__header {
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 10px 14px;
+}
+
+.esco-hmi--popout .esco-hmi__device {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.esco-hmi--popout .esco-hmi__workspace {
+  grid-template-columns:
+    54px
+    clamp(260px, 17vw, 340px)
+    minmax(760px, 1fr)
+    clamp(300px, 20vw, 400px);
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+}
+
+.esco-hmi--popout .esco-hmi-nav,
+.esco-hmi--popout .esco-hmi-properties,
+.esco-hmi--popout .esco-hmi-properties__body,
+.esco-hmi--popout .esco-hmi-toolbox,
+.esco-hmi--popout .esco-hmi-live-preview__panels,
+.esco-hmi--popout .esco-hmi-live-preview__tags,
+.esco-hmi--popout .esco-hmi-live-preview__diagnostics,
+.esco-hmi--popout .esco-hmi-live-preview__alarms,
+.esco-hmi--popout .esco-hmi-live-preview__alarm-history {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+}
+
+.esco-hmi--popout .esco-hmi-nav,
+.esco-hmi--popout .esco-hmi-properties {
+  max-height: 100%;
+  overflow: auto;
+}
+
+.esco-hmi--popout .esco-hmi-main {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.esco-hmi--popout .esco-hmi-toolbox {
+  max-height: min(150px, 18vh);
+}
+
+.esco-hmi--popout .esco-hmi-canvas {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+}
+
+.esco-hmi--popout .esco-hmi-canvas__toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  min-width: min(760px, 100%);
+}
+
+.esco-hmi--popout .esco-hmi-canvas__surface {
+  width: min(1280px, 100%);
+  max-width: none;
+  margin: 0 auto;
+}
+
+.esco-hmi--popout .esco-hmi-live-preview {
+  grid-template-columns: minmax(760px, 1fr) minmax(300px, 380px);
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+}
+
+.esco-hmi--popout .esco-hmi-live-preview__stage {
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+}
+
+.esco-hmi--popout .esco-hmi-live-preview__surface {
+  width: min(1280px, 100%);
+  max-width: 1280px;
+  max-height: none;
+}
+
+.esco-hmi--popout .esco-hmi-operator {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+}
+
+.esco-hmi--popout .esco-hmi-bottom-dock {
+  max-height: 88px;
+}
+
+@media (max-width: 1280px) {
+  .esco-hmi--popout .esco-hmi__workspace {
+    grid-template-columns: 50px 260px minmax(680px, 1fr) 300px;
+  }
+
+  .esco-hmi--popout .esco-hmi-live-preview {
+    grid-template-columns: minmax(680px, 1fr) minmax(280px, 340px);
+  }
+}

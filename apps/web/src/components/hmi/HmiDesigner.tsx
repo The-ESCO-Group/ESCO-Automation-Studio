@@ -3030,9 +3030,11 @@ export function HmiDesigner({
   const [popupName, setPopupName] = useState("Popup");
   const [selectedElementId, setSelectedElementId] = useState<string | undefined>();
   const [previewActive, setPreviewActive] = useState(false);
+  const [popoutActive, setPopoutActive] = useState(false);
   // Bumping this key remounts the live preview, resetting the runtime provider.
   const [previewKey, setPreviewKey] = useState(0);
   const [propsSection, setPropsSection] = useState<"bind" | "events" | "sec">("bind");
+  const hmiRootRef = useRef<HTMLDivElement | null>(null);
   const [runtimeSession, setRuntimeSession] = useState<HmiRuntimeSession | undefined>(
     () => (hmi ? createHmiRuntimeSession(hmi) : undefined),
   );
@@ -3087,6 +3089,25 @@ export function HmiDesigner({
     if (selectedElementId && !selectedElement) setSelectedElementId(undefined);
   }, [selectedElementId, selectedElement]);
 
+  useEffect(() => {
+    if (!popoutActive) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPopoutActive(false);
+    };
+    const syncFullscreenState = () => {
+      if (!document.fullscreenElement) setPopoutActive(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+    };
+  }, [popoutActive]);
+
   if (!hmi) {
     return (
       <div className="esco-hmi esco-hmi--empty">
@@ -3134,6 +3155,17 @@ export function HmiDesigner({
     setPreviewActive(true);
   };
   const stopRuntimePreview = () => setPreviewActive(false);
+  const togglePopout = () => {
+    if (popoutActive) {
+      setPopoutActive(false);
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    setPopoutActive(true);
+    if (hmiRootRef.current?.requestFullscreen) {
+      void hmiRootRef.current.requestFullscreen().catch(() => undefined);
+    }
+  };
   const problemCount = findings.filter((finding) => finding.severity === "error" || finding.severity === "warning").length;
   const errorCount = findings.filter((finding) => finding.severity === "error").length;
   const warningCount = findings.filter((finding) => finding.severity === "warning").length;
@@ -3142,7 +3174,11 @@ export function HmiDesigner({
   const visualModelOnlyCount = visualQaReport?.surfaces.reduce((sum, row) => sum + row.modelOnlyElementCount, 0) ?? 0;
 
   return (
-    <div className="esco-hmi" data-testid="hmi-designer">
+    <div
+      ref={hmiRootRef}
+      className={popoutActive ? "esco-hmi esco-hmi--popout" : "esco-hmi"}
+      data-testid="hmi-designer"
+    >
       <header className="esco-hmi__header">
         <div className="esco-hmi__title">
           <p className="esco-kicker">EAS HMI Designer</p>
@@ -3184,6 +3220,15 @@ export function HmiDesigner({
           <button type="button" className="esco-btn esco-btn--xs" aria-label="Build Runtime Package" onClick={onBuildRuntimePackage}>
             Build Runtime
             <span className="esco-hmi__sr-only"> Package</span>
+          </button>
+          <button
+            type="button"
+            className="esco-btn esco-btn--xs esco-hmi__popout-toggle"
+            data-testid="hmi-popout-toggle"
+            aria-pressed={popoutActive}
+            onClick={togglePopout}
+          >
+            {popoutActive ? "Dock HMI" : "Pop Out"}
           </button>
         </div>
       </header>

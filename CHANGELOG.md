@@ -9,6 +9,15 @@ does not modify `.ACD` files, and requires no external API keys.
 First consolidated internal release. ESCO-native offline IDE for viewing,
 editing, simulating, validating, importing, and comparing ladder logic.
 
+### HMI Designer full-screen pop-out mode (2026-06-10)
+- Added a **Pop Out / Dock HMI** toggle to the HMI Designer header: the designer
+  expands into a fixed full-viewport shell (with native `requestFullscreen` when
+  available), widens the workspace grid for large-monitor authoring, locks body
+  scroll behind it, and keeps every panel (toolbox, project tree, canvas,
+  properties, live preview) scrollable with contained overscroll. Escape or the
+  toggle returns the designer to its docked layout; exiting browser full-screen
+  re-docks automatically. Covered by the new `e2e/hmipopout.mjs` driver.
+
 ### ESCO-owned EtherNet/IP / CIP protocol codecs — Goal B read-only groundwork (2026-06-07)
 - Added **`@esco/driver-ethernetip`**: pure, ESCO-owned EtherNet/IP / CIP byte codecs for
   the future Goal B read-only Allen-Bradley driver, written from the public ODVA
