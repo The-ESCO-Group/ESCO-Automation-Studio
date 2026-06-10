@@ -76,6 +76,7 @@ const ORDER = [
   "hmilive.mjs",
   "hmilive-authoring.mjs",
   "hmisecurity.mjs",
+  "hmipopout.mjs",
   "persist.mjs",
   "l5x.mjs",
   "l5x-branch.mjs",
