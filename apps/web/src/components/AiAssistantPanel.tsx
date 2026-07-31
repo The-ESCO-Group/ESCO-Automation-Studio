@@ -33,6 +33,9 @@ const QUICK_ACTIONS: { label: string; prompt: string }[] = [
   { label: "Debounce input", prompt: "debounce input" },
   { label: "Count starts", prompt: "count motor starts with ONS" },
   { label: "C/F conversion", prompt: "C/F unit conversion" },
+  { label: "Program scaffold", prompt: 'create program scaffold "AI_Program"' },
+  { label: "Handoff ready?", prompt: "Studio 5000 handoff readiness" },
+  { label: "Studio handoff", prompt: "Studio 5000 handoff" },
 ];
 
 const EMPTY_QUICK_ACTIONS: { label: string; prompt: string }[] = [
@@ -43,6 +46,9 @@ const EMPTY_QUICK_ACTIONS: { label: string; prompt: string }[] = [
   { label: "Debounce input", prompt: "debounce input" },
   { label: "Count starts", prompt: "count motor starts with ONS" },
   { label: "C/F conversion", prompt: "C/F unit conversion" },
+  { label: "Program scaffold", prompt: 'create program scaffold "AI_Program"' },
+  { label: "Handoff ready?", prompt: "Studio 5000 handoff readiness" },
+  { label: "Studio handoff", prompt: "Studio 5000 handoff" },
 ];
 
 const createMessageId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;

@@ -181,6 +181,49 @@ const connectStatusDisconnectedDriver = (localProject = project()): { driver: Co
   };
 };
 
+const identityTagDriver = (values: Record<string, boolean | number | string | null>): ControllerDriver => ({
+  id: "identity-tags",
+  name: "Identity Tag Driver",
+  kind: "ethernetip",
+  async connect() {
+    return {
+      ok: true,
+      state: "online-readonly",
+      message: "Connected for read-only identity tag proof.",
+      identity: {
+        controllerType: "ControlLogix 5580",
+        firmwareRevision: "36.011",
+        productName: "1756-L85E",
+      },
+    };
+  },
+  async disconnect() {},
+  async getIdentity() {
+    return {
+      controllerType: "ControlLogix 5580",
+      firmwareRevision: "36.011",
+      productName: "1756-L85E",
+    };
+  },
+  async getStatus() {
+    return { state: "online-readonly", connected: true, health: "ok", message: "Identity tag driver online.", updatedAt: "t" };
+  },
+  async getFaults() {
+    return [];
+  },
+  async readTag(tagName) {
+    if (!(tagName in values)) throw new Error(`Unknown proof tag: ${tagName}`);
+    return {
+      tagName,
+      value: values[tagName],
+      dataType: "STRING",
+      quality: "good",
+      timestamp: "t",
+      sourceDriver: "ethernetip",
+    };
+  },
+});
+
 describe("Goal B online state model", () => {
   it("contains every B1 state label", () => {
     expect(Object.values(ONLINE_CONNECTION_STATE_LABELS)).toEqual([
@@ -382,6 +425,99 @@ describe("ControllerGateway match safety", () => {
     expect(compare.differences).toContainEqual(
       expect.objectContaining({ field: "controllerName", local: "PLC_1", online: undefined, severity: "blocking" }),
     );
+  });
+
+  it("uses configured read-only identity tags to prove the local project match", async () => {
+    const localProject = project();
+    const localIdentity = localProjectIdentity(localProject);
+    const gateway = new ControllerGateway([
+      identityTagDriver({
+        EscoControllerName: localIdentity.controllerName ?? "",
+        EscoControllerType: localIdentity.controllerType ?? "",
+        EscoProjectName: localIdentity.projectName ?? "",
+        EscoProjectSignature: (localIdentity.projectSignature ?? "").split(":").at(1) ?? "",
+        EscoProjectSignatureAlgorithm: localIdentity.projectSignatureAlgorithm ?? "",
+      }),
+    ]);
+
+    const result = await gateway.connect(
+      "identity-tags",
+      {
+        identityTags: {
+          controllerName: "EscoControllerName",
+          controllerType: "EscoControllerType",
+          projectName: "EscoProjectName",
+          projectSignature: "EscoProjectSignature",
+          projectSignatureAlgorithm: "EscoProjectSignatureAlgorithm",
+        },
+      },
+      localProject,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.state).toBe("online-matched");
+    expect(result.compare?.matched).toBe(true);
+    expect(result.identity).toMatchObject({
+      controllerName: "PLC_1",
+      controllerType: "ControlLogix 5580",
+      projectName: "Line1",
+      projectSignature: localIdentity.projectSignature,
+      projectSignatureAlgorithm: PROJECT_SIGNATURE_ALGORITHM,
+      projectSignatureSource: "controller-tag:EscoProjectSignature",
+    });
+    expect(gateway.snapshot().readOnly).toBe(true);
+    expect(gateway.snapshot().capabilities?.canWriteTags).toBe(false);
+    expect(gateway.auditLog.find((entry) => entry.action === "identity-evidence")).toMatchObject({
+      result: "ran",
+      details: {
+        applied: {
+          controllerName: "EscoControllerName",
+          controllerType: "EscoControllerType",
+          projectName: "EscoProjectName",
+          projectSignature: "EscoProjectSignature",
+          projectSignatureAlgorithm: "EscoProjectSignatureAlgorithm",
+        },
+      },
+    });
+  });
+
+  it("keeps identity-tag sessions read-only when configured proof tags are missing", async () => {
+    const localProject = project();
+    const localIdentity = localProjectIdentity(localProject);
+    const gateway = new ControllerGateway([
+      identityTagDriver({
+        EscoControllerName: localIdentity.controllerName ?? "",
+        EscoControllerType: localIdentity.controllerType ?? "",
+        EscoProjectName: localIdentity.projectName ?? "",
+      }),
+    ]);
+
+    const result = await gateway.connect(
+      "identity-tags",
+      {
+        identityTags: {
+          controllerName: "EscoControllerName",
+          controllerType: "EscoControllerType",
+          projectName: "EscoProjectName",
+          projectSignature: "MissingSignatureTag",
+        },
+      },
+      localProject,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.state).toBe("online-readonly");
+    expect(result.compare?.state).toBe("unknown");
+    expect(result.compare?.differences).toContainEqual(
+      expect.objectContaining({ field: "projectSignature", online: undefined, severity: "blocking" }),
+    );
+    expect(gateway.snapshot().readOnly).toBe(true);
+    expect(gateway.auditLog.find((entry) => entry.action === "identity-evidence")).toMatchObject({
+      result: "ran",
+      details: {
+        failed: { projectSignature: "Unknown proof tag: MissingSignatureTag" },
+      },
+    });
   });
 
   it("goes Online Matched only when identity/signature proves the local project matches", async () => {

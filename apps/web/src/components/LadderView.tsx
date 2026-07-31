@@ -138,6 +138,9 @@ function OperandInput({
         placeholder=""
         aria-label={placeholder}
         title={value || placeholder}
+        data-rung-id={editing.rungId}
+        data-node-id={node.id}
+        data-operand-index={index}
         size={Math.max(value.length, 1)}
         spellCheck={false}
         list={editing.operandSuggestions?.length ? listId : undefined}

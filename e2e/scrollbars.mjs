@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-import { URL, createBlankProject, dismissToasts, openDockPanel } from "./helpers.mjs";
+import { URL, clickFileMenuItem, createBlankProject, dismissToasts, openDockPanel } from "./helpers.mjs";
 
 const results = [];
 const check = (label, cond, detail = "") => {
@@ -306,8 +306,7 @@ try {
 
   await page.setViewportSize({ width: 1280, height: 720 });
 
-  await page.locator('.esco-ribbon__tab:has-text("File")').click();
-  await page.locator('.esco-ribbon-menu__item:has-text("Project Properties")').click();
+  await clickFileMenuItem(page, "Project Properties");
   await page.locator(".esco-project-props").waitFor({ timeout: 5000 });
   const modalOverflow = await page.locator(".esco-project-props").evaluate((node) => {
     const styles = getComputedStyle(node);

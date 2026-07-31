@@ -50,6 +50,9 @@ const QUICK_PROMPTS = [
   "Diagnose the current validation findings and propose fixes",
   "Propose a motor seal-in (start/stop) rung with an E-stop interlock",
   "Create any undefined tags referenced in logic",
+  'Create program scaffold "AI_Program"',
+  "Check Studio 5000 handoff readiness",
+  "Explain the Studio 5000 handoff",
 ];
 
 function read(key: string, fallback = false): boolean {

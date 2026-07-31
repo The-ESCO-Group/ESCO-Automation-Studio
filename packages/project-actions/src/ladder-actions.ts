@@ -283,9 +283,18 @@ export function createRoutine(
   }
   if (!found) return fail(project, `Program "${input.programId}" not found.`);
   if (duplicate) return fail(project, `Routine "${name}" already exists in that program.`);
+  const routineId = input.routineId?.trim();
+  if (routineId && project.controllers.some((controller) =>
+    controller.programs.some((program) => program.routines.some((routine) => routine.id === routineId)),
+  )) {
+    return fail(project, `Routine id "${routineId}" already exists.`);
+  }
 
   const language = input.language ?? "ladder";
-  const routine = makeRoutine(input.programId, name, language);
+  const routine = {
+    ...makeRoutine(input.programId, name, language),
+    ...(routineId ? { id: routineId } : {}),
+  };
   if (language === "ladder") {
     routine.ladder = createLadderRoutine();
   } else if (language === "structured-text") {
@@ -859,6 +868,7 @@ export function verifyRung(
   const rungTags = new Set(rungRefs.map((ref) => ref.tag));
   const rungOperands = new Set(rungRefs.map((ref) => ref.operand));
   const rungFindings = routineFindings.filter((finding) => {
+    if (new RegExp(`\\bRung ${rung.number}\\b`).test(finding.message)) return true;
     const quoted = [...finding.message.matchAll(/"([^"]+)"/g)].map((match) => match[1]).filter((value): value is string => Boolean(value));
     return quoted.some(
       (token) => rungTags.has(token) || rungTags.has(baseTagName(token)) || rungOperands.has(token),

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { ControllerDriverSummary } from "./gateway-contract";
+import type {
+  ApiAuthContext,
+  CloudProjectListResponse,
+  CloudProjectRecord,
+  ControllerDriverSummary,
+  ControllerIdentity,
+  GatewayValidationReadinessReport,
+  IdentityProofTagExport,
+  SiteGatewayPolicyReport,
+} from "./gateway-contract";
 import { EscoGatewayClient, GatewayApiError } from "./gateway-client";
 
 interface RecordedCall {
@@ -105,6 +114,156 @@ describe("EscoGatewayClient", () => {
     expect(calls[0].url).toBe("http://api.local:4000/api/gateway/drivers");
     expect(calls[0].method).toBe("GET");
     expect(calls[0].headers).toMatchObject({ "x-esco-session-id": "client-a" });
+  });
+
+  it("reads gateway validation readiness through the gateway", async () => {
+    const response: GatewayValidationReadinessReport = {
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      driverCount: 1,
+      realControllerRouteCount: 1,
+      hardwareValidatedRouteCount: 0,
+      readOnlyReleaseEligibleRouteCount: 0,
+      destructiveOperationsEnabled: false,
+      summary: "No route is hardware validated.",
+      nextStep: "Run hardware validation.",
+      drivers: [],
+    };
+    const { fetchImpl, calls } = stubFetch(() => ({
+      status: 200,
+      body: response,
+    }));
+    const client = new EscoGatewayClient({ baseUrl: "http://api.local", fetchImpl, sessionId: "client-a" });
+
+    const report = await client.validationReadiness();
+
+    expect(report.hardwareValidatedRouteCount).toBe(0);
+    expect(calls[0].method).toBe("GET");
+    expect(calls[0].url).toBe("http://api.local/api/gateway/validation-readiness");
+  });
+
+  it("reads site gateway policy through the gateway", async () => {
+    const response: SiteGatewayPolicyReport = {
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      mode: "site-gateway-required",
+      requiredForRealControllerIo: true,
+      directControllerConnectionsAllowed: false,
+      configuredGatewayCount: 1,
+      connectedGatewayCount: 1,
+      gateways: [
+        {
+          id: "site-a",
+          name: "Line A Site Gateway",
+          status: "connected",
+          allowedDriverKinds: ["ethernetip"],
+          allowedEndpointPatterns: ["10.10.*"],
+          readOnlyOnly: true,
+          notes: "Read-only gateway.",
+        },
+      ],
+      summary: "Hosted site-gateway policy is enforced.",
+      nextStep: "Register site gateways.",
+    };
+    const { fetchImpl, calls } = stubFetch(() => ({
+      status: 200,
+      body: response,
+    }));
+    const client = new EscoGatewayClient({ baseUrl: "http://api.local", fetchImpl, sessionId: "client-a" });
+
+    const policy = await client.siteGatewayPolicy();
+
+    expect(policy.requiredForRealControllerIo).toBe(true);
+    expect(policy.gateways[0]?.id).toBe("site-a");
+    expect(calls[0].method).toBe("GET");
+    expect(calls[0].url).toBe("http://api.local/api/gateway/site-gateways");
+  });
+
+  it("reads hosted auth context from the API host", async () => {
+    const response: ApiAuthContext = {
+      mode: "token-required",
+      authenticated: false,
+      roles: [],
+      permissions: [],
+      summary: "Token authentication is active and this request is not authenticated.",
+      nextStep: "Send Authorization: Bearer <token> to use protected gateway routes.",
+    };
+    const { fetchImpl, calls } = stubFetch(() => ({
+      status: 200,
+      body: response,
+    }));
+    const client = new EscoGatewayClient({ baseUrl: "http://api.local", fetchImpl, sessionId: "client-a" });
+
+    const context = await client.authContext();
+
+    expect(context.mode).toBe("token-required");
+    expect(context.authenticated).toBe(false);
+    expect(calls[0].method).toBe("GET");
+    expect(calls[0].url).toBe("http://api.local/api/auth/context");
+  });
+
+  it("sends the hosted API token on JSON gateway requests", async () => {
+    const { fetchImpl, calls } = stubFetch(() => ({
+      status: 200,
+      body: [simulatorDriver],
+    }));
+    const client = new EscoGatewayClient({
+      baseUrl: "http://api.local",
+      fetchImpl,
+      sessionId: "client-a",
+      apiToken: "secret-token",
+    });
+
+    await client.listDrivers();
+
+    expect(calls[0].headers).toMatchObject({
+      "x-esco-session-id": "client-a",
+      authorization: "Bearer secret-token",
+    });
+  });
+
+  it("lists, saves, opens, and deletes hosted cloud projects", async () => {
+    const project = { id: "project/line 1", name: "Line 1", controllers: [] };
+    const summary = {
+      id: project.id,
+      name: project.name,
+      controllerCount: 0,
+      routineCount: 0,
+      tagCount: 0,
+      updatedAt: "2026-06-15T00:00:00.000Z",
+      savedAt: "2026-06-15T00:00:01.000Z",
+      revision: "sha256:abc",
+      sizeBytes: 100,
+    };
+    const record: CloudProjectRecord = {
+      project: project as never,
+      summary,
+      warnings: [],
+      migrationsApplied: [],
+    };
+    const listResponse: CloudProjectListResponse = { projects: [summary] };
+    const { fetchImpl, calls } = stubFetch((call) => {
+      if (call.method === "GET" && call.url.endsWith("/api/projects")) return { status: 200, body: listResponse };
+      if (call.method === "POST" && call.url.endsWith("/api/projects")) return { status: 200, body: record };
+      if (call.method === "GET") return { status: 200, body: record };
+      return { status: 200, body: { ok: true } };
+    });
+    const client = new EscoGatewayClient({ baseUrl: "http://api.local", fetchImpl, sessionId: "client-a" });
+
+    const projects = await client.listCloudProjects();
+    const saved = await client.saveCloudProject(project as never, "sha256:previous");
+    const opened = await client.openCloudProject(project.id);
+    const deleted = await client.deleteCloudProject(project.id);
+
+    expect(projects[0]?.id).toBe("project/line 1");
+    expect(saved.summary.revision).toBe("sha256:abc");
+    expect(opened.project.name).toBe("Line 1");
+    expect(deleted.ok).toBe(true);
+    expect(calls[1].body ? JSON.parse(calls[1].body) : undefined).toEqual({
+      project,
+      expectedRevision: "sha256:previous",
+    });
+    expect(calls[2].url).toBe("http://api.local/api/projects/project%2Fline%201");
+    expect(calls[3].method).toBe("DELETE");
+    expect(calls[3].url).toBe("http://api.local/api/projects/project%2Fline%201");
   });
 
   it("posts connect bodies and returns failed connects without throwing", async () => {
@@ -269,6 +428,70 @@ describe("EscoGatewayClient", () => {
     expect(calls[0].url).toBe("http://api.local/api/gateway/identity");
   });
 
+  it("posts local projects to the project-identity helper route", async () => {
+    const project = { id: "p1", name: "Line1", controllers: [] };
+    const response: ControllerIdentity = {
+      controllerName: "PLC_1",
+      projectName: "Line1",
+      projectSignature: "esco-sha256-stable-project-v1:abc123",
+      projectSignatureAlgorithm: "esco-sha256-stable-project-v1",
+      projectSignatureSource: "local-esco-project",
+    };
+    const { fetchImpl, calls } = stubFetch(() => ({
+      status: 200,
+      body: response,
+    }));
+    const client = new EscoGatewayClient({ baseUrl: "http://api.local", fetchImpl, sessionId: "client-a" });
+
+    const identity = await client.projectIdentity(project as never);
+
+    expect(identity.projectSignature).toBe("esco-sha256-stable-project-v1:abc123");
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].url).toBe("http://api.local/api/gateway/project-identity");
+    expect(JSON.parse(calls[0].body ?? "{}")).toEqual({ localProject: project });
+  });
+
+  it("posts local projects to the identity proof-tag L5X helper route", async () => {
+    const project = { id: "p1", name: "Line1", controllers: [] };
+    const response: IdentityProofTagExport = {
+      schema: "esco.identityProofTags.v1",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      format: "studio5000-l5x-controller-tags",
+      fileName: "Line1-identity-proof-tags.L5X",
+      l5x: "<RSLogix5000Content/>",
+      identity: { projectName: "Line1" },
+      identityTags: {
+        controllerName: "ESCO_ControllerName",
+        controllerType: "ESCO_ControllerType",
+        firmwareRevision: "ESCO_FirmwareRevision",
+        projectName: "ESCO_ProjectName",
+        projectSignature: "ESCO_ProjectSignatureDigest",
+        projectSignatureAlgorithm: "ESCO_ProjectSignatureAlgorithm",
+      },
+      rows: [],
+      installSteps: [],
+      warnings: [],
+      evidence: {
+        generatedOffline: true,
+        physicalControllerWrite: false,
+        proprietaryBinaryTouched: false,
+        purpose: "read-only-controller-identity-proof",
+      },
+    };
+    const { fetchImpl, calls } = stubFetch(() => ({
+      status: 200,
+      body: response,
+    }));
+    const client = new EscoGatewayClient({ baseUrl: "http://api.local", fetchImpl, sessionId: "client-a" });
+
+    const bundle = await client.projectIdentityProofTags(project as never);
+
+    expect(bundle.fileName).toBe("Line1-identity-proof-tags.L5X");
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].url).toBe("http://api.local/api/gateway/project-identity/proof-tags");
+    expect(JSON.parse(calls[0].body ?? "{}")).toEqual({ localProject: project });
+  });
+
   it("opens a read-only tag stream and parses tag/error events", () => {
     FakeEventSource.instances = [];
     const values: unknown[] = [];
@@ -308,6 +531,22 @@ describe("EscoGatewayClient", () => {
     expect(source.closed).toBe(true);
     handle.close();
     expect(source.closed).toBe(true);
+  });
+
+  it("passes the hosted API token through the EventSource URL for tag streams", () => {
+    FakeEventSource.instances = [];
+    const client = new EscoGatewayClient({
+      baseUrl: "http://api.local",
+      sessionId: "stream-client",
+      apiToken: "secret-token",
+      eventSourceImpl: FakeEventSource as unknown as new (url: string) => EventSource,
+    });
+
+    const handle = client.subscribeTags(["Count"], () => undefined, () => undefined);
+    const source = FakeEventSource.instances[0];
+
+    expect(source.url).toBe("http://api.local/api/gateway/tags/subscribe?session=stream-client&apiToken=secret-token&name=Count");
+    handle.close();
   });
 
   it("posts local project compare bodies and uploads read-only snapshots", async () => {

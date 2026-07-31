@@ -120,6 +120,7 @@ describe("downloadToSoftController — successful download", () => {
     const result = downloadToSoftController(project, soft, {
       ...DOWNLOAD_OPTS,
       createId: seqIds("audit"),
+      transferChunkSize: 128,
     });
 
     expect(result.ok).toBe(true);
@@ -132,6 +133,10 @@ describe("downloadToSoftController — successful download", () => {
     // Transfer validated the checksum on the target.
     expect(result.transfer?.checksumValid).toBe(true);
     expect(result.transfer?.checksum).toBe(result.preflight.checksum);
+    expect(result.transfer?.chunkSize).toBe(128);
+    expect(result.transfer?.chunkCount).toBeGreaterThan(1);
+    expect(result.transfer?.chunks?.at(-1)?.final).toBe(true);
+    expect(result.audit.transfer?.chunkCount).toBe(result.transfer?.chunkCount);
     // Applied and returned to Program mode (default).
     expect(result.apply?.applied).toBe(true);
     expect(result.apply?.mode).toBe("program");

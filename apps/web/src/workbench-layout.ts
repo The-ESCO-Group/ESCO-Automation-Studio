@@ -27,6 +27,7 @@ const DOCK_TAB_VALUES: Record<DockTab, true> = {
   search: true,
   references: true,
   build: true,
+  handoff: true,
   tasks: true,
   watch: true,
   trend: true,

@@ -62,13 +62,14 @@ The packaged window now ships a CSP (previously `null`):
 ```
 default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
 img-src 'self' data:; font-src 'self' data:;
-connect-src 'self' https://api.anthropic.com https://api.openai.com;
+connect-src 'self' http://localhost:4000 http://127.0.0.1:4000
+  https://api.anthropic.com https://api.openai.com;
 object-src 'none'; base-uri 'self'; frame-ancestors 'none'
 ```
 
-`connect-src` is opened **only** to same-origin plus the two opt-in online-AI
-hosts; everything else is locked to `'self'`. Tauri augments this policy with the
-sources it needs for IPC at build time.
+`connect-src` is opened **only** to same-origin, the local ESCO API on loopback
+port `4000`, and the two opt-in online-AI hosts; everything else is locked out.
+Tauri augments this policy with the sources it needs for IPC at build time.
 
 > **Validate before release:** this CSP is asserted by the preflight but has not
 > been exercised by a real `tauri build` in this environment (no Rust toolchain).
@@ -96,7 +97,8 @@ Manager under the service name `com.scintilla.escogroup.automationstudio`.
 - Offline Simulation is the only controller mode in this shell.
 - No PLC upload/download/go-online/online edits are added here.
 - No proprietary binary controller-project access is added here.
-- Microsoft sign-in is not faked. Until Azure app registration and secure token
-  handling exist, the desktop startup button opens the local profile setup path.
+- Microsoft sign-in is temporarily bypassed during desktop startup. Until Azure
+  app registration and secure token handling exist, startup opens the IDE
+  without requiring identity.
 - AI API keys use OS-backed secure storage in the packaged desktop shell; browser
   builds remain honest about local fallback storage.

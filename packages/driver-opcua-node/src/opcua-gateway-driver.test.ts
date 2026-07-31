@@ -161,6 +161,13 @@ describe("OpcUaGatewayDriver", () => {
       connected: true,
       health: "ok",
       message: "OPC UA read-only session heartbeat is healthy.",
+      diagnostics: [
+        expect.objectContaining({
+          id: "opcua-heartbeat-quality",
+          severity: "info",
+          evidence: expect.arrayContaining(["nodeId=ns=0;i=2258", "statusCode=Good"]),
+        }),
+      ],
     });
     expect(driver.capabilities).toMatchObject({
       canReadFaults: false,
@@ -188,6 +195,13 @@ describe("OpcUaGatewayDriver", () => {
       connected: true,
       health: "warning",
       message: "OPC UA read-only session heartbeat quality is bad.",
+      diagnostics: [
+        expect.objectContaining({
+          id: "opcua-heartbeat-quality",
+          severity: "warning",
+          evidence: expect.arrayContaining(["statusCode=BadCommunicationError"]),
+        }),
+      ],
     });
   });
 
@@ -206,6 +220,12 @@ describe("OpcUaGatewayDriver", () => {
         state: "disconnected",
         connected: false,
         health: "warning",
+        diagnostics: [
+          expect.objectContaining({
+            id: "opcua-heartbeat-read-failed",
+            evidence: expect.arrayContaining(["nodeId=ns=0;i=2258", "read=failed"]),
+          }),
+        ],
       },
     });
     expect(adapter.session.closed).toBe(true);

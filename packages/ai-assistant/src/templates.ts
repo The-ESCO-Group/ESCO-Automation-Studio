@@ -3,6 +3,7 @@ import { getHmiProject } from "@esco/hmi-model";
 import { createId } from "@esco/shared";
 import { tagExists } from "@esco/project-actions";
 import { resolveRoutineId, undefinedTags } from "./context";
+import { buildStudio5000HandoffReadiness, formatStudio5000HandoffReadiness } from "./handoff";
 import type { AssistantPlan, AssistantSelection, ProposedProjectAction } from "./types";
 
 function createTagAction(name: string, dataType: string): ProposedProjectAction {
@@ -42,6 +43,41 @@ function createHmiPopupAction(name: string, popupId = createId("hmipopup")): Pro
     label: `Create HMI popup ${name}`,
     description: `Create an HMI popup named ${name}.`,
     input: { name, popupId },
+  };
+}
+
+function createProgramAction(controllerId: string, name: string, programId = createId("prog")): ProposedProjectAction {
+  return {
+    id: createId("act"),
+    kind: "createProgram",
+    label: `Create program ${name}`,
+    description: `Create a Logix program named ${name}.`,
+    input: { controllerId, name, programId },
+  };
+}
+
+function createRoutineAction(
+  programId: string,
+  name: string,
+  language: "ladder" | "structured-text" | "function-block" | "sfc" = "ladder",
+  routineId = createId("rtn"),
+): ProposedProjectAction {
+  return {
+    id: createId("act"),
+    kind: "createRoutine",
+    label: `Create routine ${name}`,
+    description: `Create a ${language} routine named ${name}.`,
+    input: { programId, name, language, routineId },
+  };
+}
+
+function setProgramMainRoutineAction(programId: string, programName: string, routineId: string): ProposedProjectAction {
+  return {
+    id: createId("act"),
+    kind: "setProgramProperties",
+    label: `Set ${programName} main routine`,
+    description: "Set the newly created routine as the program main routine.",
+    input: { programId, name: programName, mainRoutineId: routineId },
   };
 }
 
@@ -332,5 +368,55 @@ export function hmiNavigationButtonPlan(project: PlcProject): AssistantPlan {
       ? `Add a registered button to "${existingSource.name}" that navigates to "${existingTarget.name}" on press.`
       : "Create any missing source/target HMI screens, add a registered button, and wire a reviewed navigation event.",
     actions,
+  );
+}
+
+export function programScaffoldPlan(
+  project: PlcProject,
+  programName = "AI_Program",
+  routineName = "Main",
+): AssistantPlan {
+  const controller = project.controllers[0];
+  if (!controller) {
+    return plan(
+      "Create program scaffold",
+      "No controller exists yet. Create or import a project first, then ask me to create the program scaffold.",
+      [],
+      ["No controller found."],
+    );
+  }
+  const programId = createId("prog");
+  const routineId = createId("rtn");
+  return plan(
+    "Create program scaffold",
+    `Create offline program ${programName} with ladder routine ${routineName}. Export the reviewed project as L5X and use Studio 5000 for physical controller transfer.`,
+    [
+      createProgramAction(controller.id, programName, programId),
+      createRoutineAction(programId, routineName, "ladder", routineId),
+      setProgramMainRoutineAction(programId, programName, routineId),
+    ],
+    ["Offline ESCO edit only. Studio 5000 or approved Rockwell tooling must perform controller upload/download."],
+  );
+}
+
+export function studio5000HandoffPlan(): AssistantPlan {
+  return plan(
+    "Studio 5000 handoff",
+    [
+      "ESCO can be the AI workspace for offline project edits, review, simulation, and L5X export.",
+      "For Rockwell controllers, use Studio 5000/approved Rockwell tooling to open the exported L5X/ACD and perform physical upload/download.",
+      "No ESCO AI action talks to a physical PLC or writes proprietary binary project files.",
+    ].join("\n"),
+    [],
+  );
+}
+
+export function studio5000HandoffReadinessPlan(project: PlcProject): AssistantPlan {
+  const report = buildStudio5000HandoffReadiness(project);
+  return plan(
+    "Studio 5000 handoff readiness",
+    formatStudio5000HandoffReadiness(report),
+    [],
+    report.warnings.length ? [...report.warnings, report.boundary] : [report.boundary],
   );
 }

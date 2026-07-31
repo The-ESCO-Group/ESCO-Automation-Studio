@@ -10,6 +10,7 @@ import type {
   ConnectionConfig,
   ConnectionResult,
   ControllerIdentity,
+  IdentityProofTagExport,
   ProjectSnapshot,
   TagValue,
 } from "./gateway-contract";
@@ -35,6 +36,8 @@ export interface EscoGatewayApi {
   readTag(tagName: string): Promise<TagValue | undefined>;
   readTags(tagNames: readonly string[]): Promise<BatchTagReadResult | undefined>;
   compareProject(localProject: PlcProject): Promise<CompareResult | undefined>;
+  refreshLocalProjectIdentity(localProject: PlcProject): Promise<ControllerIdentity | undefined>;
+  exportIdentityProofTags(localProject: PlcProject): Promise<IdentityProofTagExport | undefined>;
   uploadSnapshot(): Promise<ProjectSnapshot | undefined>;
   startTagPolling(tagNames: readonly string[], intervalMs?: number): void;
   stopTagPolling(): void;
@@ -61,6 +64,8 @@ export function useEscoGateway(session?: EscoOnlineSession): EscoGatewayApi {
       readTag: (tagName) => active.readTag(tagName),
       readTags: (tagNames) => active.readTags(tagNames),
       compareProject: (localProject) => active.compareProject(localProject),
+      refreshLocalProjectIdentity: (localProject) => active.refreshLocalProjectIdentity(localProject),
+      exportIdentityProofTags: (localProject) => active.exportIdentityProofTags(localProject),
       uploadSnapshot: () => active.uploadSnapshot(),
       startTagPolling: (tagNames, intervalMs) => active.startTagPolling(tagNames, intervalMs),
       stopTagPolling: () => active.stopTagPolling(),

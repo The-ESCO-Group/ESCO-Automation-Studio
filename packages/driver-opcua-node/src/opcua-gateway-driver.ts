@@ -12,10 +12,13 @@
  * audit/read-back design is deliberately added and reviewed.
  */
 
+import "reflect-metadata";
+
 import type {
   BatchTagReadResult,
   ConnectionConfig,
   ControllerConnectionEvidence,
+  ControllerDiagnostic,
   ConnectionResult,
   ControllerDriver,
   ControllerDriverCapabilities,
@@ -242,6 +245,7 @@ export class OpcUaGatewayDriver implements ControllerDriver {
           ? "OPC UA read-only session heartbeat is healthy."
           : `OPC UA read-only session heartbeat quality is ${quality}.`,
         updatedAt: now(),
+        diagnostics: [heartbeatDiagnostic(heartbeat, quality)],
       };
     } catch (cause) {
       return {
@@ -250,6 +254,7 @@ export class OpcUaGatewayDriver implements ControllerDriver {
         health: "warning",
         message: `OPC UA read-only session heartbeat failed: ${cause instanceof Error ? cause.message : String(cause)}`,
         updatedAt: now(),
+        diagnostics: [heartbeatFailureDiagnostic(cause)],
       };
     }
   }
@@ -626,6 +631,40 @@ function qualityFromStatus(statusCode: string | undefined): TagQuality {
   if (status.startsWith("bad")) return "bad";
   if (status.startsWith("uncertain")) return "uncertain";
   return status ? "uncertain" : "good";
+}
+
+function heartbeatDiagnostic(result: OpcUaReadResult, quality: TagQuality): ControllerDiagnostic {
+  return {
+    id: "opcua-heartbeat-quality",
+    severity: quality === "good" ? "info" : "warning",
+    label: "OPC UA heartbeat quality",
+    message: quality === "good"
+      ? "The standard OPC UA ServerStatus/CurrentTime heartbeat returned good quality."
+      : `The standard OPC UA heartbeat returned ${quality} quality.`,
+    source: `OPC UA node ${STANDARD_STATUS_NODES.currentTime}`,
+    evidence: [
+      `nodeId=${result.nodeId}`,
+      `statusCode=${result.statusCode ?? "missing"}`,
+      `dataType=${result.dataType ?? "unknown"}`,
+      `sourceTimestamp=${result.sourceTimestamp ?? "missing"}`,
+      `serverTimestamp=${result.serverTimestamp ?? "missing"}`,
+    ],
+    recommendation: quality === "good"
+      ? "Map controller-specific fault/status nodes for richer PLC diagnostics when the OPC UA server exposes them."
+      : "Check OPC UA server/session quality and plant network health; map vendor-specific fault/status nodes for controller faults.",
+  };
+}
+
+function heartbeatFailureDiagnostic(cause: unknown): ControllerDiagnostic {
+  return {
+    id: "opcua-heartbeat-read-failed",
+    severity: "warning",
+    label: "OPC UA heartbeat read failed",
+    message: cause instanceof Error ? cause.message : String(cause),
+    source: `OPC UA node ${STANDARD_STATUS_NODES.currentTime}`,
+    evidence: [`nodeId=${STANDARD_STATUS_NODES.currentTime}`, "read=failed"],
+    recommendation: "Verify the OPC UA endpoint, session permissions, and access to the standard ServerStatus/CurrentTime node.",
+  };
 }
 
 function coercePayload(value: unknown): { payload: TagValuePayload; unsupported: boolean } {

@@ -28,6 +28,70 @@ export const ribbonButton = (page, label) =>
 export const paletteButton = (page, type) =>
   page.locator(`.esco-palette__menu button[aria-label="${type}"]`).first();
 
+const FILE_SUBMENUS = [
+  {
+    label: "Import / Export",
+    commands: [
+      "Cloud Projects",
+      "Import L5X",
+      "Export L5X",
+      "L5X Handoff Receipt",
+      "Export ESCO Snapshot",
+      "Import ESCO Snapshot",
+      "Export ESCO Library",
+      "Export ESCO Exchange",
+      "Import ESCO Exchange",
+      "Export ESCO Package",
+      "Import ESCO Package",
+    ],
+  },
+  {
+    label: "Runtime / SoftController",
+    commands: [
+      "Build ESCO Runtime",
+      "Export ESCO Runtime",
+      "Import ESCO Runtime",
+      "Download Runtime to ESCO SoftController",
+      "Open ESCO SoftController Upload",
+      "Validate ESCO Package / Runtime Files",
+    ],
+  },
+  {
+    label: "Properties",
+    commands: ["Project Properties", "Controller Properties"],
+  },
+];
+
+export async function openRibbonMenu(page, menu) {
+  await page.locator(`.esco-ribbon__tab:has-text("${menu}")`).click();
+  await page.locator(`.esco-ribbon-menu[aria-label="${menu} menu"]`).waitFor({ timeout: 5000 });
+}
+
+export async function clickRibbonMenuItem(page, menu, label) {
+  await openRibbonMenu(page, menu);
+  if (menu === "File") {
+    const group = FILE_SUBMENUS.find((candidate) =>
+      candidate.commands.some((command) => label.toLowerCase().startsWith(command.toLowerCase())),
+    );
+    if (group) {
+      await page.locator(".esco-ribbon-menu__submenu-trigger:visible").filter({ hasText: group.label }).first().hover();
+      await page
+        .locator(`.esco-ribbon-menu--nested[aria-label="${group.label} submenu"] .esco-ribbon-menu__item:visible`)
+        .filter({ hasText: label })
+        .first()
+        .click();
+      return;
+    }
+  }
+  await page
+    .locator(`.esco-ribbon-menu[aria-label="${menu} menu"] > .esco-ribbon-menu__item:visible`)
+    .filter({ hasText: label })
+    .first()
+    .click();
+}
+
+export const clickFileMenuItem = (page, label) => clickRibbonMenuItem(page, "File", label);
+
 export async function addPaletteInstruction(page, type) {
   const group = page.locator(".esco-palette__group").filter({
     has: page.locator(`button[aria-label="${type}"]`),

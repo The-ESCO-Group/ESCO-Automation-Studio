@@ -602,6 +602,21 @@ describe("verifyRung", () => {
     expect(result.data!.findings.some((finding) => finding.message.includes("GhostTag"))).toBe(true);
   });
 
+  it("surfaces a structural finding that names the rung but no operand tag", () => {
+    const base = baseProject();
+    const rung = addRung(base.project, { routineId: base.routineId });
+    let p = rung.project;
+    const rungId = rung.data!.rungId;
+    for (const type of ["XIC", "OTE", "RTO"]) {
+      p = addInstruction(p, { routineId: base.routineId, rungId, instructionType: type }).project;
+    }
+
+    const result = verifyRung(p, { routineId: base.routineId, rungId });
+
+    expect(result.ok).toBe(true);
+    expect(result.data!.findings.some((finding) => /same execution path/i.test(finding.message))).toBe(true);
+  });
+
   it("fails for an unknown rung", () => {
     const base = baseProject();
     const result = verifyRung(base.project, { routineId: base.routineId, rungId: "missing" });

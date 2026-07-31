@@ -12,22 +12,20 @@ The desktop-only startup surface includes:
 
 - ESCO Automation Studio / PLC Engineering IDE app mark.
 - Scintilla ESCO GROUP wordmark styling in navy and gold.
-- Sign in with Microsoft.
-- Continue offline.
+- Startup sign-in is temporarily bypassed.
+- Automatic entry into the offline IDE after loading.
 - Open Project, New Project, Import L5X, Restore Backup.
 - Footer status: Workspace ready / No controller connection active.
 
 The packaged desktop window starts at the startup-box size (`758 x 558`) so the
-first-run view is not surrounded by a large empty IDE background. Once the user
-continues, opens/imports/creates a project, restores autosave, or saves setup,
-the renderer invokes the desktop shell to promote the window to the full IDE
-workspace (`1280 x 800`, resizable, minimum `1024 x 700`). Browser localhost
-development is unchanged.
+first-run view is not surrounded by a large empty IDE background. Once startup
+loading completes, the renderer creates a starter project and invokes the desktop
+shell to promote the window to the full IDE workspace (`1280 x 800`, resizable,
+minimum `1024 x 700`). Browser localhost development is unchanged.
 
-The Microsoft button does not fake authentication. Until Azure app registration,
-token handling, and secure user identity storage are implemented, it opens the
-local profile/API-key setup path. Continue offline enters the IDE in Offline
-Simulation.
+Microsoft sign-in is temporarily disabled for desktop startup. Until Azure app
+registration, token handling, and secure user identity storage are implemented,
+the shell enters the IDE without requiring identity.
 
 ## Commands
 

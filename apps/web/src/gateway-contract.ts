@@ -33,6 +33,10 @@ export const ONLINE_CONNECTION_STATE_LABELS: Record<OnlineConnectionState, strin
 
 export type ControllerDriverKind = "simulator" | "opcua" | "opcda" | "ethernetip" | "l5x";
 export type ControllerTransportValidation = "none" | "software-wired" | "lab-verified" | "field-validated";
+export type SiteGatewayConnectionMode = "local-dev-direct" | "site-gateway-required";
+export type SiteGatewayStatus = "connected" | "configured" | "offline";
+export type ApiAuthMode = "local-dev" | "token-required";
+export type ApiPermission = "gateway:read" | "gateway:connect" | "project:read" | "project:write";
 export type PlcTargetVendor =
   | "esco"
   | "allen-bradley"
@@ -59,8 +63,17 @@ export type TargetAdapterRiskLevel = "low" | "medium" | "high" | "critical";
 export type TagPrimitive = boolean | number | string | null;
 export type TagValuePayload = TagPrimitive | TagPrimitive[] | Record<string, TagPrimitive>;
 export type TagQuality = "good" | "uncertain" | "bad" | "stale";
+export type ControllerIdentityProofField =
+  | "controllerName"
+  | "controllerType"
+  | "firmwareRevision"
+  | "projectName"
+  | "projectSignature"
+  | "projectSignatureAlgorithm";
+export type ControllerIdentityTagMap = Partial<Record<ControllerIdentityProofField, string>>;
 
 export interface ConnectionConfig {
+  siteGatewayId?: string;
   endpointUrl?: string;
   path?: string;
   controllerName?: string;
@@ -69,9 +82,76 @@ export interface ConnectionConfig {
   rootNodeId?: string;
   nodeMap?: Record<string, string>;
   samplingIntervalMs?: number;
+  identityTags?: ControllerIdentityTagMap;
   simulatorProject?: PlcProject;
   offlineProject?: PlcProject;
   metadata?: Record<string, unknown>;
+}
+
+export interface SiteGatewayDescriptor {
+  id: string;
+  name: string;
+  status: SiteGatewayStatus;
+  location?: string;
+  lastSeenAt?: string;
+  allowedDriverIds?: string[];
+  allowedDriverKinds?: ControllerDriverKind[];
+  allowedEndpointPatterns: string[];
+  readOnlyOnly: true;
+  notes: string;
+}
+
+export interface SiteGatewayPolicyReport {
+  generatedAt: string;
+  mode: SiteGatewayConnectionMode;
+  requiredForRealControllerIo: boolean;
+  directControllerConnectionsAllowed: boolean;
+  configuredGatewayCount: number;
+  connectedGatewayCount: number;
+  gateways: SiteGatewayDescriptor[];
+  summary: string;
+  nextStep: string;
+}
+
+export interface ApiAuthContext {
+  mode: ApiAuthMode;
+  authenticated: boolean;
+  user?: {
+    id: string;
+    displayName: string;
+  };
+  roles: string[];
+  permissions: ApiPermission[];
+  summary: string;
+  nextStep: string;
+}
+
+export interface CloudProjectSummary {
+  id: string;
+  name: string;
+  description?: string;
+  controllerCount: number;
+  routineCount: number;
+  tagCount: number;
+  updatedAt: string;
+  savedAt: string;
+  revision: string;
+  sizeBytes: number;
+}
+
+export interface CloudProjectRecord {
+  project: PlcProject;
+  summary: CloudProjectSummary;
+  warnings: string[];
+  migrationsApplied: string[];
+}
+
+export interface CloudProjectListResponse {
+  projects: CloudProjectSummary[];
+}
+
+export interface CloudProjectDeleteResult {
+  ok: boolean;
 }
 
 export interface ControllerIdentity {
@@ -87,6 +167,46 @@ export interface ControllerIdentity {
   serialNumber?: string;
 }
 
+export type ControllerDiagnosticSeverity = "info" | "warning" | "major" | "minor";
+
+export interface ControllerDiagnostic {
+  id: string;
+  severity: ControllerDiagnosticSeverity;
+  label: string;
+  message: string;
+  source: string;
+  evidence: string[];
+  recommendation?: string;
+}
+
+export interface IdentityProofTagRow {
+  field: ControllerIdentityProofField;
+  label: string;
+  tagName: string;
+  dataType: "STRING";
+  value: string;
+  description: string;
+}
+
+export interface IdentityProofTagExport {
+  schema: "esco.identityProofTags.v1";
+  generatedAt: string;
+  format: "studio5000-l5x-controller-tags";
+  fileName: string;
+  l5x: string;
+  identity: ControllerIdentity;
+  identityTags: Required<ControllerIdentityTagMap>;
+  rows: IdentityProofTagRow[];
+  installSteps: string[];
+  warnings: string[];
+  evidence: {
+    generatedOffline: true;
+    physicalControllerWrite: false;
+    proprietaryBinaryTouched: false;
+    purpose: "read-only-controller-identity-proof";
+  };
+}
+
 export interface ControllerStatus {
   state: OnlineConnectionState;
   mode?: string;
@@ -94,6 +214,7 @@ export interface ControllerStatus {
   health: "ok" | "warning" | "faulted" | "unknown";
   message: string;
   updatedAt: string;
+  diagnostics?: ControllerDiagnostic[];
 }
 
 export interface FaultInfo {
@@ -103,6 +224,10 @@ export interface FaultInfo {
   source: string;
   timestamp: string;
   clearable: boolean;
+  code?: string;
+  evidence?: string[];
+  recommendation?: string;
+  details?: Record<string, string | number | boolean | null>;
 }
 
 export interface TagDefinition {
@@ -161,6 +286,43 @@ export interface ControllerDriverSummary {
   connectionEvidence: ControllerConnectionEvidence;
   readOnly: boolean;
   safetyNote: string;
+}
+
+export type GatewayValidationGateState = "passed" | "blocked" | "not-run";
+
+export interface GatewayValidationGate {
+  id: string;
+  label: string;
+  state: GatewayValidationGateState;
+  summary: string;
+  evidence: string[];
+  nextStep: string;
+}
+
+export interface DriverValidationReadiness {
+  driverId: string;
+  driverName: string;
+  kind: ControllerDriverKind;
+  transportValidation: ControllerTransportValidation;
+  realControllerIo: boolean;
+  hardwareValidated: boolean;
+  verified: boolean;
+  readOnlyReleaseEligible: boolean;
+  destructiveOperationsBlocked: true;
+  summary: string;
+  gates: GatewayValidationGate[];
+}
+
+export interface GatewayValidationReadinessReport {
+  generatedAt: string;
+  driverCount: number;
+  realControllerRouteCount: number;
+  hardwareValidatedRouteCount: number;
+  readOnlyReleaseEligibleRouteCount: number;
+  destructiveOperationsEnabled: false;
+  summary: string;
+  nextStep: string;
+  drivers: DriverValidationReadiness[];
 }
 
 export interface TargetAdapterCapabilities {

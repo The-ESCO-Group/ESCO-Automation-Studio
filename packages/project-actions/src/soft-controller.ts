@@ -12,8 +12,9 @@
  *
  *   identify()        → report the SoftController's target identity
  *   createBackup()    → snapshot the current image before it is overwritten
- *   receiveRuntime()  → accept `.easruntime` bytes and re-validate the checksum
- *                       ON THE TARGET (independent recompute from received bytes)
+ *   receiveRuntime()  → accept `.easruntime` bytes as audited software chunks and
+ *                       re-validate the checksum ON THE TARGET (independent
+ *                       recompute from received bytes)
  *   applyStaged()     → stop scan, apply the staged image, optionally reset tag
  *                       memory, and return to Program/Run mode
  *
@@ -29,6 +30,11 @@ import {
   EASRT_SCHEMA_VERSION,
   type EscoRuntime,
 } from "./runtime-format";
+import {
+  planSoftControllerTransfer,
+  type SoftControllerTransferChunk,
+  type SoftControllerTransferPlan,
+} from "./controller-download-lifecycle";
 
 /** Default ESCO SoftController platform/family identifier. */
 export const ESCO_SOFT_CONTROLLER_PLATFORM = "esco-soft-controller";
@@ -95,6 +101,12 @@ export interface SoftControllerReceiveResult {
   checksumValid: boolean;
   /** Number of bytes received. */
   bytes: number;
+  /** Chunk size requested by the sender for the software transfer. */
+  chunkSize?: number;
+  /** Number of chunks in the transfer ledger. */
+  chunkCount?: number;
+  /** Per-chunk audit/debug ledger. */
+  chunks?: SoftControllerTransferChunk[];
   error?: string;
 }
 
@@ -128,7 +140,7 @@ export interface SoftControllerApplyResult {
 export interface SoftControllerTarget {
   identify(): SoftControllerTargetIdentity;
   createBackup(at: string): SoftControllerBackup;
-  receiveRuntime(runtimeText: string, declaredChecksum: string): SoftControllerReceiveResult;
+  receiveRuntime(runtimeText: string, declaredChecksum: string, chunkSize?: number): SoftControllerReceiveResult;
   applyStaged(input: SoftControllerApplyInput, at: string): SoftControllerApplyResult;
 }
 
@@ -277,9 +289,10 @@ export class InMemorySoftController implements SoftControllerTarget {
    * recomputing it from the bytes actually received. Only a clean, self-verifying
    * runtime whose recomputed checksum matches the declared checksum is staged.
    */
-  receiveRuntime(runtimeText: string, declaredChecksum: string): SoftControllerReceiveResult {
+  receiveRuntime(runtimeText: string, declaredChecksum: string, chunkSize?: number): SoftControllerReceiveResult {
     const received = this.corruptOnReceive ? corruptRuntimeText(runtimeText) : runtimeText;
-    const bytes = byteLength(received);
+    const transferPlan = planSoftControllerTransfer(received, chunkSize);
+    const bytes = transferPlan.totalBytes;
     const parsed = parseRuntimeFile(received);
 
     if (!parsed.ok || !parsed.runtime) {
@@ -288,6 +301,7 @@ export class InMemorySoftController implements SoftControllerTarget {
         checksum: parsed.checksum?.actual ?? "",
         checksumValid: false,
         bytes,
+        ...transferReceipt(transferPlan),
         error:
           parsed.error ??
           "ESCO SoftController rejected the runtime: it failed integrity validation on the target.",
@@ -302,13 +316,14 @@ export class InMemorySoftController implements SoftControllerTarget {
         checksum: recomputed,
         checksumValid: false,
         bytes,
+        ...transferReceipt(transferPlan),
         error:
           "ESCO SoftController checksum mismatch: the runtime received on the target does not match the checksum computed at the source (corrupt or modified in transfer).",
       };
     }
 
     this.staged = imageFromRuntime(parsed.runtime, received);
-    return { accepted: true, checksum: recomputed, checksumValid: true, bytes };
+    return { accepted: true, checksum: recomputed, checksumValid: true, bytes, ...transferReceipt(transferPlan) };
   }
 
   /**
@@ -379,7 +394,8 @@ function imageFromRuntime(runtime: EscoRuntime, runtimeText: string): SoftContro
   };
 }
 
-/** UTF-8 byte length without requiring Node's Buffer (browser-safe). */
-function byteLength(text: string): number {
-  return new TextEncoder().encode(text).length;
+function transferReceipt(
+  plan: SoftControllerTransferPlan,
+): Pick<SoftControllerReceiveResult, "chunkSize" | "chunkCount" | "chunks"> {
+  return { chunkSize: plan.chunkSize, chunkCount: plan.chunkCount, chunks: plan.chunks };
 }

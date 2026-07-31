@@ -16,6 +16,9 @@ import {
   motorStartCounterPlan,
   motorStarterPlan,
   movPlan,
+  programScaffoldPlan,
+  studio5000HandoffPlan,
+  studio5000HandoffReadinessPlan,
   timerPlan,
   unitConversionPlan,
 } from "./templates";
@@ -31,6 +34,9 @@ export const HELP_TEXT = [
   "  • explain HMI bindings",
   "  • create HMI screen",
   "  • add navigation button",
+  "  • create program scaffold",
+  "  • Studio 5000 handoff",
+  "  • Studio 5000 handoff readiness",
   "  • generate motor starter",
   "  • motor starter with interlocks",
   "  • debounce input",
@@ -44,6 +50,10 @@ export const HELP_TEXT = [
 
 function fromPlan(plan: AssistantPlan): AssistantResult {
   return { ok: true, message: plan.explanation, plan };
+}
+
+function quotedName(input: string): string | undefined {
+  return input.match(/"([^"]+)"/)?.[1]?.trim() || input.match(/'([^']+)'/)?.[1]?.trim();
 }
 
 /**
@@ -69,6 +79,21 @@ export function runAssistant(input: AssistantInput): AssistantResult {
   if (prompt.includes("hmi") && prompt.includes("popup")) return fromPlan(hmiPopupPlan(input.project));
   if (prompt.includes("navigation button") || (prompt.includes("hmi") && prompt.includes("navigate"))) {
     return fromPlan(hmiNavigationButtonPlan(input.project));
+  }
+  if (
+    prompt.includes("handoff readiness") ||
+    prompt.includes("handoff preflight") ||
+    prompt.includes("studio 5000 readiness") ||
+    prompt.includes("studio5000 readiness") ||
+    ((prompt.includes("studio 5000") || prompt.includes("studio5000")) && (prompt.includes("ready") || prompt.includes("preflight")))
+  ) {
+    return fromPlan(studio5000HandoffReadinessPlan(input.project));
+  }
+  if (prompt.includes("studio 5000") || prompt.includes("studio5000") || prompt.includes("rockwell handoff") || prompt.includes("l5x handoff")) {
+    return fromPlan(studio5000HandoffPlan());
+  }
+  if (prompt.includes("program scaffold") || prompt.includes("create program") || prompt.includes("new program")) {
+    return fromPlan(programScaffoldPlan(input.project, quotedName(input.prompt) ?? "AI_Program"));
   }
   if (prompt.includes("debounce")) return fromPlan(debounceInputPlan(input.project, input.selection));
   if (

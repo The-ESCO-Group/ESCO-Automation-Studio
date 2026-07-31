@@ -20,6 +20,7 @@ export default defineConfig({
       "@esco/instructions": pkgSrc("instructions"),
       "@esco/simulator": pkgSrc("simulator"),
       "@esco/validator": pkgSrc("validator"),
+      "@esco/logix-designer-sdk": pkgSrc("logix-designer-sdk"),
       "@esco/parser-l5x": pkgSrc("parser-l5x"),
       "@esco/project-actions": pkgSrc("project-actions"),
       "@esco/project-store": pkgSrc("project-store"),

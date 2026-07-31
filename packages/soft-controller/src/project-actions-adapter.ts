@@ -7,6 +7,7 @@
 import {
   EASRT_SCHEMA_VERSION,
   parseRuntimeFile,
+  planSoftControllerTransfer,
   runtimeChecksum,
   type SoftControllerApplyInput,
   type SoftControllerApplyResult,
@@ -79,8 +80,14 @@ export class EscoSoftControllerTargetAdapter implements SoftControllerTarget {
     };
   }
 
-  receiveRuntime(runtimeText: string, declaredChecksum: string): SoftControllerReceiveResult {
-    const bytes = byteLength(runtimeText);
+  receiveRuntime(runtimeText: string, declaredChecksum: string, chunkSize?: number): SoftControllerReceiveResult {
+    const transferPlan = planSoftControllerTransfer(runtimeText, chunkSize);
+    const transferReceipt = {
+      chunkSize: transferPlan.chunkSize,
+      chunkCount: transferPlan.chunkCount,
+      chunks: transferPlan.chunks,
+    };
+    const bytes = transferPlan.totalBytes;
     const parsed = parseRuntimeFile(runtimeText);
     if (!parsed.ok || !parsed.runtime) {
       this.staged = null;
@@ -89,6 +96,7 @@ export class EscoSoftControllerTargetAdapter implements SoftControllerTarget {
         checksum: parsed.checksum?.actual ?? "",
         checksumValid: false,
         bytes,
+        ...transferReceipt,
         error:
           parsed.error ??
           "ESCO SoftController rejected the runtime: it failed integrity validation on the target.",
@@ -104,13 +112,14 @@ export class EscoSoftControllerTargetAdapter implements SoftControllerTarget {
         checksum: recomputed,
         checksumValid: false,
         bytes,
+        ...transferReceipt,
         error:
           "ESCO SoftController checksum mismatch: the runtime received on the target does not match the checksum computed at the source.",
       };
     }
 
     this.staged = { text: runtimeText, checksum: recomputed };
-    return { accepted: true, checksum: recomputed, checksumValid: true, bytes };
+    return { accepted: true, checksum: recomputed, checksumValid: true, bytes, ...transferReceipt };
   }
 
   applyStaged(input: SoftControllerApplyInput = {}, _at: string): SoftControllerApplyResult {
@@ -169,8 +178,4 @@ export function createSoftControllerTarget(
   options: EscoSoftControllerTargetAdapterOptions = {},
 ): SoftControllerTarget {
   return new EscoSoftControllerTargetAdapter(controller, options);
-}
-
-function byteLength(text: string): number {
-  return new TextEncoder().encode(text).length;
 }

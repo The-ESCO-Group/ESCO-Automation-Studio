@@ -192,6 +192,10 @@ export function createProgram(
   if (controller.programs.some((program) => sameName(program.name, name))) {
     return fail(project, `Program "${name}" already exists in that controller.`);
   }
+  const programId = optionalText(input.programId);
+  if (programId && controller.programs.some((program) => program.id === programId)) {
+    return fail(project, `Program id "${programId}" already exists in that controller.`);
+  }
 
   const scheduledTaskId = optionalText(input.scheduledTaskId);
   if (scheduledTaskId && !controller.tasks.some((task) => task.id === scheduledTaskId)) {
@@ -200,6 +204,7 @@ export function createProgram(
 
   const program = {
     ...createCoreProgram(controller.id, name),
+    ...(programId ? { id: programId } : {}),
     ...(optionalText(input.description) ? { description: optionalText(input.description) } : {}),
   };
   const next: PlcProject = {
@@ -246,6 +251,10 @@ export function createTask(
   if (controller.tasks.some((task) => sameName(task.name, name))) {
     return fail(project, `Task "${name}" already exists in that controller.`);
   }
+  const taskId = optionalText(input.taskId);
+  if (taskId && controller.tasks.some((task) => task.id === taskId)) {
+    return fail(project, `Task id "${taskId}" already exists in that controller.`);
+  }
   if (input.type === "continuous" && controller.tasks.some((task) => task.type === "continuous")) {
     return fail(project, "A controller can only have one continuous task.");
   }
@@ -258,6 +267,7 @@ export function createTask(
 
   const task = {
     ...createCoreContinuousTask(controller.id, name, scheduledProgramIds),
+    ...(taskId ? { id: taskId } : {}),
     type: input.type,
     ...(input.type === "periodic" ? { periodMs: positiveInt(input.periodMs, 10) } : {}),
     ...(input.type !== "continuous" ? { priority: positiveInt(input.priority, 10) } : {}),

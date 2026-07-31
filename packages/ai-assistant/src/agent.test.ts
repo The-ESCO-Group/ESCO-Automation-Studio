@@ -12,6 +12,7 @@ import {
   applyAction,
   applyPlan,
   buildAgentContext,
+  executeReadTool,
   isWriteTool,
   runAgent,
   WRITE_TOOL_TO_KIND,
@@ -57,6 +58,45 @@ describe("agent tools: whitelist mapping", () => {
     const outcome = applyAction(project, { id: "x", kind: "evalJavascript", label: "", description: "", input: {} });
     expect(outcome.ok).toBe(false);
     expect(outcome.error).toMatch(/Unknown or blocked/);
+  });
+
+  it("keeps generated program/routine ids stable for follow-up actions", () => {
+    const { project } = baseProject();
+    const controllerId = project.controllers[0]!.id;
+    const createProgramAction = writeToolToAction("create_program", {
+      controllerId,
+      name: "Pump_Cell",
+    });
+    const programId = (createProgramAction.input as { programId?: string }).programId;
+    expect(programId).toMatch(/^prog_/);
+
+    const createRoutineAction = writeToolToAction("create_routine", {
+      programId,
+      name: "Main",
+    });
+    const routineId = (createRoutineAction.input as { routineId?: string }).routineId;
+    expect(routineId).toMatch(/^rtn_/);
+
+    const applied = applyPlan(project, {
+      id: "plan_stable_ids",
+      title: "Program scaffold",
+      explanation: "Create an offline program scaffold with a main routine.",
+      actions: [
+        createProgramAction,
+        createRoutineAction,
+        writeToolToAction("set_program_properties", {
+          programId,
+          name: "Pump_Cell",
+          mainRoutineId: routineId,
+        }),
+      ],
+      warnings: [],
+    });
+
+    expect(applied.ok).toBe(true);
+    const program = applied.project.controllers[0]!.programs.find((candidate) => candidate.id === programId);
+    expect(program?.routines[0]?.id).toBe(routineId);
+    expect(program?.mainRoutineId).toBe(routineId);
   });
 });
 
@@ -121,6 +161,14 @@ describe("agent loop: safety", () => {
     expect(result.ok).toBe(true);
     expect(result.plan.actions).toHaveLength(0);
     expect(result.transcript.some((e) => e.role === "assistant")).toBe(true);
+  });
+
+  it("reports Studio 5000 handoff readiness as a read-only tool", () => {
+    const { project } = baseProject();
+    const text = executeReadTool(project, "get_studio5000_handoff_readiness", {});
+    expect(text).toContain("Studio 5000 handoff readiness");
+    expect(text).toContain("Export L5X");
+    expect(text).toContain("physical controller upload/download");
   });
 
   it("surfaces a model/transport error without throwing", async () => {

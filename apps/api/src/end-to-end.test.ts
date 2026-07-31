@@ -37,6 +37,7 @@ import {
   type OpcUaSessionAdapter,
 } from "@esco/driver-opcua-node";
 import { EscoGatewayClient } from "../../web/src/gateway-client";
+import { ApiAuthPolicy } from "./auth";
 import { GatewayHost } from "./gateway-host";
 import { createApiServer } from "./server";
 
@@ -59,6 +60,9 @@ function demoCip(request: Uint8Array): Uint8Array | undefined {
     );
   }
   if (bytesEqual(request, buildReadTagRequest("Count"))) {
+    return hexToBytes("cc 00 00 00 c4 00 d2 04 00 00");
+  }
+  if (bytesEqual(request, buildReadTagRequest("Pump"))) {
     return hexToBytes("cc 00 00 00 c4 00 d2 04 00 00");
   }
   if (bytesEqual(request, buildTagListRequest(0))) {
@@ -232,6 +236,7 @@ describe("Goal B end to end: web client → API → gateway → driver → wire"
 
     const session = await client.session();
     expect(session.readOnly).toBe(true);
+    expect(session.capabilities?.canUploadSnapshot).toBe(true);
 
     const status = await client.status();
     expect(status.status?.health).toBe("ok");
@@ -245,10 +250,16 @@ describe("Goal B end to end: web client → API → gateway → driver → wire"
     expect(value.value).toBe(1234);
     expect(value.quality).toBe("good");
 
+    const uploaded = await client.uploadSnapshot();
+    expect(uploaded.sourceDriver).toBe("ethernetip");
+    expect(uploaded.tags).toEqual([
+      expect.objectContaining({ tagName: "Pump", value: 1234, dataType: "DINT", quality: "good" }),
+    ]);
+
     // Every step above is in the audit trail.
     const audit = await client.audit();
     const actions = audit.map((entry) => entry.action);
-    for (const expected of ["connect", "status", "faults"]) {
+    for (const expected of ["connect", "status", "faults", "upload-snapshot"]) {
       expect(actions).toContain(expected);
     }
 
@@ -303,6 +314,51 @@ describe("Goal B end to end: web client → API → gateway → driver → wire"
       headers: { "x-esco-session-id": "client_one_line_2" },
     });
     expect(await sseQueryBeatsHeader.text()).toContain("No controller driver is selected.");
+  });
+
+  it("requires a hosted API token for protected gateway routes", async () => {
+    const apiPort = await listenEphemeral(createApiServer(undefined, {
+      authPolicy: new ApiAuthPolicy({ token: "secret-token" }),
+      sessionCleanupIntervalMs: 0,
+    }));
+    const base = `http://127.0.0.1:${apiPort}`;
+
+    const context = await fetch(`${base}/api/auth/context`);
+    expect(context.status).toBe(200);
+    expect(await context.json()).toMatchObject({
+      mode: "token-required",
+      authenticated: false,
+    });
+
+    const blocked = await fetch(`${base}/api/gateway/drivers`);
+    expect(blocked.status).toBe(401);
+    expect(await blocked.json()).toMatchObject({
+      error: "ESCO API authentication is required.",
+      auth: { mode: "token-required", authenticated: false },
+    });
+
+    const allowed = await fetch(`${base}/api/gateway/drivers`, {
+      headers: { authorization: "Bearer secret-token" },
+    });
+    expect(allowed.status).toBe(200);
+    const drivers = (await allowed.json()) as Array<{ id: string }>;
+    expect(drivers.map((driver) => driver.id)).toContain("esco-simulator");
+  });
+
+  it("protects SSE gateway streams with the same hosted API token policy", async () => {
+    const apiPort = await listenEphemeral(createApiServer(undefined, {
+      authPolicy: new ApiAuthPolicy({ token: "secret-token" }),
+      sessionCleanupIntervalMs: 0,
+    }));
+    const base = `http://127.0.0.1:${apiPort}`;
+
+    const blocked = await fetch(`${base}/api/gateway/tags/subscribe?name=Count`);
+    expect(blocked.status).toBe(401);
+    expect(await blocked.text()).toContain("ESCO API authentication is required.");
+
+    const allowed = await fetch(`${base}/api/gateway/tags/subscribe?apiToken=secret-token&name=Count`);
+    expect(allowed.status).toBe(200);
+    expect(await allowed.text()).toContain("No controller driver is selected.");
   });
 
   it("runs the OPC UA read-only route through API routes and SSE subscriptions", async () => {

@@ -32,6 +32,18 @@ importers:
       '@esco/driver-opcua-node':
         specifier: workspace:*
         version: link:../../packages/driver-opcua-node
+      '@esco/logix-designer-sdk':
+        specifier: workspace:*
+        version: link:../../packages/logix-designer-sdk
+      '@esco/project-store':
+        specifier: workspace:*
+        version: link:../../packages/project-store
+      node-opcua-client:
+        specifier: ^2.173.1
+        version: 2.173.1
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
     devDependencies:
       '@esco/driver-ethernetip':
         specifier: workspace:*
@@ -299,6 +311,9 @@ importers:
       node-opcua-client:
         specifier: ^2.173.1
         version: 2.173.1
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
     devDependencies:
       '@types/node':
         specifier: ^20.11.0
@@ -348,6 +363,18 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  packages/logix-designer-sdk:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.19
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@22.19.19)
 
   packages/parser-l5x:
     dependencies:

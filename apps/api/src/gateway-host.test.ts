@@ -13,8 +13,11 @@ import {
   type CompareResult,
   type ConnectionResult,
   type ControllerDriver,
+  type ControllerIdentity,
   type ControllerDriverSummary,
   type DownloadPreflightResult,
+  type GatewayValidationReadinessReport,
+  type IdentityProofTagExport,
   type OnlineSnapshot,
   type PlcDownloadAdapterDescriptor,
   type ProjectSnapshot,
@@ -24,6 +27,7 @@ import {
 } from "@esco/controller-gateway";
 import type { PlcProject } from "@esco/core";
 import { GatewayHost, createBackendControllerDrivers, normalizeGatewaySessionId } from "./gateway-host";
+import { SiteGatewayPolicy, type SiteGatewayPolicyReport } from "./site-gateway-policy";
 
 function hexToBytes(hex: string): Uint8Array {
   return Uint8Array.from(hex.trim().split(/\s+/).map((pair) => Number.parseInt(pair, 16)));
@@ -45,6 +49,9 @@ function demoCip(request: Uint8Array): Uint8Array | undefined {
     );
   }
   if (bytesEqual(request, buildReadTagRequest("Count"))) {
+    return hexToBytes("cc 00 00 00 c4 00 d2 04 00 00");
+  }
+  if (bytesEqual(request, buildReadTagRequest("Pump"))) {
     return hexToBytes("cc 00 00 00 c4 00 d2 04 00 00");
   }
   if (bytesEqual(request, buildReadTagRequest("Missing"))) {
@@ -159,7 +166,7 @@ describe("GatewayHost routing", () => {
       canReadTags: true,
       canBatchReadTags: true,
       canSubscribeTags: true,
-      canUploadSnapshot: false,
+      canUploadSnapshot: true,
       canWriteTags: false,
       canDownloadProject: false,
       canOnlineEdit: false,
@@ -192,6 +199,98 @@ describe("GatewayHost routing", () => {
     expect((session?.body as OnlineSnapshot).sessionId).toBe("default");
   });
 
+  it("reports gateway validation readiness without enabling real hardware routes", async () => {
+    const host = hostWithGateway();
+    const response = await host.handle("GET", "/api/gateway/validation-readiness", undefined);
+
+    expect(response?.status).toBe(200);
+    const report = response?.body as GatewayValidationReadinessReport;
+    const ethernetip = report.drivers.find((driver) => driver.driverId === "ethernetip-cip-readonly");
+    const simulator = report.drivers.find((driver) => driver.driverId === "esco-simulator");
+    expect(report.destructiveOperationsEnabled).toBe(false);
+    expect(report.hardwareValidatedRouteCount).toBe(0);
+    expect(ethernetip?.readOnlyReleaseEligible).toBe(false);
+    expect(ethernetip?.gates.find((gate) => gate.id === "hardware-validation-evidence")?.state).toBe("blocked");
+    expect(simulator?.readOnlyReleaseEligible).toBe(true);
+  });
+
+  it("reports the site-gateway policy without enabling physical controller access", async () => {
+    const host = hostWithGateway();
+    const response = await host.handle("GET", "/api/gateway/site-gateways", undefined);
+
+    expect(response?.status).toBe(200);
+    const policy = response?.body as SiteGatewayPolicyReport;
+    expect(policy.mode).toBe("local-dev-direct");
+    expect(policy.requiredForRealControllerIo).toBe(false);
+    expect(policy.directControllerConnectionsAllowed).toBe(true);
+    expect(policy.summary).toContain("Local development");
+  });
+
+  it("blocks real-controller routes when hosted policy requires a site gateway", async () => {
+    const policy = new SiteGatewayPolicy({ mode: "site-gateway-required", gateways: [] });
+    const host = new GatewayHost(undefined, () => Date.now(), policy);
+    cleanups.push(async () => {
+      await host.closeIdleSessions(0, Number.POSITIVE_INFINITY);
+    });
+
+    const blocked = await host.handle("POST", "/api/gateway/session/connect", {
+      driverId: "ethernetip-cip-readonly",
+      config: { endpointUrl: "10.10.1.20" },
+    });
+    const simulator = await host.handle("POST", "/api/gateway/session/connect", {
+      driverId: "esco-simulator",
+      config: {},
+    });
+
+    expect(blocked?.status).toBe(502);
+    expect(blocked?.body as ConnectionResult).toMatchObject({
+      ok: false,
+      state: "disconnected",
+      connectionEvidence: { realControllerIo: true },
+    });
+    expect((blocked?.body as ConnectionResult).message).toContain("require a registered site gateway");
+    expect(simulator?.status).toBe(200);
+  });
+
+  it("allows a real-controller route through a connected matching site gateway", async () => {
+    const port = await startFakeTarget();
+    const policy = new SiteGatewayPolicy({
+      mode: "site-gateway-required",
+      gateways: [
+        {
+          id: "site-a",
+          name: "Line A Site Gateway",
+          status: "connected",
+          location: "Lab",
+          allowedDriverKinds: ["ethernetip"],
+          allowedEndpointPatterns: ["127.0.0.1"],
+          readOnlyOnly: true,
+          notes: "Test-only local gateway policy.",
+        },
+      ],
+    });
+    const host = new GatewayHost(undefined, () => Date.now(), policy);
+    cleanups.push(async () => {
+      await host.closeIdleSessions(0, Number.POSITIVE_INFINITY);
+    });
+
+    const connect = await host.handle("POST", "/api/gateway/session/connect", {
+      driverId: "ethernetip-cip-readonly",
+      config: { endpointUrl: `127.0.0.1:${port}`, siteGatewayId: "site-a" },
+    });
+
+    expect(connect?.status).toBe(200);
+    expect(connect?.body as ConnectionResult).toMatchObject({
+      ok: true,
+      state: "online-readonly",
+      connectionEvidence: {
+        realControllerIo: true,
+        hardwareValidated: false,
+        verified: false,
+      },
+    });
+  });
+
   it("lists inert vendor-neutral target adapters as metadata only", async () => {
     const host = hostWithGateway();
     const response = await host.handle("GET", "/api/gateway/target-adapters", undefined);
@@ -210,6 +309,67 @@ describe("GatewayHost routing", () => {
     const legacy = await host.handle("GET", "/api/gateway/download-adapters", undefined);
     expect(legacy?.status).toBe(200);
     expect((legacy?.body as PlcDownloadAdapterDescriptor[])[0]).toMatchObject(adapters[0]);
+  });
+
+  it("computes local ESCO project identity without allocating an online session", async () => {
+    let created = 0;
+    const host = new GatewayHost(() => {
+      created += 1;
+      return new ControllerGateway(createBackendControllerDrivers());
+    });
+
+    const response = await host.handle("POST", "/api/gateway/project-identity", {
+      localProject: localProject(),
+    }, "client-proof");
+
+    expect(response?.status).toBe(200);
+    const identity = response?.body as ControllerIdentity;
+    expect(identity).toMatchObject({
+      controllerName: "PLC_1",
+      controllerType: "ControlLogix 5580",
+      firmwareRevision: "36.011",
+      projectName: "LocalLine",
+      projectSignatureAlgorithm: "esco-sha256-stable-project-v1",
+      projectSignatureSource: "local-esco-project",
+    });
+    expect(identity.projectSignature).toMatch(/^esco-sha256-stable-project-v1:[a-f0-9]{64}$/);
+    expect(created).toBe(0);
+  });
+
+  it("generates offline L5X identity proof tags without allocating an online session", async () => {
+    let created = 0;
+    const host = new GatewayHost(() => {
+      created += 1;
+      return new ControllerGateway(createBackendControllerDrivers());
+    });
+
+    const response = await host.handle("POST", "/api/gateway/project-identity/proof-tags", {
+      localProject: localProject(),
+    }, "client-proof");
+
+    expect(response?.status).toBe(200);
+    const bundle = response?.body as IdentityProofTagExport;
+    expect(bundle).toMatchObject({
+      schema: "esco.identityProofTags.v1",
+      format: "studio5000-l5x-controller-tags",
+      fileName: "LocalLine-identity-proof-tags.L5X",
+      identityTags: {
+        projectSignature: "ESCO_ProjectSignatureDigest",
+        projectSignatureAlgorithm: "ESCO_ProjectSignatureAlgorithm",
+      },
+      evidence: {
+        generatedOffline: true,
+        physicalControllerWrite: false,
+        proprietaryBinaryTouched: false,
+      },
+    });
+    expect(bundle.rows.find((row) => row.field === "projectSignature")?.value).toMatch(/^[a-f0-9]{64}$/);
+    expect(bundle.l5x).toContain('TargetType="Tag"');
+    expect(bundle.l5x).toContain('<Tags Use="Target">');
+    expect(bundle.l5x).toContain('Name="ESCO_ProjectSignatureDigest"');
+    expect(bundle.l5x).toContain('Format="String" Length="64"');
+    expect(bundle.installSteps.join(" ")).toContain("Import the controller-scope tags");
+    expect(created).toBe(0);
   });
 
   it("returns blocked structured download preflight without enabling the download route", async () => {
@@ -569,6 +729,10 @@ describe("GatewayHost routing", () => {
     const host = hostWithGateway();
     expect((await host.handle("POST", "/api/gateway/compare", undefined))?.status).toBe(400);
     expect((await host.handle("POST", "/api/gateway/compare", { localProject: null }))?.status).toBe(400);
+    expect((await host.handle("POST", "/api/gateway/project-identity", undefined))?.status).toBe(400);
+    expect((await host.handle("POST", "/api/gateway/project-identity", { localProject: null }))?.status).toBe(400);
+    expect((await host.handle("POST", "/api/gateway/project-identity/proof-tags", undefined))?.status).toBe(400);
+    expect((await host.handle("POST", "/api/gateway/project-identity/proof-tags", { localProject: null }))?.status).toBe(400);
   });
 
   it("refuses write routes explicitly in the read-only milestone", async () => {
@@ -596,6 +760,18 @@ describe("GatewayHost routing", () => {
       { targetAdapterId: "allen-bradley-logix" },
       "client-preflight",
     );
+    const identity = await host.handle(
+      "POST",
+      "/api/gateway/project-identity",
+      { localProject: localProject() },
+      "client-project-identity",
+    );
+    const proofTags = await host.handle(
+      "POST",
+      "/api/gateway/project-identity/proof-tags",
+      { localProject: localProject() },
+      "client-proof-tags",
+    );
     const futureTargetDownload = await host.handle(
       "POST",
       "/api/gateway/target-adapters/allen-bradley-logix/download",
@@ -615,6 +791,8 @@ describe("GatewayHost routing", () => {
     expect(unknown?.status).toBe(404);
     expect(adapters?.status).toBe(200);
     expect(preflight?.status).toBe(200);
+    expect(identity?.status).toBe(200);
+    expect(proofTags?.status).toBe(200);
     expect(futureTargetDownload?.status).toBe(404);
     expect(futureLegacyDownload?.status).toBe(404);
     expect(write?.status).toBe(405);
@@ -708,12 +886,28 @@ describe("full stack: HTTP host → gateway → ESCO driver → TCP → target",
     expect(Object.keys(batchBody.errors)).toEqual(["Missing"]);
     expect(batchBody.errors["Missing"]).toContain("path destination unknown");
 
+    const upload = await host.handle("POST", "/api/gateway/snapshot/upload", undefined);
+    expect(upload?.status).toBe(200);
+    const uploaded = upload?.body as ProjectSnapshot;
+    expect(uploaded.sourceDriver).toBe("ethernetip");
+    expect(uploaded.connectionEvidence?.realControllerIo).toBe(true);
+    expect(uploaded.tags).toEqual([
+      expect.objectContaining({ tagName: "Pump", value: 1234, dataType: "DINT", quality: "good" }),
+    ]);
+    expect(uploaded.raw).toMatchObject({
+      kind: "allen-bradley-read-only-tag-snapshot",
+      browsedTagCount: 1,
+      sampledTagCount: 1,
+      readErrors: {},
+    });
+
     const audit = await host.handle("GET", "/api/gateway/audit", undefined);
     const actions = (audit?.body as Array<{ action: string }>).map((entry) => entry.action);
     expect(actions).toContain("connect");
     expect(actions).toContain("identity");
     expect(actions).toContain("status");
     expect(actions).toContain("faults");
+    expect(actions).toContain("upload-snapshot");
 
     const disconnect = await host.handle("POST", "/api/gateway/session/disconnect", undefined);
     expect(disconnect?.status).toBe(200);

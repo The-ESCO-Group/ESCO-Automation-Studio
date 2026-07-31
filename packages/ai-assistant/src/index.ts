@@ -12,6 +12,7 @@ export * from "./agentConfig";
 export * from "./agentTools";
 export * from "./agentContext";
 export * from "./agentLoop";
+export * from "./handoff";
 
 import { DEFAULT_PROVIDER_MODE, type AssistantProvider, type ProviderMode } from "./provider";
 import { LocalRuleBasedProvider } from "./localProvider";

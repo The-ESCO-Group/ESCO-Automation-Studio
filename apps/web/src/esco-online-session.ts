@@ -16,6 +16,7 @@
  */
 
 import type {
+  ApiAuthContext,
   BatchTagReadResult,
   CompareResult,
   ConnectionConfig,
@@ -23,9 +24,12 @@ import type {
   ControllerIdentity,
   ControllerStatus,
   FaultInfo,
+  GatewayValidationReadinessReport,
+  IdentityProofTagExport,
   OnlineAuditEntry,
   OnlineSnapshot,
   ProjectSnapshot,
+  SiteGatewayPolicyReport,
   TagDefinition,
   TagValue,
 } from "./gateway-contract";
@@ -40,7 +44,10 @@ import {
 
 /** The slice of the gateway client this controller uses (injectable in tests). */
 export interface GatewayClientLike {
+  authContext(): Promise<ApiAuthContext>;
   listDrivers(): Promise<GatewayDriverSummary[]>;
+  validationReadiness(): Promise<GatewayValidationReadinessReport>;
+  siteGatewayPolicy(): Promise<SiteGatewayPolicyReport>;
   session(): Promise<OnlineSnapshot>;
   connect(
     driverId: string,
@@ -49,6 +56,8 @@ export interface GatewayClientLike {
   ): Promise<ConnectionResult>;
   disconnect(): Promise<{ ok: boolean }>;
   identity(): Promise<ControllerIdentity>;
+  projectIdentity(localProject: PlcProject): Promise<ControllerIdentity>;
+  projectIdentityProofTags(localProject: PlcProject): Promise<IdentityProofTagExport>;
   status(): Promise<GatewayStatusPayload>;
   faults(): Promise<FaultInfo[]>;
   browseTags(): Promise<TagDefinition[]>;
@@ -71,6 +80,8 @@ export interface EscoOnlineSessionState {
    * guidance instead of pretending controllers are unreachable.
    */
   apiAvailable: boolean | undefined;
+  /** Hosted/local API authentication context, if the API host answered. */
+  authContext: ApiAuthContext | undefined;
   drivers: GatewayDriverSummary[];
   snapshot: OnlineSnapshot | undefined;
   status: ControllerStatus | undefined;
@@ -89,6 +100,12 @@ export interface EscoOnlineSessionState {
   streaming: { names: readonly string[] } | undefined;
   /** Latest explicit B5 local-vs-online identity compare result. */
   compareResult: CompareResult | undefined;
+  /** Gateway-wide validation/readiness report for physical online routes. */
+  validationReadiness: GatewayValidationReadinessReport | undefined;
+  /** Hosted/site-gateway policy for real-controller routes. */
+  siteGatewayPolicy: SiteGatewayPolicyReport | undefined;
+  /** Local project identity/signature used for configuring read-only proof tags. */
+  localProjectIdentity: ControllerIdentity | undefined;
   /** Latest read-only upload snapshot captured through the gateway. */
   uploadedSnapshot: ProjectSnapshot | undefined;
   faults: FaultInfo[];
@@ -103,6 +120,7 @@ export interface EscoOnlineSessionState {
 
 const INITIAL_STATE: EscoOnlineSessionState = {
   apiAvailable: undefined,
+  authContext: undefined,
   drivers: [],
   snapshot: undefined,
   status: undefined,
@@ -115,6 +133,9 @@ const INITIAL_STATE: EscoOnlineSessionState = {
   polling: undefined,
   streaming: undefined,
   compareResult: undefined,
+  validationReadiness: undefined,
+  siteGatewayPolicy: undefined,
+  localProjectIdentity: undefined,
   uploadedSnapshot: undefined,
   faults: [],
   audit: [],
@@ -151,17 +172,24 @@ export class EscoOnlineSession {
   /** Pings the API host: driver list + session snapshot. Safe to call anytime. */
   async refreshAvailability(): Promise<void> {
     await this.run(async () => {
+      let authContext: ApiAuthContext | undefined;
       try {
-        const [drivers, snapshot] = await Promise.all([
+        authContext = await this.client.authContext();
+        const [drivers, snapshot, validationReadiness, siteGatewayPolicy] = await Promise.all([
           this.client.listDrivers(),
           this.client.session(),
+          this.client.validationReadiness(),
+          this.client.siteGatewayPolicy(),
         ]);
-        this.patch({ apiAvailable: true, drivers, snapshot, lastError: undefined });
+        this.patch({ apiAvailable: true, authContext, drivers, snapshot, validationReadiness, siteGatewayPolicy, lastError: undefined });
       } catch (cause) {
         this.patch({
           apiAvailable: false,
+          authContext,
           drivers: [],
           snapshot: undefined,
+          validationReadiness: undefined,
+          siteGatewayPolicy: undefined,
           lastError: describeError(cause),
         });
       }
@@ -297,6 +325,34 @@ export class EscoOnlineSession {
         const snapshot = await this.client.session();
         this.patch({ identity, snapshot, compareResult, lastError: undefined });
         return compareResult;
+      } catch (cause) {
+        this.patch({ lastError: describeError(cause) });
+        return undefined;
+      }
+    });
+  }
+
+  /** Computes the local project identity/signature through the gateway API. */
+  async refreshLocalProjectIdentity(localProject: PlcProject): Promise<ControllerIdentity | undefined> {
+    return this.run(async () => {
+      try {
+        const localProjectIdentity = await this.client.projectIdentity(localProject);
+        this.patch({ apiAvailable: true, localProjectIdentity, lastError: undefined });
+        return localProjectIdentity;
+      } catch (cause) {
+        this.patch({ lastError: describeError(cause) });
+        return undefined;
+      }
+    });
+  }
+
+  /** Builds an offline L5X proof-tag component through the gateway API. */
+  async exportIdentityProofTags(localProject: PlcProject): Promise<IdentityProofTagExport | undefined> {
+    return this.run(async () => {
+      try {
+        const proofTags = await this.client.projectIdentityProofTags(localProject);
+        this.patch({ apiAvailable: true, localProjectIdentity: proofTags.identity, lastError: undefined });
+        return proofTags;
       } catch (cause) {
         this.patch({ lastError: describeError(cause) });
         return undefined;

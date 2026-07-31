@@ -621,9 +621,9 @@ OPC DA remains a placeholder until ESCO approves a legacy design.
   driver flow; `e2e/escoonline-enip.mjs`, 15/15, EtherNet/IP fake-target wire
   flow with connect, identity/status, browse, read, watch polling, read-only
   status, stale-on-stop, audit, and disconnect checks). Reaching a real
-  controller still requires starting the
-  backend API host alongside the web shell, and the desktop CSP does not
-  yet allow the API origin. Also still missing:
+  controller still requires starting the backend API host alongside the web or
+  desktop shell, with the desktop shell limited to the local loopback API origin.
+  Also still missing:
   controller-PUSH subscriptions — CIP has none for tag data (class-1 is I/O
   assemblies only), so tag watching is polling-backed even though class-3
   CONNECTED messaging now exists (see goal-b-forward-open-design.md: it makes
@@ -632,8 +632,7 @@ OPC DA remains a placeholder until ESCO approves a legacy design.
   production multi-user session management (auth, operator ownership, conflict
   handling, and coordination beyond the current per-client gateway state
   isolation plus backend idle cleanup),
-  desktop CSP allowance for the API origin (deliberate security review),
-  and hardware validation. `verified` stays false everywhere, and
+  hardware validation. `verified` stays false everywhere, and
   `online-matched` is structurally unreachable through the EtherNet/IP
   driver until a trusted project-identity proof exists. The evidence flow
   that would change the hardware-validation status (lab test matrix,

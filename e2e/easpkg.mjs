@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
-import { URL, importStarterProject } from "./helpers.mjs";
+import { URL, clickFileMenuItem, dismissToasts, importStarterProject } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const runtimePath = join(here, "validator-runtime.easruntime");
@@ -21,20 +21,6 @@ const check = (label, condition, detail = "") => {
 };
 
 const sha256 = (text) => createHash("sha256").update(text, "utf8").digest("hex");
-const fileMenuItem = (page, label) => page.locator(`.esco-ribbon-menu__item:has-text("${label}")`).first();
-
-async function clickFileMenuItem(page, label) {
-  await page.locator('.esco-ribbon__tab:has-text("File")').click();
-  await page.locator(".esco-ribbon-menu").waitFor({ timeout: 5000 });
-  await fileMenuItem(page, label).click();
-}
-
-async function dismissToasts(page) {
-  while ((await page.locator(".esco-toast__close").count()) > 0) {
-    await page.locator(".esco-toast__close").first().click();
-  }
-}
-
 async function validateFile(page, filePath) {
   const [chooser] = await Promise.all([
     page.waitForEvent("filechooser"),

@@ -4,9 +4,9 @@
   "native": {
     "checksum": {
       "algorithm": "sha256",
-      "value": "1e294368816cd22397eadee825155fda8bf3e630e96e55bec016234fab7eb0db"
+      "value": "2f7cb0950bf4128b342a4e65a65c1cd94d1748973023390f1da72d2e91f7b340"
     },
-    "createdAt": "2026-06-07T14:53:46.877Z",
+    "createdAt": "2026-07-09T17:03:13.667Z",
     "kind": "snapshot",
     "producedBy": "ESCO Automation Studio"
   },
@@ -17,32 +17,32 @@
           "addOnInstructions": [],
           "controllerTags": [
             {
-              "controllerId": "ctrl_5e722265-3d11-45e9-91e2-f3afe9cfe907",
+              "controllerId": "ctrl_c3940462-7c36-4b7d-8cbb-ff1980be6655",
               "dataType": "BOOL",
-              "id": "tag_ded2f37f-81c5-4c6a-98d7-dec9452d6b88",
+              "id": "tag_c55adc0c-dec4-4a3c-8e82-a9414af2da54",
               "name": "StartPB",
               "scope": "controller",
               "value": false
             },
             {
-              "controllerId": "ctrl_5e722265-3d11-45e9-91e2-f3afe9cfe907",
+              "controllerId": "ctrl_c3940462-7c36-4b7d-8cbb-ff1980be6655",
               "dataType": "BOOL",
-              "id": "tag_afa26a9e-214c-4d77-8f74-61c124088f7b",
+              "id": "tag_f36afa43-9116-4d0f-93df-d1c0a39ac965",
               "name": "StopPB",
               "scope": "controller",
               "value": false
             },
             {
-              "controllerId": "ctrl_5e722265-3d11-45e9-91e2-f3afe9cfe907",
+              "controllerId": "ctrl_c3940462-7c36-4b7d-8cbb-ff1980be6655",
               "dataType": "BOOL",
-              "id": "tag_178a3e25-ee0c-4c66-a82e-3ae7b9df07e1",
+              "id": "tag_4326e087-1562-4b52-9db9-3bac8da3faf5",
               "name": "MotorRun",
               "scope": "controller",
               "value": false
             }
           ],
           "dataTypes": [],
-          "id": "ctrl_5e722265-3d11-45e9-91e2-f3afe9cfe907",
+          "id": "ctrl_c3940462-7c36-4b7d-8cbb-ff1980be6655",
           "ioConfiguration": {
             "modules": []
           },
@@ -50,25 +50,25 @@
           "parameterConnections": [],
           "programs": [
             {
-              "controllerId": "ctrl_5e722265-3d11-45e9-91e2-f3afe9cfe907",
-              "id": "prog_7815149f-2017-46ca-bf29-382f0191cf0c",
-              "mainRoutineId": "rtn_44e92af3-3a4f-46aa-8a5e-be7e8403ba67",
+              "controllerId": "ctrl_c3940462-7c36-4b7d-8cbb-ff1980be6655",
+              "id": "prog_9ebc8bb6-5b0f-4c81-a072-fc87f64e505a",
+              "mainRoutineId": "rtn_668f4a78-12a4-40c6-8f3b-5545e245c065",
               "name": "MainProgram",
               "programTags": [],
               "routines": [
                 {
-                  "id": "rtn_44e92af3-3a4f-46aa-8a5e-be7e8403ba67",
+                  "id": "rtn_668f4a78-12a4-40c6-8f3b-5545e245c065",
                   "ladder": {
-                    "id": "ladder_feb7bb56-4db6-45fb-bf34-6894453b308c",
+                    "id": "ladder_dff4d214-82de-489e-808f-2a30e698ed71",
                     "rungs": [
                       {
-                        "id": "rung_bd157145-b2c3-4f56-af5c-fd7620435204",
+                        "id": "rung_08820bd7-baad-45ac-acde-39c4cb64c876",
                         "number": 0,
                         "root": {
-                          "id": "branch_c3f0dddd-158f-4295-9f91-9c879121ad1a",
+                          "id": "branch_d07499e9-1f4e-46c6-a574-46a8c850dcb3",
                           "nodes": [
                             {
-                              "id": "node_d066e743-d633-410c-9d5a-7bf8ad23231c",
+                              "id": "node_b859b2c5-df00-4b43-9d6e-18be4d01d98d",
                               "instructionType": "XIC",
                               "operands": [
                                 {
@@ -79,7 +79,7 @@
                               ]
                             },
                             {
-                              "id": "node_c39bb605-47c6-449f-91ea-991b519af37c",
+                              "id": "node_fcce8fa1-23d1-4734-bebb-a9b490e52ffd",
                               "instructionType": "XIO",
                               "operands": [
                                 {
@@ -90,7 +90,7 @@
                               ]
                             },
                             {
-                              "id": "node_2a0960ba-f34e-47f4-89ff-4f59ab40a71f",
+                              "id": "node_14aebe05-f094-42f1-a094-2b7e32eb3cc4",
                               "instructionType": "OTE",
                               "operands": [
                                 {
@@ -102,27 +102,27 @@
                             }
                           ]
                         },
-                        "routineId": "ladder_feb7bb56-4db6-45fb-bf34-6894453b308c",
+                        "routineId": "ladder_dff4d214-82de-489e-808f-2a30e698ed71",
                         "sourceText": "XIC(StartPB)XIO(StopPB)OTE(MotorRun);"
                       }
                     ]
                   },
                   "language": "ladder",
                   "name": "MainRoutine",
-                  "programId": "prog_7815149f-2017-46ca-bf29-382f0191cf0c"
+                  "programId": "prog_9ebc8bb6-5b0f-4c81-a072-fc87f64e505a"
                 }
               ]
             }
           ],
-          "projectId": "proj_5879ac45-d057-48e8-b445-410fbc5adc0c",
+          "projectId": "proj_9b9300cc-2ac2-4da4-978b-983b55dd2b38",
           "quickWatchLists": [],
           "tasks": [
             {
-              "controllerId": "ctrl_5e722265-3d11-45e9-91e2-f3afe9cfe907",
-              "id": "task_1f56f942-a0a2-45d6-a29c-9751c800a969",
+              "controllerId": "ctrl_c3940462-7c36-4b7d-8cbb-ff1980be6655",
+              "id": "task_1292d3ab-f55d-4d4c-8846-74dfbc844da4",
               "name": "MainTask",
               "scheduledProgramIds": [
-                "prog_7815149f-2017-46ca-bf29-382f0191cf0c"
+                "prog_9ebc8bb6-5b0f-4c81-a072-fc87f64e505a"
               ],
               "type": "continuous"
             }
@@ -130,16 +130,16 @@
           "trends": []
         }
       ],
-      "createdAt": "2026-06-07T14:53:46.461Z",
+      "createdAt": "2026-07-09T17:03:13.285Z",
       "description": "Imported from an L5X file.",
-      "id": "proj_5879ac45-d057-48e8-b445-410fbc5adc0c",
+      "id": "proj_9b9300cc-2ac2-4da4-978b-983b55dd2b38",
       "name": "E2E_Starter",
       "provenance": {
         "fileName": "starter.L5X",
-        "importedAt": "2026-06-07T14:53:46.473Z",
+        "importedAt": "2026-07-09T17:03:13.291Z",
         "sourceType": "xml-review-import"
       },
-      "updatedAt": "2026-06-07T14:53:46.461Z"
+      "updatedAt": "2026-07-09T17:03:13.285Z"
     },
     "snapshotKind": "offline-project-snapshot",
     "summary": {
@@ -154,7 +154,7 @@
       "hmiScreenCount": 0,
       "ioModuleCount": 0,
       "programCount": 1,
-      "projectId": "proj_5879ac45-d057-48e8-b445-410fbc5adc0c",
+      "projectId": "proj_9b9300cc-2ac2-4da4-978b-983b55dd2b38",
       "projectName": "E2E_Starter",
       "routineCount": 1,
       "tagCount": 3

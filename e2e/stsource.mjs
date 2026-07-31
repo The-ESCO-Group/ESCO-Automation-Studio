@@ -2,7 +2,7 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
-import { URL, dismissToasts, importL5XPath } from "./helpers.mjs";
+import { URL, clickFileMenuItem, dismissToasts, importL5XPath } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixturePath = join(here, "stsource-fixture.L5X");
@@ -78,9 +78,7 @@ try {
 
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.locator('.esco-ribbon__tab:has-text("File")').click().then(() =>
-      page.locator('.esco-ribbon-menu__item:has-text("Export L5X")').click()
-    ),
+    clickFileMenuItem(page, "Export L5X"),
   ]);
   await download.saveAs(exportedPath);
   const exported = readFileSync(exportedPath, "utf-8");

@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-import { URL, importStarterProject } from "./helpers.mjs";
+import { URL, clickFileMenuItem, importStarterProject } from "./helpers.mjs";
 
 const results = [];
 const check = (l, c, d = "") => { results.push(!!c); console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  - " + d : ""}`); };
@@ -171,8 +171,7 @@ try {
     propertyTagNames.join("|"),
   );
 
-  await page.locator('.esco-ribbon__tab:has-text("File")').click();
-  await page.locator('.esco-ribbon-menu__item:has-text("Controller Properties")').click();
+  await clickFileMenuItem(page, "Controller Properties");
   await page.locator('.esco-modal__panel[aria-label="Controller Properties"]').waitFor({ timeout: 5000 });
   const controllerProps = await page.locator('.esco-modal__panel[aria-label="Controller Properties"]').innerText();
   check("Controller Properties shows ESCO property tabs", /General/.test(controllerProps) && /Major\/Minor Faults/.test(controllerProps) && /Advanced/.test(controllerProps), controllerProps.slice(0, 120));

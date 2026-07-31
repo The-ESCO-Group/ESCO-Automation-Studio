@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { chromium } from "playwright-core";
-import { URL, dismissToasts, importStarterProject } from "./helpers.mjs";
+import { URL, clickFileMenuItem, dismissToasts, importStarterProject } from "./helpers.mjs";
 
 const results = [];
 const check = (label, cond, detail = "") => {
@@ -18,9 +18,8 @@ try {
   await importStarterProject(page);
   await dismissToasts(page);
 
-  await page.locator('.esco-ribbon__tab:has-text("File")').click();
   const downloadPromise = page.waitForEvent("download");
-  await page.locator('.esco-ribbon-menu__item:has-text("Export ESCO Library")').click();
+  await clickFileMenuItem(page, "Export ESCO Library");
   const download = await downloadPromise;
   const fileName = download.suggestedFilename();
   const path = await download.path();

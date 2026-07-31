@@ -114,6 +114,7 @@ export const ESCO_COMMAND_SURFACE_AUDIT: readonly EscoCommandSurfaceEntry[] = [
     ["Save ESCO Project", "review-import-export", "App.handleExport"],
     ["Save ESCO Project As", "review-import-export", "App.handleSaveAs"],
     ["Export L5X (Review Only)", "review-import-export", "App.handleExportL5X"],
+    ["L5X Handoff Receipt", "review-import-export", "BottomPanel handoff tab"],
     ["Build ESCO Runtime", "review-import-export", "App.handleBuildRuntime"],
     ["Export ESCO Runtime", "review-import-export", "App.handleExportRuntime"],
     ["Import ESCO Runtime", "review-import-export", "App.handleImportRuntimeClick"],

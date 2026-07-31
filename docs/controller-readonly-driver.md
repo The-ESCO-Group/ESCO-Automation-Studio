@@ -119,10 +119,11 @@ flag — is defined in `goal-b-hardware-validation.md`.
 
 ESCO Studio is a TypeScript app. Controller communication belongs in the backend/API
 host, not in React and not through vendor workstation services. The desktop CSP allows
-`connect-src` only for `'self'` + the opt-in AI hosts and the preflight **fails CI** on
-any other host, so adding any new external endpoint must update both the CSP and the
-preflight allowlist in the same reviewed change. This seam does not enable that by
-itself.
+`connect-src` only for `'self'`, the local ESCO API loopback origins
+(`http://localhost:4000`, `http://127.0.0.1:4000`), and the opt-in AI hosts. The
+preflight **fails CI** on any other host, so adding any new external endpoint must
+update both the CSP and the preflight allowlist in the same reviewed change. This seam
+does not enable that by itself.
 
 ## What stays blocked regardless
 

@@ -11,6 +11,8 @@ import type {
   ControlledWriteRequest,
   ControllerDriver,
   ControllerIdentity,
+  ControllerIdentityProofField,
+  ControllerIdentityTagMap,
   ControllerStatus,
   FaultInfo,
   OnlineAuditEntry,
@@ -143,6 +145,7 @@ export class ControllerGateway {
   private state: OnlineConnectionState = "offline";
   private activeDriver: ControllerDriver | undefined;
   private identity: ControllerIdentity | undefined;
+  private identityTags: ControllerIdentityTagMap | undefined;
   private compare: CompareResult | undefined;
   private localProject: PlcProject | undefined;
   private activeWatchCount = 0;
@@ -214,6 +217,7 @@ export class ControllerGateway {
 
     this.activeDriver = driver;
     this.identity = undefined;
+    this.identityTags = undefined;
     this.compare = undefined;
     // New session: invalidate any watch subscription still resolving from a
     // prior connect so it cannot attach to or revive this one.
@@ -245,10 +249,12 @@ export class ControllerGateway {
       driver.kind === "l5x" && localProject && !config.offlineProject
         ? { ...config, offlineProject: localProject }
         : config;
+    this.identityTags = normalizeIdentityTags(driverConfig.identityTags);
     const result = await driver.connect(driverConfig);
     if (!result.ok) {
       this.state = result.state === "faulted" ? "faulted" : "disconnected";
       this.localProject = undefined;
+      this.identityTags = undefined;
       return this.recordResult(
         "connect",
         "failed",
@@ -260,6 +266,7 @@ export class ControllerGateway {
       await driver.disconnect().catch(() => undefined);
       this.state = "disconnected";
       this.localProject = undefined;
+      this.identityTags = undefined;
       return this.recordResult(
         "connect",
         "failed",
@@ -281,7 +288,7 @@ export class ControllerGateway {
       );
     }
 
-    this.identity = result.identity ?? await driver.getIdentity();
+    this.identity = await this.identityWithConfiguredTags(driver, result.identity ?? await driver.getIdentity());
     this.compare =
       localProject && capabilities.canCompareProject === true
         ? await this.computeCompare(driver, localProject)
@@ -316,6 +323,7 @@ export class ControllerGateway {
     await this.activeDriver?.disconnect();
     this.state = "disconnected";
     this.identity = undefined;
+    this.identityTags = undefined;
     this.compare = undefined;
     this.localProject = undefined;
     this.activeWatchCount = 0;
@@ -337,7 +345,7 @@ export class ControllerGateway {
   /** Refreshes the controller identity through the active online driver. */
   async getIdentity(): Promise<ControllerIdentity> {
     const driver = this.requireOnlineDriver();
-    this.identity = await driver.getIdentity();
+    this.identity = await this.identityWithConfiguredTags(driver, await driver.getIdentity());
     this.compare = compareControllerIdentity(
       this.localProject ? localProjectIdentity(this.localProject) : undefined,
       this.identity,
@@ -604,10 +612,70 @@ export class ControllerGateway {
     return "online-readonly";
   }
 
+  private async identityWithConfiguredTags(
+    driver: ControllerDriver,
+    baseIdentity: ControllerIdentity,
+  ): Promise<ControllerIdentity> {
+    if (!hasIdentityTags(this.identityTags)) return baseIdentity;
+    const capabilities = controllerDriverCapabilities(driver);
+    if (capabilities.canReadTags !== true) {
+      this.record("identity-evidence", "blocked", `${driver.name} cannot read configured identity proof tags.`, {
+        capability: "canReadTags",
+        requestedFields: Object.keys(this.identityTags),
+        ...driverAuditDetails(driver),
+      });
+      return baseIdentity;
+    }
+
+    const identity: ControllerIdentity = { ...baseIdentity };
+    const applied: Record<string, string> = {};
+    const failed: Record<string, string> = {};
+    for (const [field, tagName] of Object.entries(this.identityTags) as Array<[ControllerIdentityProofField, string]>) {
+      try {
+        const value = await driver.readTag(tagName);
+        const text = identityEvidenceText(value.value);
+        if (!text) {
+          failed[field] = `${tagName} did not return a scalar identity value.`;
+          continue;
+        }
+        identity[field] = text;
+        applied[field] = tagName;
+        if (field === "projectSignature") {
+          identity.projectSignatureSource = `controller-tag:${tagName}`;
+          identity.projectSignatureAlgorithm ??= projectSignatureAlgorithm(text);
+        }
+      } catch (cause) {
+        failed[field] = cause instanceof Error ? cause.message : String(cause);
+      }
+    }
+
+    const appliedCount = Object.keys(applied).length;
+    const failedCount = Object.keys(failed).length;
+    this.record(
+      "identity-evidence",
+      appliedCount > 0 ? "ran" : "failed",
+      `Read ${appliedCount}/${appliedCount + failedCount} configured identity proof tag(s).`,
+      {
+        applied,
+        failed: failedCount > 0 ? failed : undefined,
+        ...driverAuditDetails(driver),
+      },
+    );
+    identity.projectSignature = normalizeProjectSignature(identity.projectSignature, identity.projectSignatureAlgorithm);
+    return identity;
+  }
+
   private async computeCompare(driver: ControllerDriver, localProject: PlcProject): Promise<CompareResult> {
+    if (hasIdentityTags(this.identityTags)) {
+      const identity = this.identity ?? await this.identityWithConfiguredTags(driver, await driver.getIdentity());
+      return compareControllerIdentity(localProjectIdentity(localProject), identity);
+    }
     return driver.compareProject
       ? driver.compareProject(localProject)
-      : compareControllerIdentity(localProjectIdentity(localProject), this.identity ?? await driver.getIdentity());
+      : compareControllerIdentity(
+        localProjectIdentity(localProject),
+        this.identity ?? await this.identityWithConfiguredTags(driver, await driver.getIdentity()),
+      );
   }
 
   private requireDriver(): ControllerDriver {
@@ -698,6 +766,47 @@ function compactConnectionEvidence(evidence: ControllerConnectionEvidence): Reco
     verified: evidence.verified,
     label: evidence.label,
   };
+}
+
+const IDENTITY_TAG_FIELDS: readonly ControllerIdentityProofField[] = [
+  "controllerName",
+  "controllerType",
+  "firmwareRevision",
+  "projectName",
+  "projectSignature",
+  "projectSignatureAlgorithm",
+];
+
+function normalizeIdentityTags(tags: ControllerIdentityTagMap | undefined): ControllerIdentityTagMap | undefined {
+  if (!tags) return undefined;
+  const normalized: ControllerIdentityTagMap = {};
+  for (const field of IDENTITY_TAG_FIELDS) {
+    const tagName = tags[field]?.trim();
+    if (tagName) normalized[field] = tagName;
+  }
+  return hasIdentityTags(normalized) ? normalized : undefined;
+}
+
+function hasIdentityTags(tags: ControllerIdentityTagMap | undefined): tags is ControllerIdentityTagMap {
+  return tags !== undefined && IDENTITY_TAG_FIELDS.some((field) => tags[field]?.trim());
+}
+
+function identityEvidenceText(value: TagValuePayload): string | undefined {
+  if (typeof value === "string") return value.trim() || undefined;
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : undefined;
+  if (typeof value === "boolean") return String(value);
+  if (Array.isArray(value) && value.length === 1) return identityEvidenceText(value[0]);
+  return undefined;
+}
+
+function projectSignatureAlgorithm(signature: string): string | undefined {
+  const separator = signature.indexOf(":");
+  return separator > 0 ? signature.slice(0, separator) : undefined;
+}
+
+function normalizeProjectSignature(signature: string | undefined, algorithm: string | undefined): string | undefined {
+  if (!signature || signature.includes(":")) return signature;
+  return algorithm?.trim() ? `${algorithm.trim()}:${signature}` : signature;
 }
 
 function compareAuditDetails(compare: CompareResult): Record<string, unknown> {

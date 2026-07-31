@@ -37,7 +37,7 @@ describe("ladder-structure rule", () => {
     ]);
     const warnings = structFindings(projectWithRoot(root)).filter((f) => f.severity === "warning");
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]!.message).toMatch(/after output coil/i);
+    expect(warnings[0]!.message).toMatch(/after action instruction/i);
     expect(warnings[0]!.message).toContain("Late");
     expect(warnings[0]!.target).toBe("DemoController/MainProgram/MainRoutine");
   });
@@ -51,14 +51,33 @@ describe("ladder-structure rule", () => {
     expect(structFindings(projectWithRoot(root))).toHaveLength(0);
   });
 
-  it("does not flag a function box followed by a contact", () => {
-    // A box (e.g. TON) is neither a contact nor a coil, so a following contact is fine.
+  it("flags a condition placed after a timer action", () => {
     const root = createBranch([
       createNode("TON", [tagOperand("timer", "T1"), tagOperand("preset", "1000"), tagOperand("accum", "0")]),
       createNode("XIC", [tagOperand("tag", "T1.DN")]),
       createNode("OTE", [tagOperand("tag", "Run")]),
     ]);
-    expect(structFindings(projectWithRoot(root))).toHaveLength(0);
+    expect(structFindings(projectWithRoot(root)).some((finding) => /condition instruction "XIC".*after action/i.test(finding.message))).toBe(true);
+  });
+
+  it("flags ordering problems across a branch continuation", () => {
+    const root = createBranch(
+      [createNode("OTE", [tagOperand("tag", "Run")])],
+      {
+        parallelBranches: [createBranch([createNode("OTE", [tagOperand("tag", "Alternate")])])],
+        next: createBranch([createNode("XIC", [tagOperand("tag", "Late")])]),
+      },
+    );
+    expect(structFindings(projectWithRoot(root)).some((finding) => finding.message.includes('"Late"'))).toBe(true);
+  });
+
+  it("flags multiple actions chained on one execution path", () => {
+    const root = createBranch([
+      createNode("XIC", [tagOperand("tag", "Run")]),
+      createNode("OTE", [tagOperand("tag", "Lamp")]),
+      createNode("RTO", [tagOperand("timer", "Runtime"), tagOperand("preset", "1000")]),
+    ]);
+    expect(structFindings(projectWithRoot(root)).some((finding) => /action instruction "RTO" follows action instruction "OTE"/i.test(finding.message))).toBe(true);
   });
 
   it("flags an empty parallel branch leg as info", () => {
@@ -69,6 +88,15 @@ describe("ladder-structure rule", () => {
     const info = structFindings(projectWithRoot(root)).filter((f) => f.severity === "info");
     expect(info).toHaveLength(1);
     expect(info[0]!.message).toMatch(/empty parallel branch leg/i);
+  });
+
+  it("flags an empty primary leg that bypasses populated parallel legs", () => {
+    const root = createBranch([], {
+      parallelBranches: [createBranch([createNode("XIC", [tagOperand("tag", "Alt")])])],
+      next: createBranch([createNode("OTE", [tagOperand("tag", "Run")])]),
+    });
+    const info = structFindings(projectWithRoot(root)).filter((finding) => finding.severity === "info");
+    expect(info.some((finding) => /empty primary branch leg/i.test(finding.message))).toBe(true);
   });
 
   it("does not flag a parallel group whose legs are populated", () => {

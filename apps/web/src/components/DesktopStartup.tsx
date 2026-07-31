@@ -2,25 +2,17 @@ import { useEffect, useState } from "react";
 
 interface Props {
   hasBackup: boolean;
-  requiresLogin: boolean;
-  signInReady?: boolean;
   onOpenProject: () => void;
   onNewProject: () => void;
   onImportL5X: () => void;
   onRestoreBackup: () => void;
-  onSignIn: () => void;
   onContinueOffline: () => void;
 }
 
 export function DesktopStartup({
-  requiresLogin,
-  signInReady = false,
   onNewProject,
-  onSignIn,
 }: Props) {
   const [progress, setProgress] = useState(0);
-  const [autoPrompted, setAutoPrompted] = useState(false);
-  const ready = progress >= 100;
 
   useEffect(() => {
     const holdAtZeroMs = 320;
@@ -32,26 +24,13 @@ export function DesktopStartup({
       setProgress(Math.round(ratio * 100));
     }, 80);
     const launchTimer = window.setTimeout(() => {
-      if (!requiresLogin) onNewProject();
+      onNewProject();
     }, 2300);
     return () => {
       window.clearInterval(progressTimer);
       window.clearTimeout(launchTimer);
     };
-  }, [onNewProject, requiresLogin]);
-
-  useEffect(() => {
-    if (!requiresLogin) {
-      setAutoPrompted(false);
-      return;
-    }
-    if (!ready || autoPrompted) return;
-    const promptTimer = window.setTimeout(() => {
-      setAutoPrompted(true);
-      onSignIn();
-    }, 250);
-    return () => window.clearTimeout(promptTimer);
-  }, [autoPrompted, onSignIn, ready, requiresLogin]);
+  }, [onNewProject]);
 
   return (
     <div className="esco-desktop-startup esco-desktop-startup--figma" role="dialog" aria-modal="true" aria-labelledby="desktop-startup-title">
@@ -97,11 +76,6 @@ export function DesktopStartup({
               <span style={{ width: `${progress}%` }} />
             </div>
             <span className="esco-desktop-startup__progress-value">{progress}%</span>
-            {requiresLogin && (ready || signInReady || autoPrompted) ? (
-              <button type="button" className="esco-desktop-startup__signin-required" onClick={onSignIn}>
-                Sign in to continue
-              </button>
-            ) : null}
           </div>
         </main>
 

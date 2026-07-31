@@ -30,6 +30,7 @@ export * from "./library-actions";
 export * from "./snapshot-actions";
 export * from "./soft-controller";
 export * from "./soft-controller-download";
+export * from "./controller-download-lifecycle";
 export {
   previewSoftControllerUpload,
   uploadFromSoftController,

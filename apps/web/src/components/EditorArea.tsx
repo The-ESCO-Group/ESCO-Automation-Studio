@@ -106,6 +106,11 @@ type LadderContextMenu =
       rungNumber: number;
     };
 
+type ContextMenuReturnFocus = {
+  element: HTMLElement | null;
+  selector?: string;
+};
+
 type RoutineCommand =
   | { kind: "find"; value: string; message?: string }
   | { kind: "goto"; value: string; message?: string }
@@ -1083,6 +1088,10 @@ function findBranchById(branch: LadderBranch, branchId: string): LadderBranch | 
   return branch.next ? findBranchById(branch.next, branchId) : undefined;
 }
 
+function cssAttributeValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 /** The ordered series segment containing `nodeId`, anywhere in the branch tree. */
 function seriesSiblingsOf(branch: LadderBranch, nodeId: string): LadderNode[] | undefined {
   if (branch.nodes.some((node) => node.id === nodeId)) return branch.nodes;
@@ -1171,7 +1180,7 @@ export function EditorArea({
 }: Props) {
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
-  const contextMenuReturnFocusRef = useRef<HTMLElement | null>(null);
+  const contextMenuReturnFocusRef = useRef<ContextMenuReturnFocus | null>(null);
   const [virtualMetrics, setVirtualMetrics] = useState({ scrollTop: 0, viewportHeight: 720 });
   const [contextMenu, setContextMenu] = useState<LadderContextMenu | null>(null);
   const [routineCommand, setRoutineCommand] = useState<RoutineCommand | null>(null);
@@ -1355,9 +1364,15 @@ export function EditorArea({
       operandIndex = 0,
       branchId?: string,
     ) => {
-      contextMenuReturnFocusRef.current = request.focusTarget ?? null;
       const normalizedOperandIndex =
         operandIndex >= 0 && operandIndex < Math.max(node.operands.length, 1) ? operandIndex : 0;
+      contextMenuReturnFocusRef.current = {
+        element: request.focusTarget ?? null,
+        selector:
+          request.focusTarget instanceof HTMLInputElement
+            ? `[data-node-id="${cssAttributeValue(node.id)}"] input.esco-lad__operand[data-operand-index="${normalizedOperandIndex}"]`
+            : `[data-node-id="${cssAttributeValue(node.id)}"]`,
+      };
       setContextMenu({
         kind: "instruction",
         x: request.clientX,
@@ -1377,10 +1392,23 @@ export function EditorArea({
   };
 
   const closeContextMenu = useCallback((restoreFocus = false) => {
+    const restore = contextMenuReturnFocusRef.current;
+    const focusTarget = () => {
+      const target =
+        restore?.element?.isConnected
+          ? restore.element
+          : restore?.selector
+            ? editorSurfaceRef.current?.querySelector<HTMLElement>(restore.selector)
+            : null;
+      target?.focus({ preventScroll: true });
+    };
     setContextMenu(null);
     if (restoreFocus) {
-      const target = contextMenuReturnFocusRef.current;
-      window.setTimeout(() => target?.focus(), 0);
+      focusTarget();
+      window.setTimeout(focusTarget, 0);
+      window.requestAnimationFrame(focusTarget);
+      window.setTimeout(focusTarget, 16);
+      window.setTimeout(focusTarget, 50);
     }
   }, []);
   const contextMenuRung =
@@ -1637,6 +1665,7 @@ export function EditorArea({
               }${routinePendingTestEdits ? " is-test-edit" : ""}`}
               tabIndex={0}
               aria-label={`Rung ${rung.number}`}
+              data-rung-id={rung.id}
               onFocus={(event) => {
                 if (event.target === event.currentTarget) onSelectRung(rung.id);
               }}
@@ -1651,7 +1680,10 @@ export function EditorArea({
                   event.preventDefault();
                   const rect = event.currentTarget.getBoundingClientRect();
                   onSelectRung(rung.id);
-                  contextMenuReturnFocusRef.current = event.currentTarget;
+                  contextMenuReturnFocusRef.current = {
+                    element: event.currentTarget,
+                    selector: `[data-rung-id="${cssAttributeValue(rung.id)}"]`,
+                  };
                   setContextMenu({
                     kind: "rung",
                     x: rect.left + 36,
@@ -1664,7 +1696,10 @@ export function EditorArea({
               onContextMenu={(event) => {
                 event.preventDefault();
                 onSelectRung(rung.id);
-                contextMenuReturnFocusRef.current = event.currentTarget;
+                contextMenuReturnFocusRef.current = {
+                  element: event.currentTarget,
+                  selector: `[data-rung-id="${cssAttributeValue(rung.id)}"]`,
+                };
                 setContextMenu({
                   kind: "rung",
                   x: event.clientX,

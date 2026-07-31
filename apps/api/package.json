@@ -13,7 +13,11 @@
     "@esco/controller-gateway": "workspace:*",
     "@esco/core": "workspace:*",
     "@esco/driver-ethernetip-node": "workspace:*",
-    "@esco/driver-opcua-node": "workspace:*"
+    "@esco/driver-opcua-node": "workspace:*",
+    "@esco/logix-designer-sdk": "workspace:*",
+    "@esco/project-store": "workspace:*",
+    "node-opcua-client": "^2.173.1",
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
     "@esco/driver-ethernetip": "workspace:*",

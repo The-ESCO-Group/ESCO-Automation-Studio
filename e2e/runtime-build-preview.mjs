@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-import { URL, importStarterProject } from "./helpers.mjs";
+import { URL, clickFileMenuItem, importStarterProject } from "./helpers.mjs";
 
 const results = [];
 const check = (label, cond, detail = "") => {
@@ -16,9 +16,7 @@ try {
   await page.goto(URL, { waitUntil: "networkidle" });
   await importStarterProject(page);
 
-  await page.locator('.esco-ribbon__tab:has-text("File")').click();
-  await page.locator(".esco-ribbon-menu").waitFor({ timeout: 5000 });
-  await page.locator(".esco-ribbon-menu__item").filter({ hasText: /^Build ESCO Runtime$/ }).first().click();
+  await clickFileMenuItem(page, "Build ESCO Runtime");
 
   await page.locator('.esco-dock__tab.is-active:has-text("Build")').waitFor({ timeout: 5000 });
   await page.locator('[aria-label="ESCO Runtime build preview"]:not(.is-empty)').waitFor({ timeout: 5000 });

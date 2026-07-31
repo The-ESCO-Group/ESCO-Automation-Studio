@@ -26,6 +26,7 @@ import {
   getLadder,
   validate,
 } from "@esco/project-actions";
+import { buildStudio5000HandoffReadiness, formatStudio5000HandoffReadiness } from "./handoff";
 import type { AssistantSelection, ProposedProjectAction } from "./types";
 
 const registry = createDefaultRegistry();
@@ -42,6 +43,7 @@ const obj = (
 ): Record<string, unknown> => ({ type: "object", properties, required, additionalProperties: false });
 const str = (description: string) => ({ type: "string", description });
 const num = (description: string) => ({ type: "number", description });
+const bool = (description: string) => ({ type: "boolean", description });
 const hmiSurfaceKindSchema = {
   type: "string",
   enum: ["screen", "popup", "system-banner", "add-on-graphic"],
@@ -110,6 +112,11 @@ export const READ_TOOLS: AgentToolDef[] = [
     input_schema: obj({}),
   },
   {
+    name: "get_studio5000_handoff_readiness",
+    description: "Read-only Studio 5000 handoff readiness: project counts, validation status, L5X review steps, and the no-hardware-transfer boundary.",
+    input_schema: obj({}),
+  },
+  {
     name: "get_cross_references",
     description: "List where a tag is read/written across the project. Helpful before renaming or deleting a tag.",
     input_schema: obj({ tagName: str("Base tag name to cross-reference.") }, ["tagName"]),
@@ -150,7 +157,13 @@ export const WRITE_TOOL_TO_KIND: Record<string, string> = {
   rename_tag: "renameTag",
   delete_tag: "deleteTag",
   set_tag_description: "setTagDescription",
+  set_project_properties: "setProjectProperties",
+  set_controller_properties: "setControllerProperties",
+  create_program: "createProgram",
+  set_program_properties: "setProgramProperties",
+  create_task: "createTask",
   create_routine: "createRoutine",
+  set_routine_properties: "setRoutineProperties",
   add_rung: "addRung",
   add_rung_from_text: "addRungFromText",
   delete_rung: "deleteRung",
@@ -194,9 +207,98 @@ export const WRITE_TOOLS: AgentToolDef[] = [
     input_schema: obj({ name: str("Tag name."), description: str("New description.") }, ["name", "description"]),
   },
   {
+    name: "set_project_properties",
+    description: "Rename the ESCO project or update its project description. Offline project metadata only.",
+    input_schema: obj(
+      { name: str("Project name."), description: str("Optional project description.") },
+      ["name"],
+    ),
+  },
+  {
+    name: "set_controller_properties",
+    description: "Update controller metadata such as name, processor type, firmware, catalog number, slot, or Studio 5000 communication path. Offline metadata only; never connects to a PLC.",
+    input_schema: obj(
+      {
+        controllerId: str("controllerId from get_project_overview."),
+        name: str("Controller name. Use the current name if only changing metadata."),
+        processorType: str("Optional processor type, e.g. 1756-L85EP."),
+        catalogNumber: str("Optional catalog number."),
+        firmwareRevision: str("Optional firmware revision, e.g. 37.11."),
+        chassis: str("Optional chassis metadata."),
+        slot: { type: "integer", description: "Optional controller slot." },
+        faultRoutineName: str("Optional major fault routine name."),
+        powerUpRoutineName: str("Optional power-up routine name."),
+        commPath: str("Optional Studio 5000 CommPath metadata; preserved for L5X export only."),
+        commDriver: str("Optional Studio 5000 CommDriver metadata; preserved for L5X export only."),
+      },
+      ["controllerId", "name"],
+    ),
+  },
+  {
+    name: "create_program",
+    description: "Create a new program under a controller. Use create_routine next to add routines.",
+    input_schema: obj(
+      {
+        controllerId: str("controllerId from get_project_overview."),
+        name: str("New program name."),
+        description: str("Optional program description."),
+        scheduledTaskId: str("Optional taskId to schedule this program."),
+      },
+      ["controllerId", "name"],
+    ),
+  },
+  {
+    name: "set_program_properties",
+    description: "Rename a program or update its main/fault routine, description, or inhibited state.",
+    input_schema: obj(
+      {
+        programId: str("programId from get_project_overview."),
+        name: str("Program name. Use the current name if only changing metadata."),
+        description: str("Optional program description."),
+        mainRoutineId: str("Optional routineId in the same program."),
+        faultRoutineId: str("Optional routineId in the same program."),
+        inhibited: bool("Optional inhibited flag."),
+      },
+      ["programId", "name"],
+    ),
+  },
+  {
+    name: "create_task",
+    description: "Create a controller task and optionally schedule existing programs. Use this for offline project structure only.",
+    input_schema: obj(
+      {
+        controllerId: str("controllerId from get_project_overview."),
+        name: str("New task name."),
+        type: { type: "string", enum: ["continuous", "periodic", "event"], description: "Task type." },
+        periodMs: { type: "integer", description: "Periodic task period in milliseconds." },
+        priority: { type: "integer", description: "Task priority for periodic/event tasks." },
+        watchdogMs: { type: "integer", description: "Watchdog time in milliseconds." },
+        inhibited: bool("Optional inhibited flag."),
+        disableUpdateOutputs: bool("Optional disable update outputs flag."),
+        scheduledProgramIds: { type: "array", items: { type: "string" }, description: "Program ids scheduled by this task." },
+      },
+      ["controllerId", "name", "type"],
+    ),
+  },
+  {
     name: "create_routine",
-    description: "Create a new ladder routine in a program.",
-    input_schema: obj({ programId: str("programId from overview."), name: str("New routine name.") }, ["programId", "name"]),
+    description: "Create a new routine in a program. Ladder routines are editable; Structured Text/FBD/SFC are preserved or reviewed according to ESCO support.",
+    input_schema: obj(
+      {
+        programId: str("programId from get_project_overview."),
+        name: str("New routine name."),
+        language: { type: "string", enum: ["ladder", "structured-text", "function-block", "sfc"], description: "Routine language; defaults to ladder." },
+      },
+      ["programId", "name"],
+    ),
+  },
+  {
+    name: "set_routine_properties",
+    description: "Rename a routine or update its description. Routine references in ladder are remapped by the project-action layer.",
+    input_schema: obj(
+      { routineId: str("routineId from get_project_overview."), name: str("Routine name. Use current name if only changing description."), description: str("Optional routine description.") },
+      ["routineId"],
+    ),
   },
   {
     name: "add_rung",
@@ -330,6 +432,12 @@ export function writeToolToAction(name: string, input: Record<string, unknown>):
     actionInput = { ...input, screenId: s("screenId") ?? createId("hmiscreen") };
   } else if (name === "create_hmi_popup") {
     actionInput = { ...input, popupId: s("popupId") ?? createId("hmipopup") };
+  } else if (name === "create_program") {
+    actionInput = { ...input, programId: s("programId") ?? createId("prog") };
+  } else if (name === "create_task") {
+    actionInput = { ...input, taskId: s("taskId") ?? createId("task") };
+  } else if (name === "create_routine") {
+    actionInput = { ...input, routineId: s("routineId") ?? createId("rtn") };
   } else if (name === "add_hmi_registered_element") {
     const typeId = s("typeId");
     if (typeId && !getHmiElementDefinition(typeId)) {
@@ -370,7 +478,13 @@ export function writeToolToAction(name: string, input: Record<string, unknown>):
   else if (name === "rename_tag") label = `Rename tag ${s("from")} → ${s("to")}`;
   else if (name === "delete_tag") label = `Delete tag ${s("name")}`;
   else if (name === "set_tag_description") label = `Describe tag ${s("name")}`;
+  else if (name === "set_project_properties") label = `Update project ${s("name")}`;
+  else if (name === "set_controller_properties") label = `Update controller ${s("name")}`;
+  else if (name === "create_program") label = `Create program ${s("name")}`;
+  else if (name === "set_program_properties") label = `Update program ${s("name")}`;
+  else if (name === "create_task") label = `Create ${s("type") ?? "task"} task ${s("name")}`;
   else if (name === "create_routine") label = `Create routine ${s("name")}`;
+  else if (name === "set_routine_properties") label = `Update routine ${s("name") ?? s("routineId")}`;
   else if (name === "add_rung_from_text") label = `Add rung: ${s("text")}`;
   else if (name === "add_rung") label = `Add empty rung to ${s("routineId")}`;
   else if (name === "delete_rung") label = `Delete rung ${s("rungId")}`;
@@ -402,7 +516,17 @@ export function executeReadTool(
       let tagCount = 0;
       for (const controller of project.controllers) {
         tagCount += controller.controllerTags.length;
-        lines.push(`Controller ${controller.name}:`);
+        lines.push(`Controller ${controller.name} [${controller.id}] processor=${controller.processorType ?? "(unset)"} firmware=${controller.firmwareRevision ?? "(unset)"}:`);
+        if (controller.tasks.length > 0) {
+          lines.push("  Tasks:");
+          for (const task of controller.tasks) {
+            lines.push(
+              `    ${task.name} [${task.id}] type=${task.type}` +
+              `${task.periodMs ? ` periodMs=${task.periodMs}` : ""}` +
+              `${task.scheduledProgramIds?.length ? ` schedules=${task.scheduledProgramIds.join(",")}` : ""}`,
+            );
+          }
+        }
         for (const program of controller.programs) {
           tagCount += program.programTags.length;
           lines.push(`  Program ${program.name} [${program.id}] (${program.routines.length} routine(s)):`);
@@ -448,6 +572,8 @@ export function executeReadTool(
         .map((f) => `[${f.severity}] ${f.message}${f.target ? ` (${f.target})` : ""}`)
         .join("\n")}`;
     }
+    case "get_studio5000_handoff_readiness":
+      return formatStudio5000HandoffReadiness(buildStudio5000HandoffReadiness(project));
     case "get_cross_references": {
       const refs = collectTagReferences(project, String(input.tagName ?? ""));
       if (refs.length === 0) return `No references to ${String(input.tagName)}.`;

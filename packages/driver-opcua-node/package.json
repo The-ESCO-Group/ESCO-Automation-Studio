@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@esco/controller-gateway": "workspace:*",
-    "node-opcua-client": "^2.173.1"
+    "node-opcua-client": "^2.173.1",
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

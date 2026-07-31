@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { readFile } from "node:fs/promises";
 import { writeFileSync } from "node:fs";
-import { URL, dismissToasts, importL5XPath } from "./helpers.mjs";
+import { URL, clickFileMenuItem, dismissToasts, importL5XPath } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixturePath = join(here, "easlib-import-fixture.L5X");
@@ -58,10 +58,9 @@ try {
   await dismissToasts(page);
   check("AOI fixture imported with ScaleAOI", (await page.locator('.esco-tree__node--aoi:has-text("ScaleAOI")').count()) >= 1);
 
-  await page.locator('.esco-ribbon__tab:has-text("File")').click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.locator('.esco-ribbon-menu__item:has-text("Export ESCO Library")').click(),
+    clickFileMenuItem(page, "Export ESCO Library"),
   ]);
   const exportPath = await download.path();
   const exportedText = exportPath ? await readFile(exportPath, "utf8") : "";

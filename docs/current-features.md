@@ -37,6 +37,8 @@ bundled web app.
 | Search / reviewed Replace All | Working | `search` |
 | AI Copilot safety/default shell + optional configured agent components | Working | `ai`, `aiagent`, unit (`ai-assistant`) |
 | Save/open `.plcproj.json`; L5X import; review-only L5X export | Working | `persist`, `l5x`, `l5x-branch`, `component-export` |
+| AI Studio 5000 handoff readiness + L5X handoff receipt | Working (offline review-only boundary) | unit (`ai-assistant`, `interchange-audit`, `workbench-layout`), `docs/studio5000-ai-handoff-workflow.md` |
+| Logix Designer SDK optional handoff preflight | Working (backend-only guarded lane) | `@esco/logix-designer-sdk`, `@esco/api`, `docs/logix-designer-sdk-handoff.md` |
 | ESCO Runtime (`.easruntime`) build/export/import | Working | `easrt` |
 | Unsupported proprietary binary import + export guard | Working (guard) | `binaryguard` |
 | Project History (desktop Git VCS) | Working (desktop) | `gittool`, `projecthistory` |

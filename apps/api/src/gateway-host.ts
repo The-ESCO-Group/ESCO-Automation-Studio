@@ -20,13 +20,17 @@
 
 import {
   ControllerGateway,
+  buildIdentityProofTagExport,
   createDefaultControllerDrivers,
+  gatewayValidationReadinessReport,
+  localProjectIdentity,
   TARGET_ADAPTER_REGISTRY,
   listPlcDownloadAdapters,
   listTargetAdapterMetadata,
   type DownloadPreflightRequest,
   type SubscriptionHandle,
   type TagSubscriptionCallback,
+  type ConnectionConfig,
   type ControllerDriver,
   type OnlineSnapshot,
 } from "@esco/controller-gateway";
@@ -39,6 +43,7 @@ import {
   OPCUA_GATEWAY_DRIVER_ID,
   OpcUaGatewayDriver,
 } from "@esco/driver-opcua-node";
+import { SiteGatewayPolicy, siteGatewayPolicyFromEnv } from "./site-gateway-policy";
 
 export interface GatewayHostResponse {
   status: number;
@@ -84,6 +89,7 @@ export class GatewayHost {
   constructor(
     gatewayOrFactory: ControllerGateway | GatewayFactory = () => new ControllerGateway(createBackendControllerDrivers()),
     private readonly now: Clock = () => Date.now(),
+    private readonly siteGatewayPolicy: SiteGatewayPolicy = siteGatewayPolicyFromEnv(),
   ) {
     if (typeof gatewayOrFactory === "function") {
       this.createGateway = gatewayOrFactory;
@@ -160,10 +166,18 @@ export class GatewayHost {
       switch (route) {
         case "GET /drivers":
           return ok(gateway().listDriverSummaries());
+        case "GET /validation-readiness":
+          return ok(gatewayValidationReadinessReport(gateway().listDriverSummaries()));
+        case "GET /site-gateways":
+          return ok(this.siteGatewayPolicy.report());
         case "GET /target-adapters":
           return ok(listTargetAdapterMetadata());
         case "GET /download-adapters":
           return ok(listPlcDownloadAdapters());
+        case "POST /project-identity":
+          return this.projectIdentity(body);
+        case "POST /project-identity/proof-tags":
+          return this.projectIdentityProofTags(body);
         case "GET /session":
           return ok(this.snapshotPayload(gateway(), resolvedSessionId));
         case "POST /session/connect":
@@ -230,6 +244,18 @@ export class GatewayHost {
     return ok(await TARGET_ADAPTER_REGISTRY.preflightDownload(request));
   }
 
+  private projectIdentity(body: unknown): GatewayHostResponse {
+    const localProject = parseLocalProject(body, "Project identity");
+    if (localProject instanceof Error) return error(400, localProject.message);
+    return ok(localProjectIdentity(localProject as PlcProject));
+  }
+
+  private projectIdentityProofTags(body: unknown): GatewayHostResponse {
+    const localProject = parseLocalProject(body, "Project identity proof tag export");
+    if (localProject instanceof Error) return error(400, localProject.message);
+    return ok(buildIdentityProofTagExport(localProject as PlcProject));
+  }
+
   private sessionFor(sessionId: string | undefined): GatewaySessionRecord {
     return this.sessionForResolved(this.resolveSessionId(sessionId));
   }
@@ -275,8 +301,22 @@ export class GatewayHost {
     if (typeof request.driverId !== "string" || !request.driverId.trim()) {
       return error(400, 'Connect requires a string "driverId".');
     }
-    const config =
-      typeof request.config === "object" && request.config !== null ? request.config : {};
+    const config = (
+      typeof request.config === "object" && request.config !== null ? request.config : {}
+    ) as ConnectionConfig;
+    const driver = gateway.listDriverSummaries().find((summary) => summary.id === request.driverId);
+    const siteGatewayDecision = this.siteGatewayPolicy.evaluateConnection(driver, config);
+    if (!siteGatewayDecision.allowed) {
+      return {
+        status: 502,
+        body: {
+          ok: false,
+          state: "disconnected",
+          message: siteGatewayDecision.message,
+          connectionEvidence: driver?.connectionEvidence,
+        },
+      };
+    }
     const result = await gateway.connect(
       request.driverId,
       config,
@@ -333,6 +373,17 @@ export function normalizeGatewaySessionId(sessionId: string | undefined): string
   if (!trimmed) return DEFAULT_SESSION_ID;
   const safe = trimmed.replace(/[^A-Za-z0-9._:-]/g, "_").slice(0, 128);
   return safe || DEFAULT_SESSION_ID;
+}
+
+function parseLocalProject(body: unknown, label: string): PlcProject | Error {
+  if (typeof body !== "object" || body === null) {
+    return new Error(`${label} requires a JSON body with a "localProject".`);
+  }
+  const localProject = (body as { localProject?: unknown }).localProject;
+  if (typeof localProject !== "object" || localProject === null) {
+    return new Error(`${label} requires a "localProject" object.`);
+  }
+  return localProject as PlcProject;
 }
 
 function ok(body: unknown): GatewayHostResponse {

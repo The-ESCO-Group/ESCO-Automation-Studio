@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-import { createBlankProject, URL } from "./helpers.mjs";
+import { clickFileMenuItem, createBlankProject, URL } from "./helpers.mjs";
 
 const results = [];
 const check = (label, cond, detail = "") => {
@@ -8,11 +8,6 @@ const check = (label, cond, detail = "") => {
 };
 const txt = async (page, selector) =>
   (await page.locator(selector).first().innerText({ timeout: 5000 })).replace(/\s+/g, " ").trim();
-
-const openMenuCommand = async (page, menu, command) => {
-  await page.locator(`.esco-ribbon__tab:has-text("${menu}")`).click();
-  await page.locator(`.esco-ribbon-menu__item:has-text("${command}")`).click();
-};
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
@@ -109,7 +104,7 @@ try {
     JSON.stringify(blankRungChrome),
   );
 
-  await openMenuCommand(page, "File", "Project Properties");
+  await clickFileMenuItem(page, "Project Properties");
   await page.locator(".esco-project-props").waitFor();
   await page.locator(".esco-project-props input").first().fill("Line 1 Project");
   await page.locator(".esco-project-props textarea").fill("Created by the project properties dialog.");

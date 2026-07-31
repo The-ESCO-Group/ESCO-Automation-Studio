@@ -114,6 +114,34 @@ describe("AI assistant: plan generation", () => {
     expect(labels).toContain("Create tag StartPB (BOOL)");
     expect(labels).toContain("Create tag GhostTimer (TIMER)");
   });
+
+  it("generates an offline program scaffold for Studio 5000 handoff", () => {
+    const { project } = baseProject();
+    const result = runAssistant({ prompt: 'create program scaffold "Pump_Cell"', project });
+    expect(result.plan?.actions.map((action) => action.kind)).toEqual([
+      "createProgram",
+      "createRoutine",
+      "setProgramProperties",
+    ]);
+    expect(result.message).toContain("Export the reviewed project as L5X");
+  });
+
+  it("explains the Studio 5000 handoff without proposing PLC transfer actions", () => {
+    const { project } = baseProject();
+    const result = runAssistant({ prompt: "Studio 5000 handoff", project });
+    expect(result.plan?.actions).toHaveLength(0);
+    expect(result.message).toContain("Studio 5000");
+    expect(result.message).toContain("physical upload/download");
+  });
+
+  it("reports Studio 5000 handoff readiness without proposing transfer actions", () => {
+    const { project } = baseProject();
+    const result = runAssistant({ prompt: "Studio 5000 handoff readiness", project });
+    expect(result.plan?.actions).toHaveLength(0);
+    expect(result.message).toContain("Studio 5000 handoff readiness");
+    expect(result.message).toContain("Export L5X");
+    expect(result.message).toContain(".ACD");
+  });
 });
 
 describe("AI assistant: apply", () => {
@@ -212,6 +240,19 @@ describe("AI assistant: apply", () => {
     runAssistant({ prompt: "generate motor starter", project, selection: { routineId } });
     applyPlan(project, plan);
     expect(JSON.stringify(project)).toBe(snapshot);
+  });
+
+  it("applies an AI-created program scaffold with stable generated ids", () => {
+    const { project } = baseProject();
+    const plan = runAssistant({ prompt: 'create program scaffold "Pump_Cell"', project }).plan!;
+
+    const result = applyPlan(project, plan);
+
+    expect(result.ok).toBe(true);
+    const program = result.project.controllers[0]!.programs.find((candidate) => candidate.name === "Pump_Cell");
+    expect(program).toBeDefined();
+    expect(program?.routines[0]?.name).toBe("Main");
+    expect(program?.mainRoutineId).toBe(program?.routines[0]?.id);
   });
 
   it("applies reviewed HMI plans through project-actions with stable ids", () => {

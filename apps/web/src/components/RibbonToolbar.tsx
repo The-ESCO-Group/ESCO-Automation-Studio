@@ -33,6 +33,7 @@ interface Props {
   onMainWindow: () => void;
   onExport: () => void;
   onSaveAs: () => void;
+  onOpenCloudProjects: () => void;
   onExportL5X: () => void;
   onExportTagsCsv: () => void;
   onImportProject: () => void;
@@ -435,6 +436,7 @@ export function RibbonToolbar({
   onMainWindow,
   onExport,
   onSaveAs,
+  onOpenCloudProjects,
   onExportL5X,
   onExportTagsCsv,
   onImportProject,
@@ -575,6 +577,7 @@ export function RibbonToolbar({
     { label: "Open", icon: "open", title: "Open ESCO Project...", action: onImportProject },
     { label: "Save", icon: "save", title: "Save ESCO Project", action: onExport },
     { label: "Save As", icon: "save-as", title: "Save ESCO Project As...", action: onSaveAs },
+    { label: "Cloud", icon: "cloud", title: "Open hosted ESCO cloud projects", action: onOpenCloudProjects },
     { label: "Cut", icon: "cut", disabled: !canCut, title: "Cut", action: onCut },
     { label: "Copy", icon: "copy", disabled: !canCopy, title: "Copy", action: onCopy },
     { label: "Paste", icon: "paste", disabled: !canPaste, action: onPaste },
@@ -652,8 +655,11 @@ export function RibbonToolbar({
       { kind: "item", label: "Save ESCO Project As...", action: onSaveAs },
       separator(),
       submenu("Import / Export", [
+        { kind: "item", label: "Cloud Projects...", action: onOpenCloudProjects },
+        separator(),
         { kind: "item", label: "Import L5X...", action: onImportL5X },
         { kind: "item", label: "Export L5X (Review Only)...", action: onExportL5X },
+        { kind: "item", label: "L5X Handoff Receipt", action: () => onDockTab("handoff") },
         separator(),
         { kind: "item", label: "Export ESCO Snapshot...", action: onExportSnapshot },
         { kind: "item", label: "Import ESCO Snapshot...", action: onImportSnapshot },

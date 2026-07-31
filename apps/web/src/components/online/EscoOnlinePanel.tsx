@@ -14,6 +14,7 @@ import {
   type CompareResult,
   type ConnectionConfig,
   type ControllerConnectionEvidence,
+  type ControllerDiagnostic,
   type ControllerDriverCapabilities,
   type ControllerDriverSummary,
   type ControllerIdentity,
@@ -23,12 +24,22 @@ import {
   type TagValue,
 } from "../../gateway-contract";
 import type { PlcProject } from "@esco/core";
+import { defaultGatewayApiToken, storeGatewayApiToken } from "../../gateway-client";
 import { useEscoGateway } from "../../use-esco-gateway";
 import "./esco-online.css";
 
 const WATCH_LIST_STORAGE_KEY = "esco.online.watchList.v1";
 const WATCH_LIST_COLLECTION_STORAGE_KEY = "esco.online.watchLists.v1";
 const WATCH_LIST_EXPORT_SCHEMA = "esco.online.watchList.v1";
+const DIRECT_SITE_GATEWAY_ID = "__direct-api-route__";
+const DEFAULT_IDENTITY_TAGS = {
+  controllerName: "ESCO_ControllerName",
+  controllerType: "ESCO_ControllerType",
+  firmwareRevision: "ESCO_FirmwareRevision",
+  projectName: "ESCO_ProjectName",
+  projectSignature: "ESCO_ProjectSignatureDigest",
+  projectSignatureAlgorithm: "ESCO_ProjectSignatureAlgorithm",
+} as const;
 
 const ALL_PUBLIC_MUTATIONS_BLOCKED = {
   canWriteTags: false,
@@ -90,11 +101,21 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
   const [opcUaRootNodeId, setOpcUaRootNodeId] = useState("");
   const [opcUaSamplingIntervalMs, setOpcUaSamplingIntervalMs] = useState("500");
   const [opcUaNodeMapText, setOpcUaNodeMapText] = useState("");
+  const [siteGatewayId, setSiteGatewayId] = useState(DIRECT_SITE_GATEWAY_ID);
+  const [identityControllerNameTag, setIdentityControllerNameTag] = useState("");
+  const [identityControllerTypeTag, setIdentityControllerTypeTag] = useState("");
+  const [identityFirmwareRevisionTag, setIdentityFirmwareRevisionTag] = useState("");
+  const [identityProjectNameTag, setIdentityProjectNameTag] = useState("");
+  const [identityProjectSignatureTag, setIdentityProjectSignatureTag] = useState("");
+  const [identityProjectSignatureAlgorithmTag, setIdentityProjectSignatureAlgorithmTag] = useState("");
   const [localConfigError, setLocalConfigError] = useState<string | undefined>();
   const [tagFilter, setTagFilter] = useState("");
   const [manualWatchTag, setManualWatchTag] = useState("");
   const [watchList, setWatchList] = useState<string[]>(() => readSavedWatchList("ethernetip-cip-readonly"));
   const [watchListStatus, setWatchListStatus] = useState<string | undefined>();
+  const [proofTagStatus, setProofTagStatus] = useState<string | undefined>();
+  const [apiTokenText, setApiTokenText] = useState(() => defaultGatewayApiToken() ?? "");
+  const [apiTokenStatus, setApiTokenStatus] = useState<string | undefined>();
 
   useEffect(() => {
     void gateway.refreshAvailability();
@@ -119,6 +140,8 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
   const online = snapshot?.state.startsWith("online-") === true;
   const stateLabel = snapshot ? ONLINE_CONNECTION_STATE_LABELS[snapshot.state] : "Unknown";
   const compareResult = state.compareResult ?? snapshot?.compare;
+  const localIdentity = state.localProjectIdentity;
+  const localProofRows = useMemo(() => proofTagRows(localIdentity), [localIdentity]);
   const selectedDriver = useMemo(
     () => normalizeDriverSummary(state.drivers.find((driver) => driver.id === driverId)),
     [state.drivers, driverId],
@@ -133,6 +156,14 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
     snapshot?.driverId && snapshot.driverId === selectedDriver.id
       ? snapshot.connectionEvidence ?? selectedDriver.connectionEvidence
       : selectedDriver.connectionEvidence;
+  const siteGatewayPolicy = state.siteGatewayPolicy;
+  const selectedDriverNeedsSiteGateway = selectedDriver.connectionEvidence.realControllerIo;
+  const selectedSiteGatewayRequired =
+    selectedDriverNeedsSiteGateway && siteGatewayPolicy?.requiredForRealControllerIo === true;
+  const selectedSiteGatewayId = siteGatewayId === DIRECT_SITE_GATEWAY_ID ? undefined : siteGatewayId;
+  const siteGatewayConnectBlocked = selectedSiteGatewayRequired && !selectedSiteGatewayId;
+  const authContext = state.authContext;
+  const authBlocked = authContext?.authenticated === false;
   const tagByName = useMemo(() => new Map(state.tags.map((tag) => [tag.name, tag])), [state.tags]);
   const watchSet = useMemo(() => new Set(watchList), [watchList]);
   const filteredTags = useMemo(() => {
@@ -150,6 +181,12 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
     setWatchListStatus(undefined);
   }, [driverId, online]);
 
+  useEffect(() => {
+    if (!localProject) return;
+    void gateway.refreshLocalProjectIdentity(localProject);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localProject?.id, localProject?.name, localProject?.updatedAt]);
+
   const connect = () => {
     const config = buildConnectionConfig();
     if (!config) return;
@@ -162,6 +199,18 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
     const config: ConnectionConfig = {
       endpointUrl: endpointUrl.trim() || undefined,
     };
+    if (selectedDriverNeedsSiteGateway && selectedSiteGatewayId) {
+      config.siteGatewayId = selectedSiteGatewayId;
+    }
+    const identityTags = buildIdentityTags({
+      controllerName: identityControllerNameTag,
+      controllerType: identityControllerTypeTag,
+      firmwareRevision: identityFirmwareRevisionTag,
+      projectName: identityProjectNameTag,
+      projectSignature: identityProjectSignatureTag,
+      projectSignatureAlgorithm: identityProjectSignatureAlgorithmTag,
+    });
+    if (identityTags) config.identityTags = identityTags;
     if (selectedDriverIsOpcUa) {
       const nodeMap = parseOpcUaNodeMap(opcUaNodeMapText);
       if (nodeMap instanceof Error) {
@@ -254,6 +303,51 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
     }
   };
 
+  const useDefaultIdentityTags = () => {
+    setIdentityControllerNameTag(DEFAULT_IDENTITY_TAGS.controllerName);
+    setIdentityControllerTypeTag(DEFAULT_IDENTITY_TAGS.controllerType);
+    setIdentityFirmwareRevisionTag(DEFAULT_IDENTITY_TAGS.firmwareRevision);
+    setIdentityProjectNameTag(DEFAULT_IDENTITY_TAGS.projectName);
+    setIdentityProjectSignatureTag(DEFAULT_IDENTITY_TAGS.projectSignature);
+    setIdentityProjectSignatureAlgorithmTag(DEFAULT_IDENTITY_TAGS.projectSignatureAlgorithm);
+  };
+
+  const exportProofTags = () => {
+    if (downloadProofTagCsv(localIdentity)) {
+      setProofTagStatus("Exported local ESCO proof tag CSV.");
+    } else {
+      setProofTagStatus("Proof tag CSV export is not available in this browser.");
+    }
+  };
+
+  const exportProofTagL5x = async () => {
+    if (!localProject) return;
+    const bundle = await gateway.exportIdentityProofTags(localProject);
+    if (!bundle) {
+      setProofTagStatus("Proof tag L5X export failed.");
+      return;
+    }
+    if (downloadTextFile(bundle.fileName, bundle.l5x, "application/xml")) {
+      const warningNote = bundle.warnings.length > 0 ? ` ${bundle.warnings.length} warning(s) need review.` : "";
+      setProofTagStatus(`Exported ${bundle.fileName}.${warningNote}`);
+    } else {
+      setProofTagStatus("Proof tag L5X export is not available in this browser.");
+    }
+  };
+
+  const saveApiToken = () => {
+    const ok = storeGatewayApiToken(apiTokenText);
+    setApiTokenStatus(ok ? "Saved API token for this browser." : "API token could not be saved in this browser.");
+    if (ok) void gateway.refreshAvailability();
+  };
+
+  const clearApiToken = () => {
+    const ok = storeGatewayApiToken(undefined);
+    setApiTokenText("");
+    setApiTokenStatus(ok ? "Cleared API token for this browser." : "API token could not be cleared in this browser.");
+    if (ok) void gateway.refreshAvailability();
+  };
+
   return (
     <div className="eol-root" aria-label="ESCO Online (Gateway)">
       <div className="eol-banner eol-banner--readonly">
@@ -263,7 +357,21 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
         Controllers that cannot prove a project match stay in Online Read-Only.
       </div>
 
-      {state.apiAvailable === false && (
+      {authBlocked && (
+        <div className="eol-banner eol-banner--down">
+          <strong>ESCO API authentication required.</strong> {authContext?.summary}{" "}
+          <button
+            type="button"
+            className="eol-btn eol-btn--secondary"
+            onClick={() => void gateway.refreshAvailability()}
+            disabled={state.busy}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {state.apiAvailable === false && !authBlocked && (
         <div className="eol-banner eol-banner--down">
           <strong>ESCO gateway API is not reachable.</strong> Start it with{" "}
           <code>pnpm --filter @esco/api dev</code> and retry.{" "}
@@ -365,6 +473,35 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
                   />
                 </div>
               )}
+              {selectedDriverNeedsSiteGateway && siteGatewayPolicy && (
+                <div className="eol-field">
+                  <label htmlFor="eol-site-gateway">Site gateway</label>
+                  <select
+                    id="eol-site-gateway"
+                    value={siteGatewayId}
+                    onChange={(event) => setSiteGatewayId(event.target.value)}
+                    disabled={state.busy || online}
+                  >
+                    <option
+                      value={DIRECT_SITE_GATEWAY_ID}
+                      disabled={!siteGatewayPolicy.directControllerConnectionsAllowed}
+                    >
+                      {siteGatewayPolicy.directControllerConnectionsAllowed
+                        ? "Direct local API route"
+                        : "Select a site gateway"}
+                    </option>
+                    {siteGatewayPolicy.gateways.map((gatewayPolicy) => (
+                      <option
+                        key={gatewayPolicy.id}
+                        value={gatewayPolicy.id}
+                        disabled={gatewayPolicy.status !== "connected"}
+                      >
+                        {gatewayPolicy.name} ({gatewayPolicy.status})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </>
           )}
           {online ? (
@@ -381,7 +518,7 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
               type="button"
               className="eol-btn"
               onClick={connect}
-              disabled={state.busy || state.apiAvailable !== true}
+              disabled={state.busy || state.apiAvailable !== true || siteGatewayConnectBlocked}
             >
               {selectedDriverIsL5x ? "Open Snapshot (Read-Only)" : "Go Online (Read-Only)"}
             </button>
@@ -404,6 +541,89 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
             </span>
           )}
         </div>
+        {siteGatewayConnectBlocked && (
+          <p className="eol-muted">
+            This real-controller route requires a connected site gateway before the API will open it.
+          </p>
+        )}
+        {!selectedDriverIsL5x && (
+          <div className="eol-identity-tags" aria-label="Controller identity proof tags">
+            <div className="eol-identity-tags__header">
+              <strong>Identity proof tags</strong>
+              <span>Optional read-only compare evidence</span>
+              <button
+                type="button"
+                className="eol-btn eol-btn--secondary eol-btn--compact"
+                onClick={useDefaultIdentityTags}
+                disabled={state.busy || online}
+              >
+                Use defaults
+              </button>
+            </div>
+            <div className="eol-row">
+              <label className="eol-field eol-field--inline" htmlFor="eol-proof-controller-name">
+                <span>Controller name tag</span>
+                <input
+                  id="eol-proof-controller-name"
+                  value={identityControllerNameTag}
+                  onChange={(event) => setIdentityControllerNameTag(event.target.value)}
+                  placeholder="ESCO_ControllerName"
+                  disabled={state.busy || online}
+                />
+              </label>
+              <label className="eol-field eol-field--inline" htmlFor="eol-proof-controller-type">
+                <span>Controller type tag</span>
+                <input
+                  id="eol-proof-controller-type"
+                  value={identityControllerTypeTag}
+                  onChange={(event) => setIdentityControllerTypeTag(event.target.value)}
+                  placeholder="ESCO_ControllerType"
+                  disabled={state.busy || online}
+                />
+              </label>
+              <label className="eol-field eol-field--inline" htmlFor="eol-proof-firmware">
+                <span>Firmware revision tag</span>
+                <input
+                  id="eol-proof-firmware"
+                  value={identityFirmwareRevisionTag}
+                  onChange={(event) => setIdentityFirmwareRevisionTag(event.target.value)}
+                  placeholder="ESCO_FirmwareRevision"
+                  disabled={state.busy || online}
+                />
+              </label>
+              <label className="eol-field eol-field--inline" htmlFor="eol-proof-project-name">
+                <span>Project name tag</span>
+                <input
+                  id="eol-proof-project-name"
+                  value={identityProjectNameTag}
+                  onChange={(event) => setIdentityProjectNameTag(event.target.value)}
+                  placeholder="ESCO_ProjectName"
+                  disabled={state.busy || online}
+                />
+              </label>
+              <label className="eol-field eol-field--wide" htmlFor="eol-proof-project-signature">
+                <span>Project signature digest tag</span>
+                <input
+                  id="eol-proof-project-signature"
+                  value={identityProjectSignatureTag}
+                  onChange={(event) => setIdentityProjectSignatureTag(event.target.value)}
+                  placeholder="ESCO_ProjectSignatureDigest"
+                  disabled={state.busy || online}
+                />
+              </label>
+              <label className="eol-field eol-field--inline" htmlFor="eol-proof-signature-algorithm">
+                <span>Signature algorithm tag</span>
+                <input
+                  id="eol-proof-signature-algorithm"
+                  value={identityProjectSignatureAlgorithmTag}
+                  onChange={(event) => setIdentityProjectSignatureAlgorithmTag(event.target.value)}
+                  placeholder="ESCO_ProjectSignatureAlgorithm"
+                  disabled={state.busy || online}
+                />
+              </label>
+            </div>
+          </div>
+        )}
         <CapabilityStrip
           driver={selectedDriver}
           capabilities={activeCapabilities}
@@ -416,6 +636,141 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
           </p>
         )}
       </div>
+
+      {state.validationReadiness && (
+        <div className="eol-card">
+          <h3>Validation readiness</h3>
+          <div className="eol-row">
+            <span className="eol-badge">
+              Hardware validated {state.validationReadiness.hardwareValidatedRouteCount}/{state.validationReadiness.realControllerRouteCount}
+            </span>
+            <span className="eol-badge">
+              Read-only release eligible {state.validationReadiness.readOnlyReleaseEligibleRouteCount}/{state.validationReadiness.driverCount}
+            </span>
+            <span className="eol-badge">
+              Destructive operations {state.validationReadiness.destructiveOperationsEnabled ? "enabled" : "blocked"}
+            </span>
+          </div>
+          <p className="eol-muted">{state.validationReadiness.summary}</p>
+          <div className="eol-readiness-grid">
+            {state.validationReadiness.drivers.map((driver) => (
+              <div className="eol-readiness-driver" key={driver.driverId}>
+                <div className="eol-readiness-driver__header">
+                  <strong>{driver.driverName}</strong>
+                  <span className={`eol-chip ${driver.readOnlyReleaseEligible ? "eol-chip--ok" : "eol-chip--warn"}`}>
+                    {driver.readOnlyReleaseEligible ? "read-only eligible" : "validation required"}
+                  </span>
+                </div>
+                <p>{driver.summary}</p>
+                <div className="eol-readiness-gates">
+                  {driver.gates.map((gate) => (
+                    <span className={`eol-chip ${readinessGateClass(gate.state)}`} key={gate.id} title={gate.nextStep}>
+                      {gate.label}: {readinessGateLabel(gate.state)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="eol-muted">{state.validationReadiness.nextStep}</p>
+        </div>
+      )}
+
+      {authContext && (
+        <div className="eol-card">
+          <h3>API access</h3>
+          <div className="eol-row">
+            <span className="eol-badge">
+              {authContext.mode === "token-required" ? "Token required" : "Local dev"}
+            </span>
+            <span className={`eol-chip ${authContext.authenticated ? "eol-chip--ok" : "eol-chip--blocked"}`}>
+              {authContext.authenticated ? "authenticated" : "needs token"}
+            </span>
+            <span className="eol-badge">Roles {authContext.roles.join(", ") || "none"}</span>
+            <span className="eol-badge" title={authContext.permissions.join(", ") || "none"}>
+              Permissions {authContext.permissions.length}
+            </span>
+          </div>
+          <p className="eol-muted">{authContext.summary}</p>
+          {authContext.mode === "token-required" && (
+            <div className="eol-row">
+              <label className="eol-field eol-field--wide" htmlFor="eol-api-token">
+                <span>API token</span>
+                <input
+                  id="eol-api-token"
+                  type="password"
+                  autoComplete="current-password"
+                  value={apiTokenText}
+                  onChange={(event) => {
+                    setApiTokenText(event.target.value);
+                    setApiTokenStatus(undefined);
+                  }}
+                  disabled={state.busy}
+                />
+              </label>
+              <button
+                type="button"
+                className="eol-btn eol-btn--secondary"
+                onClick={saveApiToken}
+                disabled={state.busy}
+              >
+                Save token
+              </button>
+              <button
+                type="button"
+                className="eol-btn eol-btn--secondary"
+                onClick={clearApiToken}
+                disabled={state.busy}
+              >
+                Clear token
+              </button>
+            </div>
+          )}
+          <p className="eol-muted">{apiTokenStatus ?? authContext.nextStep}</p>
+        </div>
+      )}
+
+      {siteGatewayPolicy && (
+        <div className="eol-card">
+          <h3>Site gateway policy</h3>
+          <div className="eol-row">
+            <span className="eol-badge">
+              {siteGatewayPolicy.requiredForRealControllerIo ? "Site gateway required" : "Local direct allowed"}
+            </span>
+            <span className="eol-badge">
+              Connected {siteGatewayPolicy.connectedGatewayCount}/{siteGatewayPolicy.configuredGatewayCount}
+            </span>
+            <span className="eol-badge">
+              Direct controller routes {siteGatewayPolicy.directControllerConnectionsAllowed ? "allowed" : "blocked"}
+            </span>
+          </div>
+          <p className="eol-muted">{siteGatewayPolicy.summary}</p>
+          {siteGatewayPolicy.gateways.length > 0 ? (
+            <div className="eol-site-gateway-grid">
+              {siteGatewayPolicy.gateways.map((gatewayPolicy) => (
+                <div className="eol-site-gateway" key={gatewayPolicy.id}>
+                  <div className="eol-readiness-driver__header">
+                    <strong>{gatewayPolicy.name}</strong>
+                    <span className={`eol-chip ${gatewayPolicy.status === "connected" ? "eol-chip--ok" : "eol-chip--warn"}`}>
+                      {gatewayPolicy.status}
+                    </span>
+                  </div>
+                  <p>{gatewayPolicy.notes}</p>
+                  <div className="eol-diagnostic__evidence">
+                    {gatewayPolicy.location && <code>location={gatewayPolicy.location}</code>}
+                    <code>drivers={(gatewayPolicy.allowedDriverIds ?? gatewayPolicy.allowedDriverKinds ?? ["any"]).join(",")}</code>
+                    <code>endpoints={gatewayPolicy.allowedEndpointPatterns.join(",") || "any"}</code>
+                    <code>readOnlyOnly={String(gatewayPolicy.readOnlyOnly)}</code>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="eol-muted">No site gateways are registered with this API host.</p>
+          )}
+          <p className="eol-muted">{siteGatewayPolicy.nextStep}</p>
+        </div>
+      )}
 
       {online && (
         <div className="eol-card">
@@ -454,6 +809,32 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
             <dt>Status</dt>
             <dd>{state.status?.message ?? "—"}</dd>
           </dl>
+          {state.status?.diagnostics && state.status.diagnostics.length > 0 && (
+            <div className="eol-diagnostics" aria-label="Decoded controller diagnostics">
+              {state.status.diagnostics.map((diagnostic) => (
+                <div className="eol-diagnostic" key={diagnostic.id}>
+                  <div className="eol-diagnostic__header">
+                    <span className={`eol-chip ${diagnosticToneClass(diagnostic.severity)}`}>
+                      {diagnostic.severity}
+                    </span>
+                    <strong>{diagnostic.label}</strong>
+                    <span>{diagnostic.source}</span>
+                  </div>
+                  <p>{diagnostic.message}</p>
+                  {diagnostic.evidence.length > 0 && (
+                    <div className="eol-diagnostic__evidence">
+                      {diagnostic.evidence.map((item) => (
+                        <code key={item}>{item}</code>
+                      ))}
+                    </div>
+                  )}
+                  {diagnostic.recommendation && (
+                    <p className="eol-muted">{diagnostic.recommendation}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           {activeCapabilities.canReadFaults === false ? (
             <p className="eol-muted">Fault reads are not available on this driver path. Map fault/status tags and watch them read-only.</p>
           ) : state.faults.length > 0 ? (
@@ -463,14 +844,19 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
                   <th>Severity</th>
                   <th>Fault</th>
                   <th>Source</th>
+                  <th>Evidence</th>
                 </tr>
               </thead>
               <tbody>
                 {state.faults.map((fault) => (
                   <tr key={fault.id}>
                     <td>{fault.severity}</td>
-                    <td>{fault.message}</td>
+                    <td>
+                      {fault.message}
+                      {fault.recommendation && <div className="eol-muted">{fault.recommendation}</div>}
+                    </td>
                     <td>{fault.source}</td>
+                    <td>{fault.evidence?.join("; ") ?? fault.code ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -514,6 +900,72 @@ export function EscoOnlinePanel({ localProject, focusPathRequestId = 0 }: EscoOn
           </div>
           {!localProject && (
             <p className="eol-muted">Open an ESCO project before running a local/controller match check.</p>
+          )}
+          {localProject && (
+            <div className="eol-proof eol-proof--setup" aria-label="Local project proof tag setup">
+              <div className="eol-proof__header">
+                <h4>Local proof tag setup</h4>
+                <div className="eol-row">
+                  <button
+                    type="button"
+                    className="eol-btn eol-btn--secondary"
+                    onClick={() => void gateway.refreshLocalProjectIdentity(localProject)}
+                    disabled={state.busy}
+                  >
+                    Refresh proof values
+                  </button>
+                  <button
+                    type="button"
+                    className="eol-btn eol-btn--secondary"
+                    onClick={exportProofTags}
+                    disabled={!localIdentity}
+                  >
+                    Export proof CSV
+                  </button>
+                  <button
+                    type="button"
+                    className="eol-btn eol-btn--secondary"
+                    onClick={() => void exportProofTagL5x()}
+                    disabled={state.busy || !localProject}
+                  >
+                    Export proof L5X
+                  </button>
+                </div>
+              </div>
+              {localIdentity ? (
+                <div className="eol-table-wrap">
+                  <table className="eol-table eol-table--proof">
+                    <thead>
+                      <tr>
+                        <th>Evidence</th>
+                        <th>Default tag</th>
+                        <th>Type</th>
+                        <th>Local value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {localProofRows.map((row) => (
+                        <tr key={row.tagName}>
+                          <td>{row.label}</td>
+                          <td>{row.tagName}</td>
+                          <td>{row.dataType}</td>
+                          <td>{row.value || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="eol-muted">Local proof values are still loading from the ESCO gateway.</p>
+              )}
+              <ol className="eol-proof-steps" aria-label="Proof tag install checklist">
+                <li>Review the generated L5X in an offline or sandbox Studio 5000 project.</li>
+                <li>Import the controller-scope STRING tags into the target controller project.</li>
+                <li>Use the plant-controlled download/change procedure to place those tags on the controller.</li>
+                <li>Go online read-only with the default proof tag names and run compare.</li>
+              </ol>
+              {proofTagStatus && <p className="eol-muted">{proofTagStatus}</p>}
+            </div>
           )}
           <p className="eol-muted">{compareResult?.message ?? "No local/controller match proof has been run; the session remains read-only."}</p>
           {compareResult && (
@@ -1012,6 +1464,24 @@ function evidenceChipClass(evidence: ControllerConnectionEvidence): string {
   return "eol-chip--off";
 }
 
+function readinessGateClass(state: "passed" | "blocked" | "not-run"): string {
+  if (state === "passed") return "eol-chip--ok";
+  if (state === "blocked") return "eol-chip--blocked";
+  return "eol-chip--warn";
+}
+
+function readinessGateLabel(state: "passed" | "blocked" | "not-run"): string {
+  if (state === "passed") return "passed";
+  if (state === "blocked") return "blocked";
+  return "not run";
+}
+
+function diagnosticToneClass(severity: ControllerDiagnostic["severity"]): string {
+  if (severity === "info") return "eol-chip--ok";
+  if (severity === "warning" || severity === "minor") return "eol-chip--warn";
+  return "eol-chip--blocked";
+}
+
 function fallbackSummaryForDriver(
   driver: Pick<ControllerDriverSummary, "id" | "name" | "kind">,
 ): ControllerDriverSummary {
@@ -1093,6 +1563,101 @@ function normalizeWatchList(names: readonly string[]): string[] {
   return normalized;
 }
 
+function buildIdentityTags(raw: {
+  controllerName: string;
+  controllerType: string;
+  firmwareRevision: string;
+  projectName: string;
+  projectSignature: string;
+  projectSignatureAlgorithm: string;
+}): ConnectionConfig["identityTags"] | undefined {
+  const identityTags: NonNullable<ConnectionConfig["identityTags"]> = {};
+  for (const [field, value] of Object.entries(raw) as Array<[keyof typeof raw, string]>) {
+    const tagName = value.trim();
+    if (tagName) identityTags[field] = tagName;
+  }
+  return Object.keys(identityTags).length > 0 ? identityTags : undefined;
+}
+
+interface ProofTagRow {
+  label: string;
+  tagName: string;
+  dataType: "STRING";
+  value: string;
+}
+
+function proofTagRows(identity: ControllerIdentity | undefined): ProofTagRow[] {
+  const projectSignature = identityString(identity, "projectSignature");
+  const projectSignatureAlgorithm =
+    identityString(identity, "projectSignatureAlgorithm") ?? signatureAlgorithm(projectSignature);
+  return [
+    proofTagRow("Controller name", DEFAULT_IDENTITY_TAGS.controllerName, identityString(identity, "controllerName")),
+    proofTagRow("Controller type", DEFAULT_IDENTITY_TAGS.controllerType, identityString(identity, "controllerType")),
+    proofTagRow("Firmware revision", DEFAULT_IDENTITY_TAGS.firmwareRevision, identityString(identity, "firmwareRevision")),
+    proofTagRow("Project name", DEFAULT_IDENTITY_TAGS.projectName, identityString(identity, "projectName")),
+    proofTagRow("Project signature digest", DEFAULT_IDENTITY_TAGS.projectSignature, signatureDigest(projectSignature)),
+    proofTagRow("Signature algorithm", DEFAULT_IDENTITY_TAGS.projectSignatureAlgorithm, projectSignatureAlgorithm),
+  ];
+}
+
+function proofTagRow(label: string, tagName: string, value: string | undefined): ProofTagRow {
+  return {
+    label,
+    tagName,
+    dataType: "STRING",
+    value: value?.trim() ?? "",
+  };
+}
+
+function downloadProofTagCsv(identity: ControllerIdentity | undefined): boolean {
+  try {
+    if (typeof window === "undefined" || !identity) return false;
+    const documentRef = window.document;
+    const rows = proofTagRows(identity);
+    const csvRows = [
+      ["TagName", "DataType", "Value", "Description"],
+      ...rows.map((row) => [
+        row.tagName,
+        row.dataType,
+        row.value,
+        `ESCO online identity proof - ${row.label}`,
+      ]),
+    ];
+    const csv = `${csvRows.map((row) => row.map(csvEscape).join(",")).join("\r\n")}\r\n`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = documentRef.createElement("a");
+    anchor.href = url;
+    anchor.download = `${safeFilePart(identityString(identity, "projectName") ?? "esco-project")}-proof-tags.csv`;
+    documentRef.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function csvEscape(value: string): string {
+  if (!/[",\r\n]/.test(value)) return value;
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function signatureDigest(signature: string | undefined): string | undefined {
+  const value = signature?.trim();
+  if (!value) return undefined;
+  const separatorIndex = value.indexOf(":");
+  return separatorIndex >= 0 ? value.slice(separatorIndex + 1) : value;
+}
+
+function signatureAlgorithm(signature: string | undefined): string | undefined {
+  const value = signature?.trim();
+  if (!value) return undefined;
+  const separatorIndex = value.indexOf(":");
+  return separatorIndex > 0 ? value.slice(0, separatorIndex) : undefined;
+}
+
 interface WatchListImport {
   driverId?: string;
   driverName?: string;
@@ -1164,6 +1729,25 @@ function downloadWatchListExport(driver: ControllerDriverSummary, names: readonl
     const anchor = documentRef.createElement("a");
     anchor.href = url;
     anchor.download = `${safeFilePart(driver.id)}-watch-list.json`;
+    documentRef.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function downloadTextFile(fileName: string, text: string, type: string): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+    const documentRef = window.document;
+    const blob = new Blob([text], { type });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = documentRef.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
     documentRef.body.append(anchor);
     anchor.click();
     anchor.remove();

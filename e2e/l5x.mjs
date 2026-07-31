@@ -2,7 +2,7 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
-import { dismissToasts, importL5XPath, openWatchPanel } from "./helpers.mjs";
+import { clickFileMenuItem, dismissToasts, importL5XPath, openWatchPanel } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const URL = "http://localhost:5173/";
@@ -69,9 +69,7 @@ try {
   // Export the imported project back to review-only L5X, then re-import that generated file.
   const [l5xDownload] = await Promise.all([
     page.waitForEvent("download"),
-    page.locator('.esco-ribbon__tab:has-text("File")').click().then(() =>
-      page.locator('.esco-ribbon-menu__item:has-text("Export L5X")').click()
-    ),
+    clickFileMenuItem(page, "Export L5X"),
   ]);
   await l5xDownload.saveAs(exportedPath);
   const generatedL5X = readFileSync(exportedPath, "utf-8");

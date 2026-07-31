@@ -58,6 +58,25 @@ function demoCip(faulted = false): FakeLogixServerOptions["handleCip"] {
     if (bytesEqual(request, buildReadTagRequest("Recipe"))) {
       return hexToBytes("cc 00 00 00 a0 02 34 12 aa bb"); // unknown structure
     }
+    if (bytesEqual(request, buildReadTagRequest("Pump"))) {
+      return hexToBytes("cc 00 00 00 c4 00 d2 04 00 00");
+    }
+    if (bytesEqual(request, buildReadTagRequest("Program:Main.Flag"))) {
+      return hexToBytes("cc 00 00 00 c1 00 ff");
+    }
+    if (
+      bytesEqual(
+        request,
+        encodeMultipleServicePacket([
+          buildReadTagRequest("Pump"),
+          buildReadTagRequest("Program:Main.Flag"),
+        ]),
+      )
+    ) {
+      return encodeMultipleServiceReply(
+        [hexToBytes("cc 00 00 00 c4 00 d2 04 00 00"), hexToBytes("cc 00 00 00 c1 00 ff")],
+      );
+    }
     if (bytesEqual(request, buildTagListRequest(0))) {
       return hexToBytes(
         "d5 00 00 00 " +
@@ -385,6 +404,11 @@ describe("EthernetIpGatewayDriver", () => {
     const status = await driver.getStatus();
     expect(status.mode).toBe("Remote Run");
     expect(status.health).toBe("ok");
+    expect(status.diagnostics?.find((diagnostic) => diagnostic.id === "cip-identity-status-word")).toMatchObject({
+      severity: "info",
+      label: "CIP identity status word",
+      evidence: expect.arrayContaining(["status=0x3060", "mode=Remote Run"]),
+    });
   });
 
   it("surfaces identity fault bits as device-level faults", async () => {
@@ -394,19 +418,53 @@ describe("EthernetIpGatewayDriver", () => {
     expect(faults[0].id).toBe("cip-major-recoverable");
     expect(faults[0].severity).toBe("major");
     expect(faults[0].clearable).toBe(false);
+    expect(faults[0].evidence).toEqual(expect.arrayContaining(["status=0x0400", "faultBits=majorRecoverable"]));
+    expect(faults[0].recommendation).toContain("approved plant workflow");
 
     const status = await driver.getStatus();
     expect(status.health).toBe("faulted");
     expect(status.mode).toBe("Faulted");
+    expect(status.diagnostics?.map((diagnostic) => diagnostic.id)).toEqual(
+      expect.arrayContaining(["cip-identity-status-word", "cip-major-recoverable"]),
+    );
 
     const { driver: clean } = await connectedDriver({ handleCip: demoCip(false) });
     expect(await clean.getFaults()).toEqual([]);
   });
 
-  it("exposes no write, snapshot, or compare surface (subscriptions are read-only polling)", async () => {
+  it("uploads a read-only Allen-Bradley tag snapshot without enabling writes", async () => {
+    const { driver } = await connectedDriver({ handleCip: demoCip() });
+
+    const snapshot = await driver.uploadSnapshot();
+
+    expect(snapshot.sourceDriver).toBe("ethernetip");
+    expect(snapshot.identity.productName).toBe("1769-L33E");
+    expect(snapshot.connectionEvidence).toMatchObject({
+      realControllerIo: true,
+      hardwareValidated: false,
+      verified: false,
+    });
+    expect(snapshot.tags).toEqual([
+      expect.objectContaining({ tagName: "Pump", dataType: "DINT", value: 1234, quality: "good" }),
+      expect.objectContaining({ tagName: "Program:Main.Flag", dataType: "BOOL", value: true, quality: "good" }),
+    ]);
+    expect(snapshot.raw).toMatchObject({
+      kind: "allen-bradley-read-only-tag-snapshot",
+      browsedTagCount: 3,
+      sampledTagCount: 2,
+      requestedSampleCount: 2,
+      skippedTagCount: 1,
+      sampledTagLimit: 200,
+      truncated: false,
+      readErrors: {},
+      note: expect.stringContaining("not a Rockwell ACD"),
+    });
+  });
+
+  it("exposes no write or compare surface (snapshot and subscriptions stay read-only)", async () => {
     const driver: ControllerDriver = new EthernetIpGatewayDriver();
     expect(driver.writeTag).toBeUndefined();
-    expect(driver.uploadSnapshot).toBeUndefined();
+    expect(typeof driver.uploadSnapshot).toBe("function");
     expect(driver.compareProject).toBeUndefined();
     expect(typeof driver.subscribeTags).toBe("function"); // read-only watch path
   });

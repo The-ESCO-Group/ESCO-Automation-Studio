@@ -18,6 +18,7 @@ export default defineConfig({
       "@esco/driver-ethernetip": pkg("driver-ethernetip"),
       "@esco/driver-ethernetip-node": pkg("driver-ethernetip-node"),
       "@esco/driver-opcua-node": pkg("driver-opcua-node"),
+      "@esco/logix-designer-sdk": pkg("logix-designer-sdk"),
     },
   },
   build: {
@@ -46,6 +47,10 @@ export default defineConfig({
         // current read-only routes — revisit when the OPC UA driver slice
         // wires real endpoints.
         "proper-lockfile",
+        // node-opcua-client ships CommonJS internals that rely on __filename;
+        // keep it as a runtime Node dependency instead of rewriting it into
+        // the bundled ESM API chunk.
+        "node-opcua-client",
       ],
     },
   },

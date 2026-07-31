@@ -9,8 +9,10 @@
  *   `@esco/controller-gateway` stays browser-safe. A backend host (apps/api)
  *   constructs it and passes it into the gateway registry; the browser bundle
  *   keeps the placeholder. Do not move this into the gateway package.
- * - READ-ONLY BY OMISSION *AND* CONSTRUCTION: `writeTag`, `uploadSnapshot`,
- *   and `compareProject` are deliberately not implemented. `subscribeTags`
+ * - READ-ONLY BY OMISSION *AND* CONSTRUCTION: `writeTag`
+ *   and `compareProject` are deliberately not implemented. `uploadSnapshot`
+ *   is a read-only identity/tag inventory capture, NOT a Rockwell ACD or
+ *   controller-logic upload. `subscribeTags`
  *   is a polling-backed read-only watch path, not a Forward Open / class-1
  *   controller push subscription. The gateway treats a missing `writeTag` as
  *   "controlled writes not exposed", which is the truth for this milestone.
@@ -28,11 +30,13 @@ import type {
   BatchTagReadResult,
   ConnectionConfig,
   ControllerConnectionEvidence,
+  ControllerDiagnostic,
   ConnectionResult,
   ControllerDriver,
   ControllerIdentity,
   ControllerStatus,
   FaultInfo,
+  ProjectSnapshot,
   SubscriptionHandle,
   TagDefinition,
   TagPrimitive,
@@ -79,6 +83,7 @@ export interface EthernetIpGatewayDriverOptions {
 }
 
 const now = (): string => new Date().toISOString();
+const SNAPSHOT_MAX_TAGS = 200;
 
 export class EthernetIpGatewayDriver implements ControllerDriver {
   readonly id = ETHERNETIP_GATEWAY_DRIVER_ID;
@@ -267,6 +272,17 @@ export class EthernetIpGatewayDriver implements ControllerDriver {
         ? `${identity.productName} at ${this.endpointLabel} reports fault bits in its CIP identity status.`
         : `Read-only EtherNet/IP session with ${this.endpointLabel}.`,
       updatedAt: now(),
+      diagnostics: identity ? identityDiagnostics(identity, this.endpointLabel, this.connectedMessagingActive) : [
+        {
+          id: "cip-identity-not-read",
+          severity: "warning",
+          label: "CIP identity status",
+          message: "The EtherNet/IP session is live, but no identity status word has been read yet.",
+          source: `EtherNet/IP (${this.endpointLabel})`,
+          evidence: ["identityStatus=missing"],
+          recommendation: "Refresh controller identity/status before relying on online diagnostics.",
+        },
+      ],
     };
   }
 
@@ -280,24 +296,27 @@ export class EthernetIpGatewayDriver implements ControllerDriver {
       route: this.route,
     });
     this.lastIdentity = identity;
-    const faults: FaultInfo[] = [];
-    const add = (flagged: boolean, id: string, severity: FaultInfo["severity"], label: string): void => {
-      if (flagged) {
-        faults.push({
-          id,
-          severity,
-          message: `${label} reported in the CIP identity status word.`,
-          source: `CIP Identity (${this.endpointLabel})`,
-          timestamp: now(),
-          clearable: false, // this driver has no clear-faults path, by design
-        });
-      }
-    };
-    add(identity.faults.minorRecoverable, "cip-minor-recoverable", "minor", "Minor recoverable fault");
-    add(identity.faults.minorUnrecoverable, "cip-minor-unrecoverable", "minor", "Minor unrecoverable fault");
-    add(identity.faults.majorRecoverable, "cip-major-recoverable", "major", "Major recoverable fault");
-    add(identity.faults.majorUnrecoverable, "cip-major-unrecoverable", "major", "Major unrecoverable fault");
-    return faults;
+    const timestamp = now();
+    return identityFaultDescriptors(identity)
+      .filter((fault) => fault.flagged)
+      .map((fault): FaultInfo => ({
+        id: fault.id,
+        code: fault.bit,
+        severity: fault.severity,
+        message: `${fault.label} reported in the CIP identity status word.`,
+        source: `CIP Identity (${this.endpointLabel})`,
+        timestamp,
+        clearable: false, // this driver has no clear-faults path, by design
+        evidence: identityEvidence(identity),
+        recommendation: fault.recommendation,
+        details: {
+          statusWord: statusWordHex(identity.status),
+          productName: identity.productName,
+          serialNumber: formatSerialNumber(identity.serialNumber),
+          keyswitch: identity.keyswitch ?? null,
+          connectedMessaging: this.connectedMessagingActive,
+        },
+      }));
   }
 
   async browseTags(): Promise<TagDefinition[]> {
@@ -449,6 +468,49 @@ export class EthernetIpGatewayDriver implements ControllerDriver {
   }
 
   /**
+   * Read-only Allen-Bradley "upload" snapshot: captures controller identity,
+   * browsed tag definitions, and sampled scalar tag values. This is useful
+   * for ESCO online inspection, but it is intentionally not a Studio 5000
+   * `.ACD`/logic upload and cannot reconstruct ladder, AOIs, routines, or I/O
+   * configuration.
+   */
+  async uploadSnapshot(): Promise<ProjectSnapshot> {
+    const capturedAt = now();
+    const identity = await this.getIdentity();
+    const definitions = await this.browseTags();
+    const sampledDefinitions = definitions
+      .filter(isSnapshotSampleCandidate)
+      .slice(0, SNAPSHOT_MAX_TAGS);
+    const sampledTagNames = sampledDefinitions.map((definition) => definition.name);
+    const batch = sampledTagNames.length > 0
+      ? await this.readTags(sampledTagNames)
+      : { values: [], errors: {} };
+
+    return {
+      id: `enip-snapshot-${Date.now().toString(36)}`,
+      capturedAt,
+      sourceDriver: this.kind,
+      identity,
+      connectionEvidence: this.connectionEvidence,
+      tags: batch.values,
+      raw: {
+        kind: "allen-bradley-read-only-tag-snapshot",
+        endpoint: this.endpointLabel,
+        tagDefinitions: definitions,
+        sampledTagNames,
+        readErrors: batch.errors,
+        browsedTagCount: definitions.length,
+        sampledTagCount: batch.values.length,
+        requestedSampleCount: sampledTagNames.length,
+        skippedTagCount: definitions.length - sampledTagNames.length,
+        sampledTagLimit: SNAPSHOT_MAX_TAGS,
+        truncated: definitions.filter(isSnapshotSampleCandidate).length > SNAPSHOT_MAX_TAGS,
+        note: "Read-only identity/tag snapshot only; not a Rockwell ACD or controller logic upload.",
+      },
+    };
+  }
+
+  /**
    * READ-ONLY tag subscriptions — POLLING-BACKED INTERIM, honestly labeled:
    * samples the tags through the batched read path on an interval (Multiple
    * Service Packet → one wire round trip per tick) and emits a value when a
@@ -511,7 +573,7 @@ export class EthernetIpGatewayDriver implements ControllerDriver {
     };
   }
 
-  // writeTag / uploadSnapshot / compareProject are INTENTIONALLY ABSENT —
+  // writeTag / compareProject are INTENTIONALLY ABSENT —
   // see the boundary notes at the top of this file.
 
   private toDefinition(
@@ -537,6 +599,10 @@ export class EthernetIpGatewayDriver implements ControllerDriver {
   }
 }
 
+function isSnapshotSampleCandidate(definition: TagDefinition): boolean {
+  return definition.dataType !== "STRUCT" && !definition.dataType.endsWith("[]");
+}
+
 /**
  * Identity mapping: project fields are deliberately ABSENT — the CIP Identity
  * object cannot prove which project is loaded, and pretending otherwise would
@@ -551,6 +617,121 @@ function mapIdentity(identity: CipIdentity): ControllerIdentity {
     firmwareRevision: identity.revision,
     serialNumber: formatSerialNumber(identity.serialNumber),
   };
+}
+
+interface IdentityFaultDescriptor {
+  id: string;
+  bit: string;
+  flagged: boolean;
+  severity: FaultInfo["severity"];
+  label: string;
+  recommendation: string;
+}
+
+function identityFaultDescriptors(identity: CipIdentity): IdentityFaultDescriptor[] {
+  return [
+    {
+      id: "cip-minor-recoverable",
+      bit: "minorRecoverable",
+      flagged: identity.faults.minorRecoverable,
+      severity: "minor",
+      label: "Minor recoverable fault",
+      recommendation: "Inspect controller diagnostics in the plant-approved tool before any clear-fault procedure.",
+    },
+    {
+      id: "cip-minor-unrecoverable",
+      bit: "minorUnrecoverable",
+      flagged: identity.faults.minorUnrecoverable,
+      severity: "minor",
+      label: "Minor unrecoverable fault",
+      recommendation: "Review controller diagnostics and recovery procedure; ESCO does not clear faults in this build.",
+    },
+    {
+      id: "cip-major-recoverable",
+      bit: "majorRecoverable",
+      flagged: identity.faults.majorRecoverable,
+      severity: "major",
+      label: "Major recoverable fault",
+      recommendation: "Treat the controller as faulted and use the approved plant workflow to diagnose and clear it.",
+    },
+    {
+      id: "cip-major-unrecoverable",
+      bit: "majorUnrecoverable",
+      flagged: identity.faults.majorUnrecoverable,
+      severity: "major",
+      label: "Major unrecoverable fault",
+      recommendation: "Treat the controller as faulted; recovery may require program/service action outside ESCO.",
+    },
+  ];
+}
+
+function identityDiagnostics(
+  identity: CipIdentity,
+  endpointLabel: string,
+  connectedMessagingActive: boolean,
+): ControllerDiagnostic[] {
+  const faultBits = identityFaultDescriptors(identity).filter((fault) => fault.flagged);
+  const statusSeverity: ControllerDiagnostic["severity"] =
+    faultBits.some((fault) => fault.severity === "major") ? "major" :
+    faultBits.length > 0 ? "minor" :
+    "info";
+  const mode = identity.faulted ? "Faulted" : identity.keyswitch ?? "not encoded";
+  const diagnostics: ControllerDiagnostic[] = [
+    {
+      id: "cip-identity-status-word",
+      severity: statusSeverity,
+      label: "CIP identity status word",
+      message: `Status ${statusWordHex(identity.status)} decodes as ${mode}.`,
+      source: `CIP Identity (${endpointLabel})`,
+      evidence: identityEvidence(identity),
+      recommendation: identity.faulted
+        ? "Read the fault records in the approved controller tool before any recovery action."
+        : "Use proof tags/project compare for loaded-project evidence; the CIP identity word does not prove the running project.",
+    },
+    {
+      id: "cip-read-channel",
+      severity: "info",
+      label: "Read transport channel",
+      message: connectedMessagingActive
+        ? "Read-only requests are using a negotiated class-3 EtherNet/IP channel."
+        : "Read-only requests are using UCMM EtherNet/IP explicit messages.",
+      source: `EtherNet/IP (${endpointLabel})`,
+      evidence: [
+        `connectedMessaging=${connectedMessagingActive}`,
+        "writeTag=false",
+        "modeChange=false",
+        "clearFaults=false",
+      ],
+      recommendation: "Connected messaging changes transport efficiency only; it does not enable writes or controller changes.",
+    },
+  ];
+  for (const fault of faultBits) {
+    diagnostics.push({
+      id: fault.id,
+      severity: fault.severity,
+      label: fault.label,
+      message: `${fault.label} bit is set in the CIP identity status word.`,
+      source: `CIP Identity (${endpointLabel})`,
+      evidence: identityEvidence(identity),
+      recommendation: fault.recommendation,
+    });
+  }
+  return diagnostics;
+}
+
+function identityEvidence(identity: CipIdentity): string[] {
+  return [
+    `status=${statusWordHex(identity.status)}`,
+    `mode=${identity.keyswitch ?? "not encoded"}`,
+    `product=${identity.productName}`,
+    `revision=${identity.revision}`,
+    `serial=${formatSerialNumber(identity.serialNumber)}`,
+    `faultBits=${identityFaultDescriptors(identity).filter((fault) => fault.flagged).map((fault) => fault.bit).join("|") || "none"}`,
+  ];
+}
+
+function statusWordHex(status: number): string {
+  return `0x${status.toString(16).toUpperCase().padStart(4, "0")}`;
 }
 
 function mapScalar(value: CipScalar): TagPrimitive {

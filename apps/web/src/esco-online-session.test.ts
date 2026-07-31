@@ -80,14 +80,97 @@ function driverSummary(
 /** Fully scriptable fake client; every method overridable per test. */
 function fakeClient(overrides: Partial<GatewayClientLike> = {}): GatewayClientLike {
   return {
+    authContext: async () => ({
+      mode: "local-dev",
+      authenticated: true,
+      user: { id: "local-dev", displayName: "Local Developer" },
+      roles: ["developer"],
+      permissions: ["gateway:read", "gateway:connect", "project:read", "project:write"],
+      summary: "Local development auth is active; gateway routes are open on this machine.",
+      nextStep: "Set ESCO_API_AUTH_TOKEN before hosting this API outside local development.",
+    }),
     listDrivers: async () => [
       driverSummary("esco-simulator", "Sim", "simulator"),
       driverSummary("ethernetip-cip-readonly", "ESCO EtherNet/IP", "ethernetip"),
     ],
+    validationReadiness: async () => ({
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      driverCount: 2,
+      realControllerRouteCount: 1,
+      hardwareValidatedRouteCount: 0,
+      readOnlyReleaseEligibleRouteCount: 1,
+      destructiveOperationsEnabled: false,
+      summary: "No real-controller route has lab or field validation evidence attached yet.",
+      nextStep: "Run hardware validation.",
+      drivers: [
+        {
+          driverId: "ethernetip-cip-readonly",
+          driverName: "ESCO EtherNet/IP",
+          kind: "ethernetip",
+          transportValidation: "software-wired",
+          realControllerIo: true,
+          hardwareValidated: false,
+          verified: false,
+          readOnlyReleaseEligible: false,
+          destructiveOperationsBlocked: true,
+          summary: "Real-controller route is software-wired only.",
+          gates: [],
+        },
+      ],
+    }),
+    siteGatewayPolicy: async () => ({
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      mode: "local-dev-direct",
+      requiredForRealControllerIo: false,
+      directControllerConnectionsAllowed: true,
+      configuredGatewayCount: 0,
+      connectedGatewayCount: 0,
+      gateways: [],
+      summary: "Local development policy allows direct read-only controller routes from the API host.",
+      nextStep: "Enable site-gateway policy in hosted deployments.",
+    }),
     session: async () => OFFLINE_SNAPSHOT,
     connect: async () => okConnect(),
     disconnect: async () => ({ ok: true }),
     identity: async () => ({ productName: "1769-L33E", firmwareRevision: "36.011", vendor: "Rockwell Automation/Allen-Bradley" }),
+    projectIdentity: async () => ({
+      controllerName: "PLC_1",
+      controllerType: "ControlLogix 5580",
+      projectName: "Line1",
+      projectSignature: "esco-sha256-stable-project-v1:abc",
+      projectSignatureAlgorithm: "esco-sha256-stable-project-v1",
+      projectSignatureSource: "local-esco-project",
+    }),
+    projectIdentityProofTags: async () => ({
+      schema: "esco.identityProofTags.v1",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      format: "studio5000-l5x-controller-tags",
+      fileName: "Line1-identity-proof-tags.L5X",
+      l5x: "<RSLogix5000Content/>",
+      identity: {
+        controllerName: "PLC_1",
+        projectName: "Line1",
+        projectSignature: "esco-sha256-stable-project-v1:abc",
+        projectSignatureAlgorithm: "esco-sha256-stable-project-v1",
+      },
+      identityTags: {
+        controllerName: "ESCO_ControllerName",
+        controllerType: "ESCO_ControllerType",
+        firmwareRevision: "ESCO_FirmwareRevision",
+        projectName: "ESCO_ProjectName",
+        projectSignature: "ESCO_ProjectSignatureDigest",
+        projectSignatureAlgorithm: "ESCO_ProjectSignatureAlgorithm",
+      },
+      rows: [],
+      installSteps: [],
+      warnings: [],
+      evidence: {
+        generatedOffline: true,
+        physicalControllerWrite: false,
+        proprietaryBinaryTouched: false,
+        purpose: "read-only-controller-identity-proof",
+      },
+    }),
     status: async () => ({ snapshot: READONLY_SNAPSHOT, status: undefined }),
     faults: async () => [],
     browseTags: async () => [],
@@ -137,8 +220,14 @@ describe("availability", () => {
     await session.refreshAvailability();
     const state = session.getState();
     expect(state.apiAvailable).toBe(true);
+    expect(state.authContext?.authenticated).toBe(true);
+    expect(state.authContext?.mode).toBe("local-dev");
     expect(state.drivers.map((driver) => driver.id)).toContain("ethernetip-cip-readonly");
     expect(state.snapshot?.state).toBe("offline");
+    expect(state.validationReadiness?.hardwareValidatedRouteCount).toBe(0);
+    expect(state.validationReadiness?.drivers[0]?.readOnlyReleaseEligible).toBe(false);
+    expect(state.siteGatewayPolicy?.mode).toBe("local-dev-direct");
+    expect(state.siteGatewayPolicy?.directControllerConnectionsAllowed).toBe(true);
     expect(state.busy).toBe(false);
   });
 
@@ -153,6 +242,9 @@ describe("availability", () => {
     await session.refreshAvailability();
     const state = session.getState();
     expect(state.apiAvailable).toBe(false);
+    expect(state.authContext?.authenticated).toBe(true);
+    expect(state.validationReadiness).toBeUndefined();
+    expect(state.siteGatewayPolicy).toBeUndefined();
     expect(state.lastError).toContain("unreachable");
     expect(state.lastError).toContain("pnpm --filter @esco/api dev");
   });
@@ -411,6 +503,84 @@ describe("status, faults, tags, audit", () => {
     expect(session.getState().identity?.projectName).toBe("Online");
     expect(session.getState().compareResult?.differences[0].field).toBe("projectName");
     expect(session.getState().snapshot?.state).toBe("online-mismatched");
+  });
+
+  it("computes local project identity/signature for proof-tag setup", async () => {
+    const session = new EscoOnlineSession(
+      fakeClient({
+        projectIdentity: async () => ({
+          controllerName: "PLC_1",
+          controllerType: "ControlLogix 5580",
+          firmwareRevision: "36.011",
+          projectName: "Line1",
+          projectSignature: "esco-sha256-stable-project-v1:abc123",
+          projectSignatureAlgorithm: "esco-sha256-stable-project-v1",
+          projectSignatureSource: "local-esco-project",
+        }),
+      }),
+    );
+
+    const identity = await session.refreshLocalProjectIdentity({ id: "p", name: "Line1", controllers: [] } as never);
+
+    expect(identity?.projectSignature).toBe("esco-sha256-stable-project-v1:abc123");
+    expect(session.getState().localProjectIdentity).toMatchObject({
+      controllerName: "PLC_1",
+      projectSignatureAlgorithm: "esco-sha256-stable-project-v1",
+    });
+    expect(session.getState().lastError).toBeUndefined();
+  });
+
+  it("exports offline proof-tag L5X and refreshes local identity from the bundle", async () => {
+    const session = new EscoOnlineSession(
+      fakeClient({
+        projectIdentityProofTags: async () => ({
+          schema: "esco.identityProofTags.v1",
+          generatedAt: "2026-06-15T00:00:00.000Z",
+          format: "studio5000-l5x-controller-tags",
+          fileName: "Line1-identity-proof-tags.L5X",
+          l5x: "<RSLogix5000Content/>",
+          identity: {
+            controllerName: "PLC_1",
+            projectName: "Line1",
+            projectSignature: "esco-sha256-stable-project-v1:abc123",
+            projectSignatureAlgorithm: "esco-sha256-stable-project-v1",
+          },
+          identityTags: {
+            controllerName: "ESCO_ControllerName",
+            controllerType: "ESCO_ControllerType",
+            firmwareRevision: "ESCO_FirmwareRevision",
+            projectName: "ESCO_ProjectName",
+            projectSignature: "ESCO_ProjectSignatureDigest",
+            projectSignatureAlgorithm: "ESCO_ProjectSignatureAlgorithm",
+          },
+          rows: [
+            {
+              field: "projectSignature",
+              label: "Project signature digest",
+              tagName: "ESCO_ProjectSignatureDigest",
+              dataType: "STRING",
+              value: "abc123",
+              description: "ESCO online identity proof - Project signature digest",
+            },
+          ],
+          installSteps: ["Review offline."],
+          warnings: [],
+          evidence: {
+            generatedOffline: true,
+            physicalControllerWrite: false,
+            proprietaryBinaryTouched: false,
+            purpose: "read-only-controller-identity-proof",
+          },
+        }),
+      }),
+    );
+
+    const bundle = await session.exportIdentityProofTags({ id: "p", name: "Line1", controllers: [] } as never);
+
+    expect(bundle?.fileName).toBe("Line1-identity-proof-tags.L5X");
+    expect(bundle?.rows[0]?.tagName).toBe("ESCO_ProjectSignatureDigest");
+    expect(session.getState().localProjectIdentity?.projectSignature).toBe("esco-sha256-stable-project-v1:abc123");
+    expect(session.getState().lastError).toBeUndefined();
   });
 
   it("uploads a read-only snapshot and merges its tag values into the monitor cache", async () => {

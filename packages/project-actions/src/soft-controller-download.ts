@@ -182,6 +182,13 @@ export interface SoftControllerDownloadAudit {
   checksum?: string;
   /** Whether the checksum validated on the target, when a transfer was attempted. */
   checksumValid?: boolean;
+  /** Transfer ledger summary for the software chunk stream. */
+  transfer?: {
+    bytes: number;
+    chunkSize?: number;
+    chunkCount?: number;
+    checksumValid: boolean;
+  };
   /** The compared target identities, when comparison ran. */
   targetIdentity?: { project: ProjectTargetIdentity; controller: SoftControllerTargetIdentity };
   /** The backup id created before overwrite, when backup ran. */
@@ -215,6 +222,8 @@ export interface DownloadToSoftControllerOptions extends Pick<BuildRuntimeOption
   resetTagMemory?: boolean;
   /** Mode to return to after the runtime is applied. Defaults to "program". */
   returnToMode?: SoftControllerReturnMode;
+  /** Software transfer chunk size for the `.easruntime` stream. */
+  transferChunkSize?: number;
 }
 
 function runtimeFileSlug(name: string): string {
@@ -268,6 +277,16 @@ export function downloadToSoftController(
     warnings: [...warnings],
     ...(preflight.checksum ? { checksum: preflight.checksum } : {}),
     ...(transfer ? { checksumValid: transfer.checksumValid } : {}),
+    ...(transfer
+      ? {
+          transfer: {
+            bytes: transfer.bytes,
+            ...(transfer.chunkSize !== undefined ? { chunkSize: transfer.chunkSize } : {}),
+            ...(transfer.chunkCount !== undefined ? { chunkCount: transfer.chunkCount } : {}),
+            checksumValid: transfer.checksumValid,
+          },
+        }
+      : {}),
     ...(comparison
       ? { targetIdentity: { project: comparison.project, controller: comparison.controller } }
       : {}),
@@ -350,8 +369,9 @@ export function downloadToSoftController(
   // --- 3. Backup before overwrite ------------------------------------------
   backup = target.createBackup(at);
 
-  // --- 4. Transfer: stream the runtime, checksum-validate on target --------
-  transfer = target.receiveRuntime(runtimeText, checksum);
+  // --- 4. Transfer: stream the runtime in audited software chunks, then
+  // checksum-validate the reassembled bytes on the target.
+  transfer = target.receiveRuntime(runtimeText, checksum, options.transferChunkSize);
   if (!transfer.accepted || !transfer.checksumValid) {
     return finish(
       false,

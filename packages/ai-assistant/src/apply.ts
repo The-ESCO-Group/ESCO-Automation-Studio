@@ -10,15 +10,21 @@ import {
   addRungFromText,
   createHmiPopup,
   createHmiScreen,
+  createProgram,
   createRoutine,
+  createTask,
   createTag,
   deleteRung,
   deleteTag,
   ensureHmiProject,
   removeInstruction,
   renameTag,
+  setControllerProperties,
+  setProgramProperties,
+  setProjectProperties,
   setRungComment,
   setHmiElementBinding,
+  setRoutineProperties,
   setTagDescription,
   updateInstructionOperand,
   updateHmiElementGeometry,
@@ -32,14 +38,20 @@ import {
   type BranchInput,
   type CreateHmiPopupInput,
   type CreateHmiScreenInput,
+  type CreateProgramInput,
   type CreateRoutineInput,
+  type CreateTaskInput,
   type CreateTagInput,
   type DeleteRungInput,
   type DeleteTagInput,
   type ProjectActionResult,
   type RemoveInstructionInput,
   type RenameTagInput,
+  type SetControllerPropertiesInput,
   type SetHmiElementBindingInput,
+  type SetProgramPropertiesInput,
+  type SetProjectPropertiesInput,
+  type SetRoutinePropertiesInput,
   type SetRungCommentInput,
   type SetTagDescriptionInput,
   type UpdateHmiElementGeometryInput,
@@ -83,8 +95,20 @@ export function applyAction(project: PlcProject, action: ProposedProjectAction):
         return wrap(deleteTag(project, input as unknown as DeleteTagInput));
       case "setTagDescription":
         return wrap(setTagDescription(project, input as unknown as SetTagDescriptionInput));
+      case "setProjectProperties":
+        return wrap(setProjectProperties(project, input as unknown as SetProjectPropertiesInput));
+      case "setControllerProperties":
+        return wrap(setControllerProperties(project, input as unknown as SetControllerPropertiesInput));
+      case "createProgram":
+        return wrap(createProgram(project, input as unknown as CreateProgramInput));
+      case "setProgramProperties":
+        return wrap(setProgramProperties(project, input as unknown as SetProgramPropertiesInput));
+      case "createTask":
+        return wrap(createTask(project, input as unknown as CreateTaskInput));
       case "createRoutine":
         return wrap(createRoutine(project, input as unknown as CreateRoutineInput));
+      case "setRoutineProperties":
+        return wrap(setRoutineProperties(project, input as unknown as SetRoutinePropertiesInput));
       case "addRung":
         return wrap(addRung(project, input as unknown as AddRungInput));
       case "addRungFromText":

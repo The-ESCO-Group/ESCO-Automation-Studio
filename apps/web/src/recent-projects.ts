@@ -9,7 +9,7 @@ export interface RecentProjectEntry {
   projectId?: string;
   name: string;
   source: "created" | "opened" | "imported" | "exported";
-  storage: "desktop-file" | "browser-file" | "download" | "metadata";
+  storage: "desktop-file" | "browser-file" | "download" | "cloud" | "metadata";
   fileName?: string;
   path?: string;
   at: string;

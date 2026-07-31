@@ -13,7 +13,12 @@
  */
 
 import type {
+  ApiAuthContext,
   BatchTagReadResult,
+  CloudProjectDeleteResult,
+  CloudProjectListResponse,
+  CloudProjectRecord,
+  CloudProjectSummary,
   CompareResult,
   ConnectionConfig,
   ConnectionResult,
@@ -22,9 +27,12 @@ import type {
   ControllerStatus,
   DownloadPreflightResult,
   FaultInfo,
+  GatewayValidationReadinessReport,
+  IdentityProofTagExport,
   OnlineAuditEntry,
   OnlineSnapshot,
   ProjectSnapshot,
+  SiteGatewayPolicyReport,
   TagDefinition,
   TargetAdapterMetadata,
   TagValue,
@@ -48,6 +56,7 @@ export interface GatewayTagStreamHandle {
 }
 
 type EventSourceConstructor = new (url: string) => EventSource;
+export const GATEWAY_API_TOKEN_STORAGE_KEY = "esco.gateway.apiToken.v1";
 
 /** Raised when the gateway API answers with an error or unusable payload. */
 export class GatewayApiError extends Error {
@@ -65,6 +74,8 @@ export interface EscoGatewayClientOptions {
   baseUrl?: string;
   /** Per-browser/client online session id. Defaults to sessionStorage. */
   sessionId?: string;
+  /** Optional hosted API token. Defaults to browser storage key `esco.gateway.apiToken.v1`. */
+  apiToken?: string;
   /** Injectable fetch (tests); defaults to the global. */
   fetchImpl?: typeof fetch;
   /** Injectable EventSource (tests); defaults to the browser global. */
@@ -96,12 +107,14 @@ export function defaultGatewaySessionId(): string {
 export class EscoGatewayClient {
   private readonly baseUrl: string;
   private readonly sessionId: string;
+  private readonly apiToken: string | undefined;
   private readonly fetchImpl: typeof fetch;
   private readonly eventSourceImpl: EventSourceConstructor | undefined;
 
   constructor(options: EscoGatewayClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? defaultGatewayBaseUrl()).replace(/\/+$/, "");
     this.sessionId = options.sessionId?.trim() || defaultGatewaySessionId();
+    this.apiToken = options.apiToken?.trim() || undefined;
     // Bind the global fetch: calling an unbound `window.fetch` through a
     // class field sets `this` to the client and browsers throw
     // "Illegal invocation" (Node's undici does not — tests alone won't
@@ -112,6 +125,35 @@ export class EscoGatewayClient {
 
   listDrivers(): Promise<GatewayDriverSummary[]> {
     return this.request("GET", "/api/gateway/drivers");
+  }
+
+  authContext(): Promise<ApiAuthContext> {
+    return this.request("GET", "/api/auth/context");
+  }
+
+  validationReadiness(): Promise<GatewayValidationReadinessReport> {
+    return this.request("GET", "/api/gateway/validation-readiness");
+  }
+
+  siteGatewayPolicy(): Promise<SiteGatewayPolicyReport> {
+    return this.request("GET", "/api/gateway/site-gateways");
+  }
+
+  async listCloudProjects(): Promise<CloudProjectSummary[]> {
+    const response = await this.request<CloudProjectListResponse>("GET", "/api/projects");
+    return response.projects;
+  }
+
+  saveCloudProject(project: PlcProject, expectedRevision?: string): Promise<CloudProjectRecord> {
+    return this.request("POST", "/api/projects", { project, expectedRevision });
+  }
+
+  openCloudProject(projectId: string): Promise<CloudProjectRecord> {
+    return this.request("GET", `/api/projects/${encodeURIComponent(projectId)}`);
+  }
+
+  deleteCloudProject(projectId: string): Promise<CloudProjectDeleteResult> {
+    return this.request("DELETE", `/api/projects/${encodeURIComponent(projectId)}`);
   }
 
   /** Metadata-only planned target packs; no physical download execution exists in the browser. */
@@ -159,6 +201,14 @@ export class EscoGatewayClient {
     return this.request("GET", "/api/gateway/identity");
   }
 
+  projectIdentity(localProject: PlcProject): Promise<ControllerIdentity> {
+    return this.request("POST", "/api/gateway/project-identity", { localProject });
+  }
+
+  projectIdentityProofTags(localProject: PlcProject): Promise<IdentityProofTagExport> {
+    return this.request("POST", "/api/gateway/project-identity/proof-tags", { localProject });
+  }
+
   status(): Promise<GatewayStatusPayload> {
     return this.request("GET", "/api/gateway/status");
   }
@@ -199,6 +249,8 @@ export class EscoGatewayClient {
     }
     const params = new URLSearchParams();
     params.set("session", this.sessionId);
+    const apiToken = this.currentApiToken();
+    if (apiToken) params.set("apiToken", apiToken);
     for (const tagName of tagNames) params.append("name", tagName);
     const source = new this.eventSourceImpl(`${this.baseUrl}/api/gateway/tags/subscribe?${params.toString()}`);
     let closed = false;
@@ -234,22 +286,47 @@ export class EscoGatewayClient {
     return this.request("GET", "/api/gateway/audit");
   }
 
-  private async request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+  private async request<T>(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<T> {
     const response = await this.send(method, path, body);
     const payload = await parseJson(response);
     if (!response.ok) throw toApiError(response.status, payload);
     return payload as T;
   }
 
-  private send(method: "GET" | "POST", path: string, body?: unknown): Promise<Response> {
+  private send(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<Response> {
+    const apiToken = this.currentApiToken();
     return this.fetchImpl(`${this.baseUrl}${path}`, {
       method,
       headers: {
         "x-esco-session-id": this.sessionId,
+        ...(apiToken ? { authorization: `Bearer ${apiToken}` } : {}),
         ...(body === undefined ? {} : { "content-type": "application/json" }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+  }
+
+  private currentApiToken(): string | undefined {
+    return this.apiToken ?? defaultGatewayApiToken();
+  }
+}
+
+export function defaultGatewayApiToken(): string | undefined {
+  try {
+    return globalThis.localStorage?.getItem(GATEWAY_API_TOKEN_STORAGE_KEY)?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function storeGatewayApiToken(token: string | undefined): boolean {
+  try {
+    const value = token?.trim();
+    if (value) globalThis.localStorage?.setItem(GATEWAY_API_TOKEN_STORAGE_KEY, value);
+    else globalThis.localStorage?.removeItem(GATEWAY_API_TOKEN_STORAGE_KEY);
+    return true;
+  } catch {
+    return false;
   }
 }
 

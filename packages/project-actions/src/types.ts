@@ -243,6 +243,8 @@ export interface SetProgramPropertiesInput {
 export interface CreateProgramInput {
   controllerId: string;
   name: string;
+  /** Optional stable id for preview/apply workflows that create and then reference this program. */
+  programId?: string;
   description?: string;
   scheduledTaskId?: string;
 }
@@ -250,6 +252,8 @@ export interface CreateProgramInput {
 export interface CreateTaskInput {
   controllerId: string;
   name: string;
+  /** Optional stable id for preview/apply workflows that create and then reference this task. */
+  taskId?: string;
   type: TaskType;
   periodMs?: number;
   priority?: number;
@@ -282,6 +286,8 @@ export interface DeleteProgramInput {
 export interface CreateRoutineInput {
   programId: string;
   name: string;
+  /** Optional stable id for preview/apply workflows that create and then reference this routine. */
+  routineId?: string;
   language?: RoutineLanguage;
 }
 

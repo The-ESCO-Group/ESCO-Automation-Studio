@@ -79,6 +79,9 @@ import {
   updateHmiElementGeometry,
   exportProjectJson,
   exportProjectL5X,
+  buildExportAuditReport,
+  buildImportAuditReport,
+  formatInterchangeAuditReport,
   exportTagsCsv,
   findRoutine,
   getLadder,
@@ -191,7 +194,7 @@ import {
 import { rungNodes, type LadderBranch, type LadderNode } from "@esco/ladder";
 import { createDefaultRegistry, inferOperandTagType } from "@esco/instructions";
 import type { ImportSummary } from "@esco/parser-l5x";
-import { applyPlan, type ApplyResult, type AssistantPlan } from "@esco/ai-assistant";
+import { applyPlan, buildStudio5000HandoffReadiness, type ApplyResult, type AssistantPlan } from "@esco/ai-assistant";
 import { createDefaultEngine, type ValidationFinding } from "@esco/validator";
 import { ProjectExplorer } from "./components/ProjectExplorer";
 import { EditorArea } from "./components/EditorArea";
@@ -199,6 +202,7 @@ import {
   BottomPanel,
   type ArtifactValidationPreview,
   type DockTab,
+  type InterchangeAuditPreview,
   type PackageBuildPreview,
   type RuntimeBuildPreview,
 } from "./components/BottomPanel";
@@ -208,6 +212,8 @@ import { CompareView } from "./components/CompareView";
 import { SimulationLab } from "./components/simlab/SimulationLab";
 import { EscoOnlinePanel } from "./components/online/EscoOnlinePanel";
 import { getDefaultEscoOnlineSession } from "./esco-online-session";
+import { EscoGatewayClient, GatewayApiError } from "./gateway-client";
+import type { CloudProjectSummary } from "./gateway-contract";
 import { FloatingAssistant } from "./components/FloatingAssistant";
 import { LiveBridge } from "./components/LiveBridge";
 import { ProjectHistoryView } from "./components/ProjectHistoryView";
@@ -222,6 +228,7 @@ import { StatusBar } from "./components/StatusBar";
 import { FirstRunSetup } from "./components/FirstRunSetup";
 import { AboutDialog, type AboutDialogMode } from "./components/AboutDialog";
 import { FilePolicyDialog, type FilePolicyInfo } from "./components/FilePolicyDialog";
+import { CloudProjectsDialog } from "./components/CloudProjectsDialog";
 import { TagCsvPreviewDialog } from "./components/TagCsvPreviewDialog";
 import { ImportComponentDialog } from "./components/ImportComponentDialog";
 import { DesktopStartup } from "./components/DesktopStartup";
@@ -392,6 +399,12 @@ function seriesSiblingsOf(branch: LadderBranch, nodeId: string): LadderNode[] | 
   return branch.next ? seriesSiblingsOf(branch.next, nodeId) : undefined;
 }
 
+function describeCloudProjectError(error: unknown): string {
+  if (error instanceof GatewayApiError) return error.message;
+  if (error instanceof Error) return `ESCO API project storage is unavailable (${error.message}).`;
+  return String(error);
+}
+
 export function App() {
   const [initialProject] = useState(createInitialProject);
   const history = useHistoryState(initialProject);
@@ -427,6 +440,7 @@ export function App() {
   const [runtimeBuildPreview, setRuntimeBuildPreview] = useState<RuntimeBuildPreview | null>(null);
   const [packageBuildPreview, setPackageBuildPreview] = useState<PackageBuildPreview | null>(null);
   const [artifactValidationPreview, setArtifactValidationPreview] = useState<ArtifactValidationPreview | null>(null);
+  const [interchangeAuditPreview, setInterchangeAuditPreview] = useState<InterchangeAuditPreview | null>(null);
   const [copilotTab, setCopilotTab] = useState<CopilotTab>(initialLayout.copilotTab);
   const [rightPanelOpen, setRightPanelOpen] = useState(initialLayout.rightPanelOpen);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -442,12 +456,18 @@ export function App() {
   // import this session" surfaced in the About dialog.
   const [filePolicyInfo, setFilePolicyInfo] = useState<FilePolicyInfo | null>(null);
   const [lastBlockedImport, setLastBlockedImport] = useState<FilePolicyInfo | null>(null);
-  const [desktopSignInPrompted, setDesktopSignInPrompted] = useState(false);
-  const [firstRunComplete, setFirstRunComplete] = useState(() => isFirstRunComplete());
+  const [, setFirstRunComplete] = useState(() => isFirstRunComplete());
   const [desktopStartupOpen, setDesktopStartupOpen] = useState(() => isDesktopStartupRequested());
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
   const [recentProjects, setRecentProjects] = useState<RecentProjectEntry[]>(() => loadRecentProjects());
   const [projectFile, setProjectFile] = useState<DesktopSavedFile | null>(null);
+  const cloudClient = useMemo(() => new EscoGatewayClient(), []);
+  const [cloudProjectsOpen, setCloudProjectsOpen] = useState(false);
+  const [cloudProjects, setCloudProjects] = useState<CloudProjectSummary[]>([]);
+  const [cloudProjectsBusy, setCloudProjectsBusy] = useState(false);
+  const [cloudProjectsError, setCloudProjectsError] = useState<string | undefined>();
+  const [cloudProjectId, setCloudProjectId] = useState<string | undefined>();
+  const [cloudProjectRevision, setCloudProjectRevision] = useState<string | undefined>();
   const [projectPropertiesOpen, setProjectPropertiesOpen] = useState(false);
   const [controllerPropertiesOpen, setControllerPropertiesOpen] = useState(false);
   const [controllerPropertiesControllerId, setControllerPropertiesControllerId] = useState<string | undefined>(undefined);
@@ -574,6 +594,10 @@ export function App() {
     setDockTab(tab);
     setDockOpenKey((key) => key + 1);
   };
+  const showInterchangeAudit = (preview: InterchangeAuditPreview) => {
+    setInterchangeAuditPreview(preview);
+    openDockTab("handoff");
+  };
   const openCopilotPanel = (tab: CopilotTab = "chat") => {
     setCopilotTab(tab);
     setRightPanelOpen(true);
@@ -659,6 +683,7 @@ export function App() {
   const openProjectAlreadyConfirmedRef = useRef(false);
 
   const findings = useMemo(() => createDefaultEngine().run(project), [project]);
+  const handoffReadiness = useMemo(() => buildStudio5000HandoffReadiness(project), [project]);
   const rows = useMemo(() => watchRows(project, values), [project, values]);
   const allTags = useMemo(
     () =>
@@ -3332,12 +3357,15 @@ export function App() {
     setRunning(false);
     setLastExportedAt(null);
     setLastImport(null);
+    setInterchangeAuditPreview(null);
     setComparison(null);
     setClipboardRung(null);
     setTagCsvPreview(null);
     setProjectPropertiesOpen(false);
     setControllerPropertiesOpen(false);
     setControllerPropertiesControllerId(undefined);
+    setCloudProjectId(undefined);
+    setCloudProjectRevision(undefined);
     setRecovery(null);
     clearAutosave(); // starting from a file supersedes any recovered autosave
     setOpenRoutineWindowIds(routineWindowIdsForProject(loaded));
@@ -3366,12 +3394,15 @@ export function App() {
     setRunning(false);
     setLastExportedAt(null);
     setLastImport(null);
+    setInterchangeAuditPreview(null);
     setComparison(null);
     setClipboardRung(null);
     setTagCsvPreview(null);
     setProjectPropertiesOpen(false);
     setControllerPropertiesOpen(false);
     setControllerPropertiesControllerId(undefined);
+    setCloudProjectId(undefined);
+    setCloudProjectRevision(undefined);
     setNewProjectDialogOpen(false);
     setRecovery(null);
     setOpenRoutineWindowIds(routineWindowIdsForProject(blank));
@@ -3405,12 +3436,15 @@ export function App() {
     setRunning(false);
     setLastExportedAt(null);
     setLastImport(null);
+    setInterchangeAuditPreview(null);
     setComparison(null);
     setClipboardRung(null);
     setTagCsvPreview(null);
     setProjectPropertiesOpen(false);
     setControllerPropertiesOpen(false);
     setControllerPropertiesControllerId(undefined);
+    setCloudProjectId(undefined);
+    setCloudProjectRevision(undefined);
     setRecovery(null);
     setOpenRoutineWindowIds([]);
     setOpenRoutineId(undefined);
@@ -3434,12 +3468,15 @@ export function App() {
     setRunning(false);
     setLastExportedAt(null);
     setLastImport(null);
+    setInterchangeAuditPreview(null);
     setComparison(null);
     setClipboardRung(null);
     setTagCsvPreview(null);
     setProjectPropertiesOpen(false);
     setControllerPropertiesOpen(false);
     setControllerPropertiesControllerId(undefined);
+    setCloudProjectId(undefined);
+    setCloudProjectRevision(undefined);
     setRecovery(null);
     setOpenRoutineWindowIds(routineWindowIdsForProject(recovery.project));
     const main = findMainRoutine(recovery.project);
@@ -3457,7 +3494,6 @@ export function App() {
   const completeDesktopStartup = (action: DesktopStartupAction) => {
     recordDesktopStartupAction(action);
     setFirstRunComplete(true);
-    setDesktopSignInPrompted(false);
     setDesktopStartupOpen(false);
     void promoteDesktopWindowToIde();
   };
@@ -3495,12 +3531,6 @@ export function App() {
     setAboutDialog({ open: true, mode: "about" });
     push("info", `ESCO Automation Studio - ${runnableOffline} implemented or simulation-only areas.`);
   };
-  const handleDesktopSignIn = () => {
-    setDesktopSignInPrompted(true);
-    setSetupOpen(true);
-    push("info", "First-run workstation setup is required before opening the IDE.");
-  };
-
   const finishSavedProject = (fileName: string, savedFile: DesktopSavedFile | null) => {
     setSavedProject(project); // saving/exporting is the save point — mark clean
     setLastExportedAt(new Date().toISOString());
@@ -3549,6 +3579,114 @@ export function App() {
   };
   const handleExport = () => void handleSaveProject(false);
   const handleExportAs = () => void handleSaveProject(true);
+  const refreshCloudProjects = async () => {
+    setCloudProjectsBusy(true);
+    setCloudProjectsError(undefined);
+    try {
+      setCloudProjects(await cloudClient.listCloudProjects());
+    } catch (error) {
+      setCloudProjectsError(describeCloudProjectError(error));
+    } finally {
+      setCloudProjectsBusy(false);
+    }
+  };
+  const handleOpenCloudProjects = () => {
+    setCloudProjectsOpen(true);
+    void refreshCloudProjects();
+  };
+  const handleSaveCloudProject = async () => {
+    if (!projectOpen) {
+      push("info", "Open or create a project before saving to cloud storage.");
+      return;
+    }
+    setCloudProjectsBusy(true);
+    setCloudProjectsError(undefined);
+    try {
+      const expectedRevision = cloudProjectId === project.id ? cloudProjectRevision : undefined;
+      const result = await cloudClient.saveCloudProject(project, expectedRevision);
+      setCloudProjectId(result.summary.id);
+      setCloudProjectRevision(result.summary.revision);
+      setSavedProject(project);
+      setLastExportedAt(new Date().toISOString());
+      clearAutosave();
+      rememberProject({
+        projectId: project.id,
+        name: project.name,
+        source: "exported",
+        storage: "cloud",
+        fileName: `${project.name}.easproj`,
+      });
+      setCloudProjects(await cloudClient.listCloudProjects());
+      logActivity("export", `Saved "${project.name}" to ESCO cloud project storage.`);
+      push("success", `Saved "${project.name}" to cloud project storage.`);
+    } catch (error) {
+      const message = describeCloudProjectError(error);
+      setCloudProjectsError(message);
+      push("error", message);
+    } finally {
+      setCloudProjectsBusy(false);
+    }
+  };
+  const handleOpenCloudProject = async (projectId: string) => {
+    if (!(await confirmDiscardDirtyProject("Open cloud project"))) return;
+    setCloudProjectsBusy(true);
+    setCloudProjectsError(undefined);
+    try {
+      const result = await cloudClient.openCloudProject(projectId);
+      const loaded = recordImportProvenance(result.project, {
+        sourceType: "esco-project",
+        fileName: `ESCO Cloud: ${result.summary.name}`,
+      });
+      loadProject(loaded);
+      setCloudProjectId(result.summary.id);
+      setCloudProjectRevision(result.summary.revision);
+      setCloudProjectsOpen(false);
+      rememberProject({
+        projectId: result.project.id,
+        name: result.project.name,
+        source: "opened",
+        storage: "cloud",
+        fileName: `${result.project.name}.easproj`,
+      });
+      logActivity("import", `Opened "${result.project.name}" from ESCO cloud project storage.`);
+      push("success", `Opened "${result.project.name}" from cloud project storage.`);
+    } catch (error) {
+      const message = describeCloudProjectError(error);
+      setCloudProjectsError(message);
+      push("error", message);
+    } finally {
+      setCloudProjectsBusy(false);
+    }
+  };
+  const handleDeleteCloudProject = async (projectId: string) => {
+    if (
+      !(await requestConfirmation({
+        title: "Delete Cloud Project",
+        message: `Delete hosted project "${projectId}" from this API host?`,
+        confirmLabel: "Delete",
+        tone: "danger",
+      }))
+    ) {
+      return;
+    }
+    setCloudProjectsBusy(true);
+    setCloudProjectsError(undefined);
+    try {
+      await cloudClient.deleteCloudProject(projectId);
+      if (cloudProjectId === projectId) {
+        setCloudProjectId(undefined);
+        setCloudProjectRevision(undefined);
+      }
+      setCloudProjects(await cloudClient.listCloudProjects());
+      push("success", "Deleted cloud project.");
+    } catch (error) {
+      const message = describeCloudProjectError(error);
+      setCloudProjectsError(message);
+      push("error", message);
+    } finally {
+      setCloudProjectsBusy(false);
+    }
+  };
   const handleExportL5X = () => {
     const result = exportProjectL5X(project);
     if (!result.ok || !result.data) {
@@ -3557,9 +3695,16 @@ export function App() {
     }
     const filename = `${slugify(project.name)}.L5X`;
     downloadTextFile(filename, result.data.text, "application/xml");
+    const report = buildExportAuditReport(result.data.evidence, result.data.warnings);
+    showInterchangeAudit({
+      fileName: filename,
+      generatedAt: new Date().toISOString(),
+      report,
+      textReceipt: formatInterchangeAuditReport(report),
+    });
     logActivity("export", `Generated offline L5X "${filename}".`);
     rememberProject({ projectId: project.id, name: project.name, source: "exported", storage: "download", fileName: filename });
-    push("success", "Generated offline L5X. Review before use. No proprietary binary project modification.");
+    push("success", "Generated offline L5X and opened the handoff receipt. Review in Studio 5000 before use.");
     if (result.warnings?.length) push("warning", `${result.warnings.length} L5X export warning(s). Review generated file before use.`);
   };
   const handleExportTagsCsv = () => {
@@ -4142,6 +4287,13 @@ export function App() {
       loadProject(recordImportProvenance(result.project, { sourceType: "xml-review-import", fileName: file.name }));
       const s = result.data.summary;
       setLastImport({ name: result.project.name, summary: s });
+      const report = buildImportAuditReport(s);
+      showInterchangeAudit({
+        fileName: file.name,
+        generatedAt: new Date().toISOString(),
+        report,
+        textReceipt: formatInterchangeAuditReport(report),
+      });
       const counts = `${s.programs} program(s), ${s.routines} routine(s), ${s.rungs} rung(s), ${s.tags} tag(s)`;
       logActivity("import", `Imported L5X "${result.project.name}": ${counts}.`);
       rememberProject({ projectId: result.project.id, name: result.project.name, source: "imported", storage: "browser-file", fileName: file.name });
@@ -4720,7 +4872,6 @@ export function App() {
     </div>
   ) : null;
   const startup = desktopStartupOpen;
-  const firstRunLoginRequired = startup && (!firstRunComplete || !aiProfile);
 
   if (startup) {
     return (
@@ -4732,13 +4883,10 @@ export function App() {
           <>
             <DesktopStartup
               hasBackup={!!recovery}
-              requiresLogin={firstRunLoginRequired}
-              signInReady={desktopSignInPrompted}
               onOpenProject={handleDesktopOpenProject}
               onNewProject={handleDesktopNewProject}
               onImportL5X={handleDesktopImportL5X}
               onRestoreBackup={handleDesktopRestoreBackup}
-              onSignIn={handleDesktopSignIn}
               onContinueOffline={handleDesktopContinueOffline}
             />
             <FirstRunSetup
@@ -4823,6 +4971,7 @@ export function App() {
           onMainWindow={handleMainWindow}
           onExport={() => requireProject(handleExport)}
           onSaveAs={() => requireProject(handleExportAs)}
+          onOpenCloudProjects={handleOpenCloudProjects}
           onExportL5X={() => requireProject(handleExportL5X)}
           onExportTagsCsv={() => requireProject(handleExportTagsCsv)}
           onImportProject={handleImportClick}
@@ -4900,6 +5049,20 @@ export function App() {
               setAboutDialog({ open: true, mode: "about" });
             }}
             onCancel={() => setFilePolicyInfo(null)}
+          />
+          <CloudProjectsDialog
+            open={cloudProjectsOpen}
+            busy={cloudProjectsBusy}
+            projectOpen={projectOpen}
+            activeProjectId={cloudProjectId}
+            activeRevision={cloudProjectRevision}
+            error={cloudProjectsError}
+            projects={cloudProjects}
+            onClose={() => setCloudProjectsOpen(false)}
+            onRefresh={() => void refreshCloudProjects()}
+            onSaveCurrent={() => void handleSaveCloudProject()}
+            onOpenProject={(projectId) => void handleOpenCloudProject(projectId)}
+            onDeleteProject={(projectId) => void handleDeleteCloudProject(projectId)}
           />
           {confirmationDialog}
           {dialogHelp ? (
@@ -5502,6 +5665,10 @@ export function App() {
           runtimeBuildPreview={runtimeBuildPreview}
           packageBuildPreview={packageBuildPreview}
           artifactValidationPreview={artifactValidationPreview}
+          interchangeAuditPreview={interchangeAuditPreview}
+          handoffReadiness={handoffReadiness}
+          onImportL5X={handleImportL5XClick}
+          onExportL5X={handleExportL5X}
           onExportRuntime={handleExportRuntime}
           onExportPackage={handleExportPackage}
           onDownloadRuntimeToSoftController={handleSoftControllerDownloadRuntime}

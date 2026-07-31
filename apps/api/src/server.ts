@@ -6,7 +6,16 @@
  */
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { PlcProject } from "@esco/core";
 import { GatewayHost, normalizeGatewaySessionId } from "./gateway-host";
+import { ApiAuthPolicy, apiAuthPolicyFromEnv } from "./auth";
+import {
+  CloudProjectConflictError,
+  CloudProjectNotFoundError,
+  cloudProjectStoreFromEnv,
+  type CloudProjectStore,
+} from "./cloud-project-store";
+import { LogixDesignerSdkHost } from "./logix-designer-sdk-host";
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024; // local project JSON can be sizable
 const DEFAULT_SESSION_IDLE_MS = 30 * 60 * 1000;
@@ -17,6 +26,12 @@ export interface ApiServerOptions {
   sessionIdleMs?: number;
   /** How often the backend checks for inactive sessions. Set to 0 to disable. */
   sessionCleanupIntervalMs?: number;
+  /** Optional hosted auth policy. Defaults to ESCO_API_AUTH_TOKEN when set. */
+  authPolicy?: ApiAuthPolicy;
+  /** Optional hosted project store. Defaults to ESCO_PROJECT_STORE_DIR or .esco-cloud-projects. */
+  projectStore?: CloudProjectStore;
+  /** Optional Logix Designer SDK host. Defaults to the guarded local probe/preflight host. */
+  logixDesignerSdkHost?: LogixDesignerSdkHost;
 }
 
 function readBody(req: IncomingMessage): Promise<unknown> {
@@ -53,8 +68,8 @@ function send(res: ServerResponse, status: number, body: unknown): void {
     // Local engineering tool: the Vite dev servers (5173+) and the desktop
     // shell call this API cross-origin on the same machine.
     "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type, x-esco-session-id",
+    "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+    "access-control-allow-headers": "authorization, content-type, x-esco-api-token, x-esco-session-id",
   });
   res.end(JSON.stringify(body));
 }
@@ -85,6 +100,22 @@ function requestSessionId(req: IncomingMessage, url: string): string | undefined
   return normalizeGatewaySessionId(header);
 }
 
+function isProjectRoute(pathname: string): boolean {
+  return pathname === "/api/projects" || pathname.startsWith("/api/projects/");
+}
+
+function projectIdFromPath(pathname: string): string | undefined {
+  const prefix = "/api/projects/";
+  if (!pathname.startsWith(prefix)) return undefined;
+  const encoded = pathname.slice(prefix.length);
+  if (!encoded || encoded.includes("/")) return undefined;
+  return decodeURIComponent(encoded);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 async function handleTagSubscribe(host: GatewayHost, req: IncomingMessage, res: ServerResponse, url: string): Promise<void> {
   const { names, error } = parseSubscribeNames(url);
   const sessionId = requestSessionId(req, url);
@@ -93,6 +124,7 @@ async function handleTagSubscribe(host: GatewayHost, req: IncomingMessage, res: 
     "cache-control": "no-cache",
     connection: "keep-alive",
     "access-control-allow-origin": "*",
+    "access-control-allow-headers": "authorization, content-type, x-esco-api-token, x-esco-session-id",
   });
   if (error) {
     writeSse(res, "error-message", { error });
@@ -130,9 +162,13 @@ async function handleTagSubscribe(host: GatewayHost, req: IncomingMessage, res: 
 }
 
 export function createApiServer(host: GatewayHost = new GatewayHost(), options: ApiServerOptions = {}): Server {
+  const authPolicy = options.authPolicy ?? apiAuthPolicyFromEnv();
+  const projectStore = options.projectStore ?? cloudProjectStoreFromEnv();
+  const logixDesignerSdkHost = options.logixDesignerSdkHost ?? new LogixDesignerSdkHost();
   const server = createServer(async (req, res) => {
     const method = req.method ?? "GET";
     const url = req.url ?? "/";
+    const parsedUrl = new URL(url, "http://api.local");
 
     if (method === "OPTIONS") {
       send(res, 204, {});
@@ -144,7 +180,90 @@ export function createApiServer(host: GatewayHost = new GatewayHost(), options: 
       return;
     }
 
-    if (method === "GET" && new URL(url, "http://api.local").pathname === "/api/gateway/tags/subscribe") {
+    if (method === "GET" && parsedUrl.pathname === "/api/auth/context") {
+      send(res, 200, authPolicy.context(req.headers, parsedUrl.searchParams.get("apiToken") ?? undefined));
+      return;
+    }
+
+    if (
+      parsedUrl.pathname.startsWith("/api/gateway/") ||
+      parsedUrl.pathname.startsWith("/api/logix-designer-sdk/") ||
+      isProjectRoute(parsedUrl.pathname)
+    ) {
+      const auth = authPolicy.require(req.headers, parsedUrl.searchParams.get("apiToken") ?? undefined);
+      if (!auth.allowed) {
+        send(res, auth.status, { error: auth.error, auth: auth.context });
+        return;
+      }
+    }
+
+    if (isProjectRoute(parsedUrl.pathname)) {
+      try {
+        if (method === "GET" && parsedUrl.pathname === "/api/projects") {
+          send(res, 200, { projects: await projectStore.list() });
+          return;
+        }
+
+        if (method === "POST" && parsedUrl.pathname === "/api/projects") {
+          const body = await readBody(req);
+          if (!isRecord(body) || !isRecord(body.project)) {
+            send(res, 400, { error: "Project save requires a JSON body with a project object." });
+            return;
+          }
+          const expectedRevision =
+            typeof body.expectedRevision === "string" ? body.expectedRevision : undefined;
+          send(res, 200, await projectStore.save(body.project as unknown as PlcProject, { expectedRevision }));
+          return;
+        }
+
+        const projectId = projectIdFromPath(parsedUrl.pathname);
+        if (projectId && method === "GET") {
+          send(res, 200, await projectStore.read(projectId));
+          return;
+        }
+        if (projectId && method === "DELETE") {
+          const deleted = await projectStore.delete(projectId);
+          send(
+            res,
+            deleted ? 200 : 404,
+            deleted ? { ok: true } : { error: `Cloud project "${projectId}" was not found.` },
+          );
+          return;
+        }
+      } catch (cause) {
+        if (cause instanceof CloudProjectConflictError) {
+          send(res, 409, {
+            error: cause.message,
+            projectId: cause.projectId,
+            expectedRevision: cause.expectedRevision,
+            actualRevision: cause.actualRevision,
+          });
+          return;
+        }
+        if (cause instanceof CloudProjectNotFoundError) {
+          send(res, 404, { error: cause.message, projectId: cause.projectId });
+          return;
+        }
+        send(res, 400, { error: cause instanceof Error ? cause.message : String(cause) });
+        return;
+      }
+    }
+
+    if (parsedUrl.pathname.startsWith("/api/logix-designer-sdk/")) {
+      try {
+        const body = method === "POST" ? await readBody(req) : undefined;
+        const handled = await logixDesignerSdkHost.handle(method, url, body);
+        if (handled) {
+          send(res, handled.status, handled.body);
+          return;
+        }
+      } catch (cause) {
+        send(res, 400, { error: cause instanceof Error ? cause.message : String(cause) });
+        return;
+      }
+    }
+
+    if (method === "GET" && parsedUrl.pathname === "/api/gateway/tags/subscribe") {
       await handleTagSubscribe(host, req, res, url);
       return;
     }

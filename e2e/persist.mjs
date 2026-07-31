@@ -5,6 +5,7 @@ import {
   URL,
   STARTER_L5X,
   addRungViaProjectMenu,
+  clickFileMenuItem,
   createBoolTag,
   dismissToasts,
   openMainRoutine,
@@ -24,12 +25,6 @@ function check(label, cond, detail = "") {
 const rungCount = (page) => page.locator(".esco-lad__rung").count();
 const lampRows = (page) => page.locator('.esco-watch tr:has-text("Lamp")').count();
 const ladderButton = (page, type) => page.locator(`.esco-ribbon__button[aria-label="${type}"]`).first();
-const fileMenuItem = (page, label) => page.locator(`.esco-ribbon-menu__item:has-text("${label}")`).first();
-async function clickFileMenuItem(page, label) {
-  await page.locator('.esco-ribbon__tab:has-text("File")').click();
-  await page.locator(".esco-ribbon-menu").waitFor({ timeout: 5000 });
-  await fileMenuItem(page, label).click();
-}
 async function operandValues(scope) {
   return scope.locator("input.esco-lad__operand").evaluateAll((els) => els.map((e) => e.value));
 }

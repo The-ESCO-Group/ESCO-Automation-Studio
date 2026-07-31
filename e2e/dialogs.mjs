@@ -3,7 +3,7 @@
 import { chromium } from "playwright-core";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createBlankProject, URL } from "./helpers.mjs";
+import { clickFileMenuItem, createBlankProject, URL } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const results = [];
@@ -60,9 +60,12 @@ try {
   await page.locator(".esco-titlebar").waitFor();
 
   await page.locator('.esco-ribbon__tab:has-text("File")').click();
-  await page.locator(".esco-ribbon-menu").waitFor();
-  const fileMenu = await rect(page, ".esco-ribbon-menu");
-  const fileMenuRows = await page.locator(".esco-ribbon-menu__item").evaluateAll((items) =>
+  const fileMenuSelector = '.esco-ribbon-menu[aria-label="File menu"]';
+  await page.locator(fileMenuSelector).waitFor();
+  const fileMenu = await rect(page, fileMenuSelector);
+  const fileMenuRows = await page
+    .locator(`${fileMenuSelector} > .esco-ribbon-menu__item:visible, ${fileMenuSelector} > .esco-ribbon-menu__submenu > .esco-ribbon-menu__submenu-trigger:visible`)
+    .evaluateAll((items) =>
     items.map((item) => {
       const bounds = item.getBoundingClientRect();
       return { text: item.textContent?.replace(/\s+/g, " ").trim(), height: Math.round(bounds.height) };
@@ -90,8 +93,7 @@ try {
   await page.locator(".esco-new-project").waitFor({ state: "detached" });
   await page.locator('.esco-titlebar__name:has-text("Untitled Project")').waitFor();
 
-  await page.locator('.esco-ribbon__tab:has-text("File")').click();
-  await page.locator('.esco-ribbon-menu__item:has-text("Controller Properties")').click();
+  await clickFileMenuItem(page, "Controller Properties");
   await page.locator(".esco-controller-props").waitFor();
   const controllerProps = await rect(page, ".esco-controller-props");
   const controllerTabs = await page.locator(".esco-controller-props__tabs button").evaluateAll((tabs) =>

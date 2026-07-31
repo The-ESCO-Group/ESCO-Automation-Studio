@@ -3,6 +3,7 @@ dist/
 build/
 coverage/
 *.log
+*.pid
 .DS_Store
 .vite/
 .turbo/
@@ -28,6 +29,8 @@ e2e/*.csv
 
 # Internal AI agent orchestration scratch (prompts, skill defs, lock) — not part of the shipped app
 /.agents/
+/.claude/
+/.codex-dev-logs/
 /skills-lock.json
 
 # Generated AI-pipeline audit bundle + its archive — not part of the shipped app

@@ -1,17 +1,11 @@
 import { chromium } from "playwright-core";
-import { URL, dismissToasts, importStarterProject } from "./helpers.mjs";
+import { URL, clickFileMenuItem, dismissToasts, importStarterProject } from "./helpers.mjs";
 
 const results = [];
 const check = (label, cond, detail = "") => {
   results.push(!!cond);
   console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? "  - " + String(detail).replace(/\s+/g, " ").slice(0, 140) : ""}`);
 };
-
-async function clickFileMenuItem(page, label) {
-  await page.locator('.esco-ribbon__tab:has-text("File")').click();
-  await page.locator(".esco-ribbon-menu").waitFor({ timeout: 5000 });
-  await page.locator(`.esco-ribbon-menu__item:has-text("${label}")`).first().click();
-}
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, acceptDownloads: true });

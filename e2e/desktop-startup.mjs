@@ -23,38 +23,25 @@ try {
   const initialProgress = await firstRunPage.locator(".esco-desktop-startup__progress-track").getAttribute("aria-valuenow");
   check("first-run startup progress begins at zero", Number(initialProgress) <= 5, initialProgress ?? "");
   await firstRunPage.waitForFunction(() => Number(document.querySelector(".esco-desktop-startup__progress-track")?.getAttribute("aria-valuenow") ?? 0) >= 100);
-  await firstRunPage.locator(".esco-setup").waitFor();
+  await firstRunPage.locator(".esco-titlebar").waitFor({ timeout: 6000 });
   const firstRunGate = await firstRunPage.evaluate(() => ({
-    hasSignIn: document.querySelectorAll(".esco-desktop-startup__signin-required").length === 1,
-    signInText: document.querySelector(".esco-desktop-startup__signin-required")?.textContent?.trim() ?? "",
     setupOpen: document.querySelectorAll(".esco-setup").length === 1,
-    setupTitle: document.querySelector("#esco-setup-title")?.textContent?.trim() ?? "",
-    stillStartup: document.querySelectorAll(".esco-desktop-startup--figma").length === 1,
-    ideHidden: document.querySelectorAll(".esco-titlebar, .esco-ribbon, .esco-statusbar, .esco-left").length === 0,
+    startupGone: document.querySelectorAll(".esco-desktop-startup--figma").length === 0,
+    title: document.querySelector(".esco-titlebar__name")?.textContent ?? "",
+    organizer: document.querySelector(".esco-left")?.textContent?.replace(/\s+/g, " ").trim() ?? "",
+    rungs: document.querySelectorAll(".esco-lad__rung").length,
+    connection: document.querySelector(".esco-statusbar__connection")?.textContent?.trim() ?? "",
   }));
   check(
-    "first-run startup prompts sign-in before the IDE opens",
-    firstRunGate.setupOpen &&
-      /Set up ESCO Automation Studio/i.test(firstRunGate.setupTitle) &&
-      firstRunGate.stillStartup &&
-      firstRunGate.ideHidden,
+    "first-run startup promotes directly into the offline IDE",
+    !firstRunGate.setupOpen &&
+      firstRunGate.startupGone &&
+      /Untitled Project/.test(firstRunGate.title) &&
+      /Controller_1/.test(firstRunGate.organizer) &&
+      /MainRoutine/.test(firstRunGate.organizer) &&
+      firstRunGate.rungs >= 1 &&
+      /Offline/i.test(firstRunGate.connection),
     JSON.stringify(firstRunGate),
-  );
-  await firstRunPage.locator('.esco-setup [aria-label="Close setup"]').click();
-  await firstRunPage.locator(".esco-setup").waitFor({ state: "detached" });
-  const firstRunButtonGate = await firstRunPage.evaluate(() => ({
-    hasSignIn: document.querySelectorAll(".esco-desktop-startup__signin-required").length === 1,
-    signInText: document.querySelector(".esco-desktop-startup__signin-required")?.textContent?.trim() ?? "",
-    stillStartup: document.querySelectorAll(".esco-desktop-startup--figma").length === 1,
-    ideHidden: document.querySelectorAll(".esco-titlebar, .esco-ribbon, .esco-statusbar, .esco-left").length === 0,
-  }));
-  check(
-    "closing first-run setup leaves the sign-in gate in front of the IDE",
-    firstRunButtonGate.hasSignIn &&
-      /Sign in to continue/i.test(firstRunButtonGate.signInText) &&
-      firstRunButtonGate.stillStartup &&
-      firstRunButtonGate.ideHidden,
-    JSON.stringify(firstRunButtonGate),
   );
   await firstRunPage.close();
 
@@ -66,15 +53,21 @@ try {
   });
   await staleFlagPage.goto(startupUrl.toString(), { waitUntil: "domcontentloaded" });
   await staleFlagPage.waitForFunction(() => Number(document.querySelector(".esco-desktop-startup__progress-track")?.getAttribute("aria-valuenow") ?? 0) >= 100);
-  await staleFlagPage.locator(".esco-setup").waitFor();
+  await staleFlagPage.locator(".esco-titlebar").waitFor({ timeout: 6000 });
   const staleFlagGate = await staleFlagPage.evaluate(() => ({
     setupOpen: document.querySelectorAll(".esco-setup").length === 1,
-    stillStartup: document.querySelectorAll(".esco-desktop-startup--figma").length === 1,
-    ideHidden: document.querySelectorAll(".esco-titlebar, .esco-ribbon, .esco-statusbar, .esco-left").length === 0,
+    startupGone: document.querySelectorAll(".esco-desktop-startup--figma").length === 0,
+    title: document.querySelector(".esco-titlebar__name")?.textContent ?? "",
+    organizer: document.querySelector(".esco-left")?.textContent?.replace(/\s+/g, " ").trim() ?? "",
+    connection: document.querySelector(".esco-statusbar__connection")?.textContent?.trim() ?? "",
   }));
   check(
-    "stale first-run flag without a saved profile still prompts sign-in",
-    staleFlagGate.setupOpen && staleFlagGate.stillStartup && staleFlagGate.ideHidden,
+    "stale first-run flag without a saved profile still lands offline",
+    !staleFlagGate.setupOpen &&
+      staleFlagGate.startupGone &&
+      /Untitled Project/.test(staleFlagGate.title) &&
+      /MainRoutine/.test(staleFlagGate.organizer) &&
+      /Offline/i.test(staleFlagGate.connection),
     JSON.stringify(staleFlagGate),
   );
   await staleFlagPage.close();
@@ -96,7 +89,7 @@ try {
     );
     window.localStorage.setItem("esco.ai.profile.secret.v1", JSON.stringify("sk-ant-test"));
   });
-  await page.goto(startupUrl.toString(), { waitUntil: "networkidle" });
+  await page.goto(startupUrl.toString(), { waitUntil: "domcontentloaded" });
   await page.locator(".esco-desktop-startup--figma .esco-desktop-startup__window").waitFor();
 
   const startup = await page.evaluate(() => {

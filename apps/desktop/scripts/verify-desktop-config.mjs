@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * Desktop production preflight.
@@ -12,7 +13,7 @@ import { resolve } from "node:path";
  *   - the Tauri scaffold files exist;
  *   - the window opens at the compact startup-box size and promotes to the IDE;
  *   - a restrictive Content-Security-Policy is set (not null) and only opens
- *     connect-src to the opt-in AI hosts;
+ *     connect-src to the local ESCO API loopback origin plus opt-in AI hosts;
  *   - the capability set stays minimal (core permissions only — no broad
  *     fs/shell/http grants);
  *   - the desktop capability report stays honest (offline-simulation, no online
@@ -22,7 +23,7 @@ import { resolve } from "node:path";
  * the e2e runner.
  */
 
-const root = resolve(import.meta.dirname, "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
 let checks = 0;
 
@@ -62,6 +63,13 @@ check("bundle must reference an .ico icon.", (config.bundle?.icon ?? []).some((i
 
 // 3. The desktop window must open as the compact startup box and promote to the IDE.
 check("Desktop dev URL must request the desktop-only startup screen.", String(config.build?.devUrl ?? "").includes("desktop-startup=1"));
+check(
+  "Desktop beforeDevCommand must bind Vite to the devUrl host/port without silently falling forward.",
+  String(config.build?.beforeDevCommand ?? "").includes("exec vite") &&
+    String(config.build?.beforeDevCommand ?? "").includes("--host 127.0.0.1") &&
+    String(config.build?.beforeDevCommand ?? "").includes("--port 5173") &&
+    String(config.build?.beforeDevCommand ?? "").includes("--strictPort"),
+);
 const mainWindow = config.app?.windows?.[0];
 check("Packaged desktop window must request the desktop-only startup screen.", String(mainWindow?.url ?? "").includes("desktop-startup=1"));
 check(
@@ -82,22 +90,32 @@ if (typeof csp === "string") {
   check("CSP must set default-src to 'self'.", /default-src\s+'self'/.test(csp));
   check("CSP must set object-src to 'none'.", /object-src\s+'none'/.test(csp));
   check("CSP must restrict frame-ancestors to 'none'.", /frame-ancestors\s+'none'/.test(csp));
-  // connect-src must allow same-origin + the two opt-in AI hosts, and nothing wildcard.
+  // connect-src must allow same-origin + the local ESCO API loopback origins +
+  // the two opt-in AI hosts, and nothing wildcard.
   const connectMatch = csp.match(/connect-src\s+([^;]+)/);
   const connectSrc = connectMatch ? connectMatch[1] : "";
   check("CSP connect-src must include 'self'.", /'self'/.test(connectSrc));
+  check("CSP connect-src must allow the local ESCO API host.", connectSrc.includes("http://localhost:4000"));
+  check("CSP connect-src must allow the local ESCO API loopback address.", connectSrc.includes("http://127.0.0.1:4000"));
   check("CSP connect-src must allow the opt-in Anthropic host.", connectSrc.includes("https://api.anthropic.com"));
   check("CSP connect-src must allow the opt-in OpenAI host.", connectSrc.includes("https://api.openai.com"));
   check("CSP connect-src must not be a wildcard.", !connectSrc.includes("*"));
-  // Allowlist CEILING: connect-src must contain ONLY same-origin + the two opt-in
-  // AI hosts. This stops a future change from silently adding a controller
-  // gateway / online-edit host (e.g. an IP or LAN address) to the egress policy
+  // Allowlist CEILING: connect-src must contain ONLY same-origin + local ESCO
+  // API loopback origins + the two opt-in AI hosts. This stops a future change
+  // from silently adding a controller gateway / online-edit host (e.g. a LAN IP)
+  // to the egress policy
   // while still passing the "includes the AI hosts, no wildcard" floor above.
-  const ALLOWED_CONNECT_SRC = new Set(["'self'", "https://api.anthropic.com", "https://api.openai.com"]);
+  const ALLOWED_CONNECT_SRC = new Set([
+    "'self'",
+    "http://localhost:4000",
+    "http://127.0.0.1:4000",
+    "https://api.anthropic.com",
+    "https://api.openai.com",
+  ]);
   const connectTokens = connectSrc.trim().split(/\s+/).filter(Boolean);
   const unexpectedConnect = connectTokens.filter((token) => !ALLOWED_CONNECT_SRC.has(token));
   check(
-    `CSP connect-src must not add hosts beyond 'self' + the opt-in AI hosts (found: ${unexpectedConnect.join(", ") || "none"}).`,
+    `CSP connect-src must not add hosts beyond 'self' + local ESCO API loopback + opt-in AI hosts (found: ${unexpectedConnect.join(", ") || "none"}).`,
     unexpectedConnect.length === 0,
   );
   check("CSP must not allow 'unsafe-eval'.", !/unsafe-eval/.test(csp));
@@ -117,6 +135,7 @@ const webApp = readFileSync(resolve(root, "../web/src/App.tsx"), "utf8");
 const desktopStartup = readFileSync(resolve(root, "../web/src/components/DesktopStartup.tsx"), "utf8");
 const topAppBar = readFileSync(resolve(root, "../web/src/components/TopAppBar.tsx"), "utf8");
 const webCss = readFileSync(resolve(root, "../web/src/index.css"), "utf8");
+const launcher = readFileSync(resolve(root, "../../scripts/launch-latest-desktop.ps1"), "utf8");
 check("Desktop shell must expose the startup-to-IDE window promotion command.", rustShell.includes("promote_desktop_window_to_ide"));
 check("Desktop shell must expose the painted titlebar window command.", rustShell.includes("desktop_window_action"));
 for (const action of ["minimize", "toggle-maximize", "close"]) {
@@ -139,14 +158,9 @@ check("EXE startup must use the Figma Make startup screen.", desktopStartup.incl
 check("EXE startup card must be draggable in the undecorated shell.", desktopStartup.includes("data-tauri-drag-region"));
 check("EXE startup must show the Figma Make loading state.", desktopStartup.includes("INITIALIZING WORKSPACE"));
 check("EXE startup progress must begin at 0%.", desktopStartup.includes("useState(0)"));
-check(
-  "EXE startup must require login until a saved workstation profile exists.",
-  desktopStartup.includes("requiresLogin") && webApp.includes("!firstRunComplete || !aiProfile"),
-);
-check(
-  "EXE startup must automatically prompt the sign-in setup after loading.",
-  desktopStartup.includes("autoPrompted") && desktopStartup.includes("onSignIn();"),
-);
+check("EXE startup must not require sign-in before opening the IDE.", !desktopStartup.includes("requiresLogin"));
+check("EXE startup must not auto-prompt the sign-in setup.", !desktopStartup.includes("autoPrompted") && !desktopStartup.includes("onSignIn"));
+check("EXE startup must not block on first-run profile state.", !webApp.includes("!firstRunComplete || !aiProfile"));
 check("EXE startup CSS must not paint the old black outer stage.", !/background:\s*#1d1f22\s*!important/.test(webCss));
 check("Packaged startup window must not use the broken transparent Windows shell.", mainWindow?.transparent !== true);
 check("IDE titlebar must be draggable in the undecorated shell.", topAppBar.includes("data-tauri-drag-region"));
@@ -155,6 +169,20 @@ check(
   topAppBar.includes("controlDesktopWindow") && topAppBar.includes("esco-window-control"),
 );
 check("EXE startup CSS must include the Figma Make startup stage.", webCss.includes(".esco-desktop-startup--figma"));
+check("Desktop launcher must not kill a running IDE before building.", !launcher.includes("Stop-Process"));
+check(
+  "Desktop launcher must build into an isolated Cargo target dir so a running exe does not lock the rebuild.",
+  launcher.includes("CARGO_TARGET_DIR") && launcher.includes("desktop-launch-target") && launcher.includes("$targetDir"),
+);
+check(
+  "Desktop launcher must not merge native stderr into the success stream under ErrorActionPreference=Stop.",
+  !launcher.includes("*>&1") && !launcher.includes("2>&1"),
+);
+check(
+  "Desktop launcher error popup must time out instead of blocking unattended launches forever.",
+  /\$shell\.Popup\([\s\S]*,\s*30\s*,/.test(launcher) && !/\$shell\.Popup\([\s\S]*,\s*0\s*,/.test(launcher),
+);
+check("Desktop launcher must launch the exe produced in the selected Cargo target dir.", launcher.includes('Join-Path $targetDir "release\\esco-automation-studio-desktop.exe"'));
 
 if (failures.length) {
   for (const failure of failures) console.error(`✗ ${failure}`);

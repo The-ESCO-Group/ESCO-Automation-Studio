@@ -125,6 +125,11 @@
   color: #2e6da4;
 }
 
+.eol-btn--compact {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 .eol-hidden-input {
   display: none;
 }
@@ -160,6 +165,31 @@
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid #d7e0e8;
+}
+
+.eol-identity-tags {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #d7e0e8;
+}
+
+.eol-identity-tags__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 7px;
+}
+
+.eol-identity-tags__header strong {
+  color: #41576b;
+}
+
+.eol-identity-tags__header span {
+  color: #5b6f80;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .eol-capabilities__header {
@@ -228,6 +258,54 @@
   margin-top: 2px;
 }
 
+.eol-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.eol-readiness-driver {
+  border: 1px solid #d7e0e8;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.eol-readiness-driver__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.eol-readiness-driver p {
+  margin: 6px 0;
+  color: #5b6f80;
+}
+
+.eol-readiness-gates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.eol-site-gateway-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.eol-site-gateway {
+  border: 1px solid #d7e0e8;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.eol-site-gateway p {
+  margin: 6px 0;
+  color: #5b6f80;
+}
+
 .eol-kv {
   display: grid;
   grid-template-columns: 160px 1fr;
@@ -243,6 +321,48 @@
   margin: 0;
 }
 
+.eol-diagnostics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.eol-diagnostic {
+  border: 1px solid #d7e0e8;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.eol-diagnostic__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.eol-diagnostic__header span:last-child {
+  color: #5b6f80;
+}
+
+.eol-diagnostic p {
+  margin: 6px 0 0;
+}
+
+.eol-diagnostic__evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.eol-diagnostic__evidence code {
+  background: #eef1f4;
+  border-radius: 3px;
+  padding: 2px 5px;
+  color: #2c3c4a;
+}
+
 .eol-table {
   width: 100%;
   border-collapse: collapse;
@@ -255,6 +375,10 @@
 
 .eol-table--compact {
   min-width: 980px;
+}
+
+.eol-table--proof {
+  min-width: 720px;
 }
 
 .eol-table th,
@@ -310,10 +434,38 @@
   margin: 10px 0;
 }
 
+.eol-proof--setup {
+  border-top: 1px solid #d7e0e8;
+  padding-top: 10px;
+}
+
+.eol-proof__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
 .eol-proof h4 {
   margin: 0 0 8px;
   font-size: 12px;
   color: #41576b;
+}
+
+.eol-proof__header h4 {
+  margin: 0;
+}
+
+.eol-proof-steps {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: #5b6f80;
+}
+
+.eol-proof-steps li + li {
+  margin-top: 3px;
 }
 
 .eol-error-inline {

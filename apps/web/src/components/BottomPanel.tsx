@@ -13,10 +13,12 @@ import {
   type ControllerTaskStatusRow,
   type DiagnosticArea,
   type EscoPackageManifestEntry,
+  type InterchangeAuditReport,
   type RuntimeBuildSummary,
   type TaskScanStats,
 } from "@esco/project-actions";
 import type { ValidationFinding } from "@esco/validator";
+import type { Studio5000HandoffReadiness } from "@esco/ai-assistant";
 import type { Forces, TrendSample, WatchRow } from "../simulation";
 import type { ControllerSessionApi } from "../controller-session";
 import type { VirtualControllerApi } from "../virtual-controller-session";
@@ -32,6 +34,7 @@ export type DockTab =
   | "search"
   | "references"
   | "build"
+  | "handoff"
   | "tasks"
   | "watch"
   | "trend"
@@ -69,6 +72,13 @@ export interface ArtifactValidationPreview {
   errors: string[];
 }
 
+export interface InterchangeAuditPreview {
+  fileName: string;
+  generatedAt: string;
+  report: InterchangeAuditReport;
+  textReceipt: string;
+}
+
 interface Props {
   tab: DockTab;
   openKey?: number;
@@ -96,6 +106,10 @@ interface Props {
   runtimeBuildPreview?: RuntimeBuildPreview | null;
   packageBuildPreview?: PackageBuildPreview | null;
   artifactValidationPreview?: ArtifactValidationPreview | null;
+  interchangeAuditPreview?: InterchangeAuditPreview | null;
+  handoffReadiness?: Studio5000HandoffReadiness | null;
+  onImportL5X?: () => void;
+  onExportL5X?: () => void;
   onExportRuntime?: () => void;
   onExportPackage?: () => void;
   onDownloadRuntimeToSoftController?: () => void;
@@ -358,6 +372,10 @@ export function BottomPanel({
   runtimeBuildPreview,
   packageBuildPreview,
   artifactValidationPreview,
+  interchangeAuditPreview,
+  handoffReadiness,
+  onImportL5X,
+  onExportL5X,
   onExportRuntime,
   onExportPackage,
   onDownloadRuntimeToSoftController,
@@ -570,6 +588,21 @@ export function BottomPanel({
   );
   const artifactSummary = artifactValidationPreview?.summary;
   const artifactStatus = artifactValidationPreview ? artifactValidationStatus(artifactValidationPreview) : "Ready";
+  const interchangeReport = interchangeAuditPreview?.report;
+  const interchangeStatus =
+    interchangeReport == null
+      ? "Ready"
+      : interchangeReport.proprietaryBinaryTouched
+        ? "Failed"
+        : interchangeReport.changed.length || interchangeReport.dropped.length || interchangeReport.notes.length
+          ? "Warnings"
+          : "Passed";
+  const handoffReadinessStatus =
+    handoffReadiness == null
+      ? "Ready"
+      : handoffReadiness.validation.errors > 0 || !handoffReadiness.ready
+        ? "Warnings"
+        : "Passed";
   const trendNames = Array.from(
     new Set([
       selectedForceableRow?.name,
@@ -629,6 +662,13 @@ export function BottomPanel({
           onClick={() => setTab("build")}
         >
           Build
+        </button>
+        <button
+          type="button"
+          className={`esco-dock__tab${tab === "handoff" ? " is-active" : ""}`}
+          onClick={() => setTab("handoff")}
+        >
+          L5X Handoff
         </button>
         <button
           type="button"
@@ -1367,6 +1407,184 @@ export function BottomPanel({
                 ))
               )}
             </div>
+          </div>
+        ) : tab === "handoff" ? (
+          <div className="esco-l5x-handoff">
+            <div className="esco-dockbar">
+              <span>L5X handoff receipt</span>
+              <span className="esco-dockbar__muted">
+                ESCO creates offline review artifacts; Studio 5000 handles physical controller upload/download.
+              </span>
+              <div className="esco-dockbar__actions">
+                <button type="button" className="esco-btn" onClick={onImportL5X}>
+                  Import L5X
+                </button>
+                <button type="button" className="esco-btn" onClick={onExportL5X}>
+                  Export Review L5X
+                </button>
+              </div>
+            </div>
+            {handoffReadiness ? (
+              <section className="esco-runtime-preview" aria-label="Studio 5000 handoff readiness">
+                <div className="esco-runtime-preview__header">
+                  <div className="esco-runtime-preview__title">
+                    <strong>Studio 5000 Handoff Readiness</strong>
+                    <span>{handoffReadiness.ready ? "Ready to export for review" : "Needs attention before handoff"}</span>
+                  </div>
+                  <span className={`esco-runtime-preview__result is-${handoffReadinessStatus.toLowerCase()}`}>
+                    {handoffReadinessStatus}
+                  </span>
+                </div>
+                <div className="esco-runtime-preview__stats">
+                  <span>
+                    <strong>Controllers</strong>
+                    {handoffReadiness.counts.controllers}
+                  </span>
+                  <span>
+                    <strong>Tasks</strong>
+                    {handoffReadiness.counts.tasks}
+                  </span>
+                  <span>
+                    <strong>Programs</strong>
+                    {handoffReadiness.counts.programs}
+                  </span>
+                  <span>
+                    <strong>Routines</strong>
+                    {handoffReadiness.counts.routines}
+                  </span>
+                  <span>
+                    <strong>Tags</strong>
+                    {handoffReadiness.counts.tags}
+                  </span>
+                  <span>
+                    <strong>Errors</strong>
+                    {handoffReadiness.validation.errors}
+                  </span>
+                  <span>
+                    <strong>Warnings</strong>
+                    {handoffReadiness.validation.warnings}
+                  </span>
+                </div>
+                {handoffReadiness.warnings.length ? (
+                  <ul className="esco-runtime-preview__warnings" aria-label="Studio 5000 handoff readiness notes">
+                    {handoffReadiness.warnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="esco-runtime-preview__clean">No blocking handoff issues detected by ESCO validation.</div>
+                )}
+                <div className="esco-runtime-preview__fidelity">
+                  <span className="esco-runtime-preview__status">Next steps</span>
+                  {handoffReadiness.nextSteps.map((step) => (
+                    <span key={step}>{step}</span>
+                  ))}
+                </div>
+                <div className="esco-runtime-preview__boundary">
+                  {handoffReadiness.boundary}
+                </div>
+              </section>
+            ) : null}
+            {interchangeAuditPreview && interchangeReport ? (
+              <>
+                <section className="esco-runtime-preview" aria-label="L5X interchange audit">
+                  <div className="esco-runtime-preview__header">
+                    <div className="esco-runtime-preview__title">
+                      <strong>{interchangeReport.title}</strong>
+                      <span>{interchangeAuditPreview.fileName}</span>
+                    </div>
+                    <span className={`esco-runtime-preview__result is-${interchangeStatus.toLowerCase()}`}>
+                      {interchangeStatus}
+                    </span>
+                  </div>
+                  <div className="esco-runtime-preview__stats">
+                    <span>
+                      <strong>Direction</strong>
+                      {interchangeReport.direction}
+                    </span>
+                    <span>
+                      <strong>Format</strong>
+                      {interchangeReport.format}
+                    </span>
+                    <span>
+                      <strong>Generated</strong>
+                      {formatBuildTime(interchangeAuditPreview.generatedAt)}
+                    </span>
+                    <span>
+                      <strong>Offline only</strong>
+                      {interchangeReport.offlineOnly ? "yes" : "no"}
+                    </span>
+                    <span>
+                      <strong>Binary touched</strong>
+                      {interchangeReport.proprietaryBinaryTouched ? "yes" : "no"}
+                    </span>
+                    <span>
+                      <strong>Kept</strong>
+                      {interchangeReport.kept.length}
+                    </span>
+                    <span>
+                      <strong>Preserved</strong>
+                      {interchangeReport.dropped.length}
+                    </span>
+                    <span>
+                      <strong>Changed</strong>
+                      {interchangeReport.changed.length}
+                    </span>
+                  </div>
+                  <div className="esco-runtime-preview__boundary">
+                    Open the exported .L5X in Studio 5000 or approved Rockwell tooling before any controller transfer. ESCO does not write .ACD files or perform physical PLC upload/download.
+                  </div>
+                </section>
+                <table className="esco-runtime-preview__manifest-table esco-l5x-handoff__table" aria-label="L5X handoff details">
+                  <thead>
+                    <tr>
+                      <th>Section</th>
+                      <th>Item</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {interchangeReport.kept.map((line) => (
+                      <tr key={`kept-${line.label}-${line.detail}`}>
+                        <td>Kept</td>
+                        <td>{line.label}</td>
+                        <td>{line.detail}</td>
+                      </tr>
+                    ))}
+                    {interchangeReport.dropped.map((line) => (
+                      <tr key={`preserved-${line.label}-${line.detail}`}>
+                        <td>Preserved, not executed</td>
+                        <td>{line.label}</td>
+                        <td>{line.detail}</td>
+                      </tr>
+                    ))}
+                    {interchangeReport.changed.map((line) => (
+                      <tr key={`changed-${line.label}-${line.detail}`}>
+                        <td>Changed</td>
+                        <td>{line.label}</td>
+                        <td>{line.detail}</td>
+                      </tr>
+                    ))}
+                    {interchangeReport.kept.length + interchangeReport.dropped.length + interchangeReport.changed.length === 0 ? (
+                      <tr>
+                        <td colSpan={3}>No L5X audit rows are available yet.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+                <pre className="esco-l5x-handoff__receipt" aria-label="L5X text receipt">
+                  {interchangeAuditPreview.textReceipt}
+                </pre>
+              </>
+            ) : (
+              <section className="esco-runtime-preview is-empty" aria-label="No L5X handoff receipt">
+                <strong>No L5X handoff receipt</strong>
+                <span>Import or export an L5X review file to populate this receipt.</span>
+                <button type="button" className="esco-btn" onClick={onExportL5X}>
+                  Export Review L5X
+                </button>
+              </section>
+            )}
           </div>
         ) : tab === "tasks" ? (
           <div className="esco-task-monitor">

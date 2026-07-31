@@ -7,7 +7,7 @@ import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { readFileSync } from "node:fs";
-import { URL, STARTER_L5X } from "./helpers.mjs";
+import { clickFileMenuItem, dismissToasts, URL, STARTER_L5X } from "./helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const runtimePath = join(here, "exported-runtime.easruntime");
@@ -18,18 +18,7 @@ const check = (l, c, d = "") => {
   console.log(`${c ? "PASS" : "FAIL"}  ${l}${d ? "  — " + String(d).replace(/\s+/g, " ").slice(0, 160) : ""}`);
 };
 
-const fileMenuItem = (page, label) => page.locator(`.esco-ribbon-menu__item:has-text("${label}")`).first();
-async function clickFileMenuItem(page, label) {
-  await page.locator('.esco-ribbon__tab:has-text("File")').click();
-  await page.locator(".esco-ribbon-menu").waitFor({ timeout: 5000 });
-  await fileMenuItem(page, label).click();
-}
 const toast = (page, text) => page.locator(`.esco-toast:has-text("${text}")`).first();
-async function dismissToasts(page) {
-  while ((await page.locator(".esco-toast__close").count()) > 0) {
-    await page.locator(".esco-toast__close").first().click();
-  }
-}
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const context = await browser.newContext({ viewport: { width: 1400, height: 950 }, acceptDownloads: true });
